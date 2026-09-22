@@ -97,6 +97,21 @@ html[data-theme="dark"]{
 }
 
 *,*::before,*::after{box-sizing:border-box}
+
+/* ── 图标尺寸兜底 ──────────────────────────────────────────────
+   项目里的图标都是「无 width/height 的内联 <svg>」，靠 CSS 给尺寸。
+   一旦某个容器漏写 `svg{width:…}`，浏览器会把 SVG 当成替换元素按
+   「撑满可用宽度」处理 —— 一个 24×24 的小图标能放大到 300px，
+   在手机上直接糊满整屏（曾出现于 .wx__advice / .reading）。
+   这里给「文字行内的 svg」设一个安全默认值，具体模块可再覆盖。
+   注意两点，否则会误伤图表：
+     1) 只作用于「直接子元素」，不深入卡片内部的图表容器；
+     2) 图表类容器（.chart/.donut）以及带 data-chart 的显式排除。 */
+:where(.reading, .wx__advice, .bal__note, .empty, .li__bd) > svg:not([width]):not([height]){
+  width:17px;height:17px;flex:none;
+}
+/* 图表必须保持自身比例，禁止被上面的兜底规则压缩 */
+.chart svg, .donut svg, [data-chart] svg{width:auto;height:auto;max-width:100%}
 html,body{margin:0;padding:0}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{
@@ -401,6 +416,87 @@ html[data-theme="dark"] .wx{--ink-2:#d5cfc5; --ink-3:#b3aca1; --ink-4:#a09a8f;}
   background:var(--surface-2);border-left:3px solid var(--accent);
   font-size:13px;color:var(--ink-2);line-height:1.6;
 }
+/* 提示行里的小图标必须锁死尺寸：行内 SVG 不写 width/height 时，
+   浏览器会按「撑满容器」处理，24×24 的图标会放大成 200px+ 的巨型图形。
+   凡是「小图标 + 文字」的行内布局，都要显式约束 svg。 */
+.wx__advice svg{width:15px;height:15px;flex:none;margin-top:2px;color:var(--accent)}
+.wx__advice{display:flex;align-items:flex-start;gap:7px}
+
+/* ── 通勤天气 ─────────────────────────────────────────────── */
+/* 原生 checkbox 藏起来但保留可聚焦/可键盘操作，视觉交给 .switch */
+.swrow{
+  display:flex;align-items:center;gap:10px;cursor:pointer;
+  padding:10px 12px;border-radius:10px;background:var(--surface-2);
+  min-height:48px;
+}
+.swrow input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.swrow__t{font-size:13.5px;color:var(--ink-2);line-height:1.45}
+.swrow input:focus-visible + .switch{outline:2px solid var(--accent);outline-offset:2px}
+
+.cmt{
+  margin-top:12px;padding:12px 14px;border-radius:var(--r-sm);
+  background:var(--surface-2);border:1px solid var(--line);
+}
+.cmt--off{
+  display:flex;align-items:center;gap:8px;margin-top:12px;
+  padding:9px 13px;font-size:12.5px;color:var(--ink-3);
+  background:transparent;border:1px dashed var(--line);
+}
+.cmt--off svg{width:15px;height:15px;flex:none;color:var(--ink-4)}
+.cmt__lnk{
+  background:none;border:none;padding:0;margin-left:4px;cursor:pointer;
+  color:var(--accent);font:inherit;text-decoration:underline;
+  text-underline-offset:2px;text-decoration-thickness:1px;
+}
+.cmt__hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.cmt__tt{
+  display:flex;align-items:center;gap:6px;
+  font-size:12.5px;font-weight:600;color:var(--ink-2);letter-spacing:.01em;
+}
+.cmt__tt svg{width:14px;height:14px;flex:none;color:var(--accent)}
+.cmt__set{
+  margin-left:auto;width:26px;height:26px;flex:none;
+  display:grid;place-items:center;border-radius:8px;cursor:pointer;
+  background:transparent;border:1px solid var(--line);color:var(--ink-3);
+  transition:background .16s var(--ease),color .16s var(--ease);
+}
+.cmt__set:hover{background:var(--surface-3);color:var(--ink)}
+.cmt__set svg{width:13px;height:13px}
+.cmt__row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.cmt__c{
+  padding:9px 11px;border-radius:10px;background:var(--surface);
+  border:1px solid var(--line);
+}
+/* 有降水时给一点视觉提示，扫一眼就知道要不要带伞 */
+.cmt__c.is-wet{border-color:color-mix(in srgb, var(--sky) 42%, var(--line))}
+.cmt__lb{
+  display:flex;align-items:baseline;gap:6px;
+  font-size:11.5px;color:var(--ink-3);font-weight:600;
+}
+.cmt__lb i{font-style:normal;font-weight:500;color:var(--ink-4);font-variant-numeric:tabular-nums}
+.cmt__m{display:flex;align-items:center;gap:7px;margin-top:6px}
+.cmt__m svg{width:22px;height:22px;flex:none}
+.cmt__m b{font-size:17px;font-weight:600;line-height:1}
+.cmt__d{font-size:11.5px;color:var(--ink-3);margin-left:auto;text-align:right}
+.cmt__tip{
+  display:flex;align-items:flex-start;gap:6px;margin-top:9px;
+  font-size:12px;line-height:1.55;color:var(--ink-3);
+}
+.cmt__wd{display:flex;flex-wrap:wrap;gap:6px}
+.cmt__wdb{
+  padding:7px 12px;min-height:38px;border-radius:9px;cursor:pointer;
+  border:1px solid var(--line);background:var(--surface-2);
+  color:var(--ink-3);font:inherit;font-size:13px;
+  transition:background .16s var(--ease),color .16s var(--ease),border-color .16s var(--ease);
+}
+.cmt__wdb.is-on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.cmt__pick{display:flex;align-items:center;gap:8px}
+.cmt__pick .sel{width:auto;min-width:74px;flex:1;text-align:center}
+.cmt__colon{color:var(--ink-3);font-weight:600}
+@media (max-width:400px){
+  .cmt__row{grid-template-columns:1fr}
+  .cmt__d{margin-left:0;text-align:left}
+}
 .citypick{
   max-height:270px;overflow-y:auto;margin-top:9px;
   border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-2);
@@ -538,6 +634,8 @@ html[data-theme="dark"] .wx{--ink-2:#d5cfc5; --ink-3:#b3aca1; --ink-4:#a09a8f;}
 .aipick button.is-on{background:var(--accent);border-color:var(--accent);color:#fff}
 .aipick button i{width:7px;height:7px;border-radius:99px;background:currentColor;opacity:.55;font-style:normal}
 .reading{display:flex;align-items:flex-start;gap:12px;font-size:13.5px;line-height:1.6;color:var(--ink-2)}
+/* 同上：详情卡里 ic('info') 也是行内 SVG，不约束就会撑满整张卡 */
+.reading svg{width:17px;height:17px;flex:none;margin-top:1px;color:var(--ink-4)}
 
 /* ============================ 清单 / 表格 ============================ */
 .list{display:flex;flex-direction:column}
@@ -1052,7 +1150,10 @@ const DEFAULT_SETTINGS = {
   lastNews: null,
   lastWeather: null,
   backupHint: 20,
-  moneyMode: 'expense'
+  moneyMode: 'expense',
+  // 通勤时间：用于「今日」页展示上下班时段的天气。on 为总开关，
+  // 默认关闭，避免打扰不关心通勤的用户。
+  commute: { on: false, goH: 8, goM: 0, homeH: 18, homeM: 30, workdays: [1,2,3,4,5] }
 };
 
 function blankDB(){
@@ -1204,6 +1305,21 @@ const Store = {
       if (s.lastWeather && typeof s.lastWeather === 'object') out.settings.lastWeather = s.lastWeather;
       out.settings.backupHint = clamp(Number(s.backupHint) || 20, 5, 500);
       if (['expense','income'].includes(s.moneyMode)) out.settings.moneyMode = s.moneyMode;
+      // 通勤设置：老数据没有这个字段，缺省保持关闭（blankDB 里的默认值）。
+      // 用户显式存过才覆盖，避免把老用户强行拉进通勤模式。
+      if (s.commute && typeof s.commute === 'object'){
+        const c = s.commute;
+        out.settings.commute = {
+          on: !!c.on,
+          goH: clamp(Number(c.goH) ?? 8, 0, 23),
+          goM: clamp(Number(c.goM) ?? 0, 0, 59),
+          homeH: clamp(Number(c.homeH) ?? 18, 0, 23),
+          homeM: clamp(Number(c.homeM) ?? 30, 0, 59),
+          workdays: Array.isArray(c.workdays)
+            ? c.workdays.map(Number).filter(n => n >= 0 && n <= 6).slice(0, 7)
+            : [1,2,3,4,5]
+        };
+      }
     }
     // providers
     if (Array.isArray(raw.providers)){
@@ -1667,6 +1783,16 @@ const Weather = {
     const descZh = (cur.lang_zh && cur.lang_zh[0] && cur.lang_zh[0].value) || cur.weatherDesc?.[0]?.value || '';
     const area = d.nearest_area?.[0];
     const hours = [], today = d.weather?.[0];
+    // hoursAll：今天 0~23 点的完整逐小时序列，供「通勤天气」按任意时刻取数。
+    // 上面那个 hours 只截「当前时刻之后的 12 小时」，覆盖不到早班（如 8:00）。
+    const hoursAll = (today?.hourly || []).map(h => ({
+      h: Math.floor(Number(h.time) / 100),
+      t: Number(h.tempC),
+      code: Number(h.weatherCode),
+      desc: h.lang_zh?.[0]?.value || h.weatherDesc?.[0]?.value || '',
+      precip: Number(h.precipMM) || 0,
+      chance: Number(h.chanceofrain) || 0
+    })).filter(x => x.h >= 0 && x.h <= 23).sort((a, b) => a.h - b.h);
     if (today?.hourly){
       const nowH = new Date().getHours();
       today.hourly.forEach(h => {
@@ -1693,6 +1819,7 @@ const Weather = {
       precip: Number(cur.precipMM),
       obsTime: cur.observation_time || '',
       hours,
+      hoursAll,
       days: (d.weather || []).slice(0, 5).map(w => ({
         date: w.date, max: Number(w.maxtempC), min: Number(w.mintempC),
         code: Number(w.hourly?.[4]?.weatherCode ?? w.hourly?.[0]?.weatherCode ?? 113),
@@ -1718,6 +1845,18 @@ const Weather = {
       const dt = new Date(t);
       if (dt >= nowI && hours.length < 12) hours.push({ h: dt.getHours(), t: d.hourly.temperature_2m[i], code: d.hourly.weather_code[i], desc: '' });
     });
+    // hoursAll：今天的完整逐小时序列（open-meteo 一天 24 条），供通勤天气取数
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const hoursAll = (d.hourly?.time || []).map((t, i) => ({ t, i }))
+      .filter(({ t }) => String(t).slice(0, 10) === todayStr)
+      .map(({ t, i }) => ({
+        h: Number(String(t).slice(11, 13)),
+        t: d.hourly.temperature_2m[i],
+        code: d.hourly.weather_code[i],
+        desc: wmoText(d.hourly.weather_code[i]),
+        precip: d.hourly.precipitation?.[i] || 0,
+        chance: 0
+      })).sort((a, b) => a.h - b.h);
     const DAYNAME = ['周日','周一','周二','周三','周四','周五','周六'];
     return {
       src: 'open-meteo',
@@ -1728,6 +1867,7 @@ const Weather = {
       pressure: c.surface_pressure, vis: (c.visibility || 0) / 1000, uv: d.daily?.uv_index_max?.[0] || 0,
       precip: c.precipitation || 0, obsTime: (c.time || '').slice(11, 16),
       hours,
+      hoursAll,
       days: (d.daily?.time || []).slice(0, 5).map((t, i) => ({
         date: t, max: d.daily.temperature_2m_max[i], min: d.daily.temperature_2m_min[i],
         code: d.daily.weather_code[i], desc: wmoText(d.daily.weather_code[i]),
@@ -1743,6 +1883,34 @@ const Weather = {
         75:'大雪',77:'雪粒',80:'阵雨',81:'中阵雨',82:'强阵雨',85:'小阵雪',86:'大阵雪',95:'雷阵雨',96:'雷阵雨伴冰雹',99:'强雷暴伴冰雹'};
       return m[c] || '未知';
     }
+  },
+
+  /**
+   * 取「今天某个时刻」的天气，用于通勤卡。
+   * 优先在当前数据源里找最接近的小时；找不到就退回到用日高低温估算，
+   * 保证任何数据源（wttr 主 / open-meteo 备 / 缓存）都能出内容。
+   * @returns {{h:number,t:number,code:number,desc:string,precip:number,est:boolean}|null}
+   */
+  atHour(d, hh, mm){
+    if (!d) return null;
+    const target = hh + (mm || 0) / 60;
+    const all = (d.hoursAll || []).filter(x => x && x.h != null);
+    if (all.length){
+      // 找时间上最接近的一条
+      let best = all[0], gap = Infinity;
+      for (const x of all){
+        const g = Math.abs(x.h - target);
+        if (g < gap){ gap = g; best = x; }
+      }
+      // 差距超过 1.5 小时就不算「这个时刻」的数据了，转用估算
+      if (gap <= 1.5) return { ...best, est: false };
+    }
+    // 退化方案：按日高低温做一个正弦近似（最低出现在 5 点、最高出现在 14 点）
+    const day = d.days?.[0];
+    if (!day || day.max == null || day.min == null) return null;
+    const mid = (day.max + day.min) / 2, amp = (day.max - day.min) / 2;
+    const t = mid + amp * Math.sin(((target - 9) / 24) * 2 * Math.PI);
+    return { h: hh, t: Math.round(t * 10) / 10, code: day.code, desc: day.desc || '', precip: 0, chance: 0, est: true };
   },
 
   /** 生活化提示 */
@@ -2495,6 +2663,8 @@ function drawWeatherMain(d){
             '</div>';
         }).join('') + '</div>' : '') +
 
+        commuteBlock(d) +
+
         '<div class="wx__advice">' + ic('spark') + ' ' + esc(Weather.advice(d)) + '</div>' +
       '</div>' +
     '</div>';
@@ -2506,11 +2676,131 @@ function drawWeatherMain(d){
     toast('ok', '正在刷新天气');
   };
   WxCanvas.start($('#wxCv'), m.key);
+  const cEdit = $('#wxComute'); if (cEdit) cEdit.onclick = openCommuteSettings;
 
   function stat(label, val){
     return '<div class="wx__stat"><span>' + esc(label) + '</span><b class="num">' + val + '</b></div>';
   }
 }
+
+/**
+ * 通勤天气块 —— 展示上班、下班两个时刻的天气与提醒。
+ * 仅在设置里开启时渲染；未开启时给一行轻量入口，不占地方。
+ */
+function commuteBlock(d){
+  const c = Store.db.settings.commute || {};
+  if (!c.on){
+    return '<div class="cmt cmt--off">' + ic('clock') +
+      '<span>想看上下班时的天气？<button class="cmt__lnk" id="wxComute">设置通勤时间</button></span></div>';
+  }
+  const wd = Array.isArray(c.workdays) ? c.workdays : [1,2,3,4,5];
+  const isWork = wd.includes(new Date().getDay());
+  const go = Weather.atHour(d, c.goH, c.goM);
+  const hm = Weather.atHour(d, c.homeH, c.homeM);
+  const cell = (label, time, x, iconCls) => {
+    if (!x) return '<div class="cmt__c"><span class="cmt__lb">' + esc(label) + '</span>' +
+      '<b class="cmt__tm">' + esc(time) + '</b><span class="cmt__d">暂无数据</span></div>';
+    const mk = wxMeta(x.code, x.h >= 6 && x.h < 19, x.desc);
+    const wet = /雨|雪|雷/.test(x.desc || '');
+    return '<div class="cmt__c' + (wet ? ' is-wet' : '') + '">' +
+      '<span class="cmt__lb">' + esc(label) + '<i>' + esc(time) + '</i></span>' +
+      '<div class="cmt__m">' + wxIconSmall(mk.key) +
+        '<b class="num">' + esc(Math.round(x.t)) + '°</b>' +
+        '<span class="cmt__d">' + esc((x.desc || '—').slice(0, 8)) + '</span>' +
+      '</div></div>';
+  };
+  const tips = [];
+  if (go && /雨|雪|雷/.test(go.desc || '')) tips.push('上班时段有降水，伞别忘');
+  if (hm && /雨|雪|雷/.test(hm.desc || '')) tips.push('下班时段有降水，记得带伞');
+  if (go && go.t <= 8) tips.push('早上偏冷，加件外套');
+  if (hm && hm.t >= 30) tips.push('下班时闷热，注意补水');
+  if (go && go.t - (hm ? hm.t : go.t) >= 10) tips.push('早晚温差大，穿脱方便些');
+
+  return '<div class="cmt">' +
+    '<div class="cmt__hd">' +
+      '<span class="cmt__tt">' + ic('clock') + '通勤天气</span>' +
+      (isWork ? '' : '<span class="tag tag--sky" style="font-size:10.5px">今天休息</span>') +
+      '<button class="cmt__set" id="wxComute" title="修改通勤时间">' + ic('gear') + '</button>' +
+    '</div>' +
+    '<div class="cmt__row">' +
+      cell('上班', pad2(c.goH) + ':' + pad2(c.goM), go) +
+      cell('下班', pad2(c.homeH) + ':' + pad2(c.homeM), hm) +
+    '</div>' +
+    (tips.length ? '<div class="cmt__tip">' + esc(tips.slice(0, 2).join('；')) + '</div>' : '') +
+  '</div>';
+}
+/**
+ * 通勤天气设置 —— 开关 + 上下班时刻 + 工作日选择。
+ * 改完即存；关闭后重渲染天气页，让新设置立刻生效。
+ */
+function openCommuteSettings(){
+  const c = Store.db.settings.commute || { on:false, goH:8, goM:0, homeH:18, homeM:30, workdays:[1,2,3,4,5] };
+  const WD = [['周一',1],['周二',2],['周三',3],['周四',4],['周五',5],['周六',6],['周日',0]];
+  const timeSel = (id, h, m) =>
+    '<div class="cmt__pick">' +
+      '<select class="sel" id="' + id + 'H">' +
+        Array.from({ length: 24 }, (_, i) => '<option value="' + i + '"' + (i === h ? ' selected' : '') + '>' + pad2(i) + '</option>').join('') +
+      '</select><span class="cmt__colon">:</span>' +
+      '<select class="sel" id="' + id + 'M">' +
+        [0,5,10,15,20,25,30,35,40,45,50,55].map(i => '<option value="' + i + '"' + (i === m ? ' selected' : '') + '>' + pad2(i) + '</option>').join('') +
+      '</select>' +
+    '</div>';
+
+  const d = drawer({
+    title: '通勤天气',
+    sub: '上下班时段单独看天气',
+    body:
+      '<div class="sect"><h4>开关</h4>' +
+        '<label class="swrow"><input type="checkbox" id="cmOn"' + (c.on ? ' checked' : '') + '>' +
+          '<span class="switch" aria-hidden="true"></span>' +
+          '<span class="swrow__t">在「今日」页显示通勤天气</span></label>' +
+        '<p class="hint">开启后，天气卡里会多出一块，分别显示上班和下班时刻的温度与天气。</p>' +
+      '</div>' +
+
+      '<div class="sect"><h4>上班时间</h4>' + timeSel('cmGo', c.goH, c.goM) + '</div>' +
+      '<div class="sect"><h4>下班时间</h4>' + timeSel('cmHome', c.homeH, c.homeM) + '</div>' +
+
+      '<div class="sect"><h4>哪些天需要通勤</h4>' +
+        '<div class="cmt__wd">' + WD.map(([n, v]) =>
+          '<button class="cmt__wdb' + ((c.workdays || []).includes(v) ? ' is-on' : '') + '" data-wd="' + v + '">' + n + '</button>').join('') +
+        '</div>' +
+        '<p class="hint">非通勤日在卡片上会标出「今天休息」，时刻仍会显示，方便你临时参考。</p>' +
+      '</div>',
+
+    foot: '<button class="btn btn--primary btn--block" id="cmSave">' + ic('check') + '保存</button>'
+  });
+
+  const read = id => ({
+    h: Number($('#' + id + 'H', d.body).value),
+    m: Number($('#' + id + 'M', d.body).value)
+  });
+
+  $$('.cmt__wdb', d.body).forEach(b => b.onclick = () => {
+    b.classList.toggle('is-on');
+    // 允许全不选（比如自由职业者），但至少提示一下
+  });
+
+  $('#cmSave', d.el).onclick = () => {
+    const go = read('cmGo'), home = read('cmHome');
+    const wd = $$('.cmt__wdb', d.body).filter(b => b.classList.contains('is-on')).map(b => Number(b.dataset.wd));
+    const on = $('#cmOn', d.body).checked;
+    Store.mutate(db => {
+      db.settings.commute = { on, goH: go.h, goM: go.m, homeH: home.h, homeM: home.m, workdays: wd };
+    });
+    d.close();
+    toast('ok', on ? '已开启通勤天气' : '已关闭通勤天气');
+    // 抽屉关闭后重渲染当前视图。用 renderWeather 而非构造通用刷新入口：
+    // 这里只改天气相关设置，且调用方始终是天气页，不构成渲染函数互调环路。
+    setTimeout(() => { if (typeof renderWeather === 'function') renderWeather(); }, 60);
+  };
+
+  // 勾选时同步自绘开关的视觉状态（原生 checkbox 只做状态存储）
+  const onBox = $('#cmOn', d.body);
+  const syncSw = () => onBox.closest('.swrow')?.querySelector('.switch')?.classList.toggle('is-on', onBox.checked);
+  onBox.onchange = syncSw;
+  syncSw();
+}
+
 function wxIconSmall(key){
   const c = { sun:'#d9962f', moon:'#6b7699', cloud:'#8a9099', partly:'#c99a3c',
               rain:'#4a7189', storm:'#7a5c78', snow:'#7d97ab', fog:'#8c8578' }[key] || '#8a9099';
@@ -4249,6 +4539,8 @@ function openSettings(){
             VIEWS.map(v => '<option value="' + v.id + '"' + ((localStorage.getItem('lifehub.v1.home') || 'weather') === v.id ? ' selected' : '') + '>' + v.name + '</option>').join('') +
           '</select></div>' +
         '<p class="hint">下次打开页面时会直接进入这个模块。</p>' +
+        '<button class="btn btn--block" id="stCommute" style="margin-top:9px">' + ic('clock') +
+          '通勤天气' + (st.commute?.on ? ' · 已开启' : ' · 未开启') + '</button>' +
       '</div>' +
 
       '<div class="sect"><h4>数据</h4><div class="stack--sm" style="display:flex;flex-direction:column;gap:8px">' +
@@ -4298,6 +4590,8 @@ function openSettings(){
   $('#stExp', d.body).onclick = () => Backup.exportAll();
   $('#stImp', d.body).onclick = () => Backup.openImport();
   $('#stPanel', d.body).onclick = () => { d.close(); setTimeout(() => Backup.openPanel(), 260); };
+  // 通勤设置：先关掉当前抽屉再打开，避免两层抽屉叠在一起
+  $('#stCommute', d.body).onclick = () => { d.close(); setTimeout(() => openCommuteSettings(), 260); };
 }
 
 function applyTheme(){
