@@ -1062,41 +1062,52 @@ function blankDB(){
 }
 
 /**
- * 供应商配置迁移 —— 修正历史上写错的第三方地址。
- * 老版本把 Xiaomi MiMo 的 Base URL 写成了 https://api.mimo.ai/v1，
- * 该域名实际不存在（DNS 无法解析），导致余额与总结必然失败。
- * 官方正确地址见 https://mimo.mi.com/docs/zh-CN/tokenplan/integration/tools-overview
- * 这里只改「确实是我们写错的那一条」，用户自定义填的地址一律不动。
+ * 供应商配置迁移 —— 修正历史上写错的第三方地址与已停产的模型名。
+ *
+ * 1) Xiaomi MiMo：老版本把 Base URL 写成了 https://api.mimo.ai/v1，
+ *    该域名实际不存在（DNS 无法解析），导致余额与总结必然失败。
+ *    正确地址见 https://mimo.mi.com/docs/zh-CN/tokenplan/integration/tools-overview
+ *
+ * 2) Moonshot：kimi-k2-0905-preview / moonshot-v1-* 等已在 2026 年停产，
+ *    且 kimi-k2.5+ 系列把 temperature 锁死为 1，旧模型名会导致调用失败。
+ *
+ * 只改「确实是我们写错或已失效的那一条」，用户自定义填的内容一律不动。
  */
 const BAD_MIMO_BASES = ['https://api.mimo.ai/v1', 'https://api.mimo.ai', 'http://api.mimo.ai/v1'];
 const OLD_MIMO_MODELS = ['MiMo-7B-RL', 'MiMo-VL-7B-RL', 'mimo-7b-rl', 'mimo-vl-7b-rl'];
 const NEW_MIMO_MODELS = ['mimo-v2.6-pro', 'mimo-v2.6-flash', 'mimo-v2.6-pro-ultraspeed'];
+// 已停产 / 已下线的 Moonshot 模型 → 现役模型
+const RETIRED_MOONSHOT = /^(kimi-k2-(0711|0905|turbo)(-preview)?|kimi-k2-thinking(-turbo)?|kimi-latest|moonshot-v1-(8k|32k|128k|auto)(-vision-preview)?)$/i;
+const NEW_MOONSHOT_MODELS = ['kimi-k3', 'kimi-k2.6', 'kimi-k2.5'];
 
 function migrateProviders(list){
-  let touched = false;
-  const out = list.map(p => {
+  return list.map(p => {
     const q = { ...p };
     if (q.kind === 'mimo'){
+      let hit = false;
       // 1) 地址纠错
-      if (BAD_MIMO_BASES.includes(String(q.base || '').replace(/\/$/, '') + (/\/$/.test(q.base || '') ? '/' : ''))
-          || BAD_MIMO_BASES.includes(String(q.base || ''))){
+      if (BAD_MIMO_BASES.includes(String(q.base || '').replace(/\/$/, '')) || BAD_MIMO_BASES.includes(String(q.base || ''))){
         q.base = 'https://api.xiaomimimo.com/v1';
-        touched = true;
+        hit = true;
       }
-      // 2) 旧模型名 → 现役模型名
+      // 2) 旧模型名 → 现役模型名（仅当全部都是旧名时才替换，避免覆盖用户自选）
       const ms = (q.models || []).filter(Boolean);
-      const allOld = ms.length > 0 && ms.every(m => OLD_MIMO_MODELS.includes(m)
-        || /^MiMo-(7B|VL)/i.test(m) || /^mimo-(7b|vl)/i.test(m));
-      if (allOld){
+      if (ms.length > 0 && ms.every(m => OLD_MIMO_MODELS.includes(m) || /^mimo-(7b|vl)/i.test(m))){
         q.models = NEW_MIMO_MODELS.slice();
-        touched = true;
+        hit = true;
       }
       // 3) 清掉因旧地址失败而残留的错误状态
-      if (touched){ q.balErr = ''; q.bal = null; q.balMeta = null; }
+      if (hit){ q.balErr = ''; q.bal = null; q.balMeta = null; }
+    }
+    if (q.kind === 'moonshot'){
+      const ms = (q.models || []).filter(Boolean);
+      // 全部都是已停产模型才替换；用户混搭过新模型的保持原样
+      if (ms.length > 0 && ms.every(m => RETIRED_MOONSHOT.test(m))){
+        q.models = NEW_MOONSHOT_MODELS.slice();
+      }
     }
     return q;
   });
-  return out;
 }
 
 /** 预置供应商（Key 为空，仅骨架） */
@@ -1111,7 +1122,7 @@ function seedProviders(){
       color: '#ff8c38', letter: 'T', bal: null, balAt: 0, balErr: '',
       models: ['mimo-v2.6-pro', 'mimo-v2.6-flash'] },
     { id: uid(), name: 'Moonshot', kind: 'moonshot', key: '', base: 'https://api.moonshot.cn/v1',
-      color: '#12b7a8', letter: 'K', bal: null, balAt: 0, balErr: '', models: ['kimi-k2-0905-preview', 'moonshot-v1-32k'] }
+      color: '#12b7a8', letter: 'K', bal: null, balAt: 0, balErr: '', models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.5'] }
   ];
 }
 
@@ -1899,7 +1910,7 @@ const AI = {
       models: ['mimo-v2.6-pro', 'mimo-v2.6-flash'] },
     moonshot: { name: 'Moonshot', base: 'https://api.moonshot.cn/v1', color: '#12b7a8', letter: 'K',
       keys: 'https://platform.moonshot.cn/console/api-keys',
-      models: ['kimi-k2-0905-preview', 'moonshot-v1-32k', 'moonshot-v1-128k'] },
+      models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.5', 'moonshot-v1-32k'] },
     custom: { name: '自定义', base: '', color: '#7a5c78', letter: 'C', keys: '', models: [] }
   },
 
@@ -2051,6 +2062,23 @@ const AI = {
     toast(okN ? 'ok' : 'warn', '余额刷新完成', okN + ' / ' + list.length + ' 个供应商查询成功', 3800);
   },
 
+  /**
+   * 部分模型的采样参数被厂商锁死，传别的值会直接 400。
+   * 依据 Moonshot 官方说明（platform.kimi.com/docs/guide/benchmark-best-practice）：
+   *   kimi-k2.5 / k2.6 / k2-thinking* / k3  → temperature 只能为 1.0
+   *   kimi-k2-0711 / k2-0905 / k2-turbo     → 推荐 0.6
+   *   moonshot-v1-*                         → 接受任意值（0~2）
+   * 命中锁定的模型返回锁定值，其余沿用调用方传入的默认值。
+   */
+  tempFor(model, wanted){
+    const m = String(model || '').toLowerCase().trim();
+    // K2.5+ / K3 / thinking 系列：参数被锁死为 1
+    if (/^kimi-k(3|2\.[5-9])\b/.test(m) || /^kimi-k2-thinking/.test(m)) return 1;
+    // K2 早期版本：官方推荐 0.6
+    if (/^kimi-k2-(0[0-9]{3}|turbo)/.test(m)) return 0.6;
+    return wanted;
+  },
+
   /** 供新闻总结调用：用指定供应商发一次 chat 请求 */
   async chat(providerId, messages, { maxTokens = 1400, temperature = 0.4, timeout = 70000 } = {}){
     const p = this.get(providerId);
@@ -2061,12 +2089,29 @@ const AI = {
     const url = /\/v\d+$/.test(base) || /\/(chat\/)?completions$/.test(base)
       ? (/completions$/.test(base) ? base : base + '/chat/completions')
       : base + '/chat/completions';
-    const body = { model, messages, temperature, max_tokens: maxTokens, stream: false };
-    const d = await jjson(url, {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + p.key, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    }, timeout);
+
+    const call = async (t) => {
+      const body = { model, messages, temperature: t, max_tokens: maxTokens, stream: false };
+      return await jjson(url, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + p.key, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }, timeout);
+    };
+
+    let d;
+    try {
+      d = await call(this.tempFor(model, temperature));
+    } catch (e){
+      // 兜底：厂商锁定采样参数时会回 "invalid temperature: only N is allowed"，
+      // 从报错里读出它要求的数值再试一次，避免以后新增模型又要改代码。
+      const m = /invalid temperature[^0-9]*([0-9]*\.?[0-9]+)/i.exec(e.message || '');
+      if (e.status === 400 && m){
+        d = await call(Number(m[1]));
+      } else {
+        throw e;
+      }
+    }
     const c = d?.choices?.[0]?.message?.content;
     if (!c) throw new Error('模型未返回内容' + (d?.error?.message ? '：' + d.error.message : ''));
     return { text: c, model: d.model || model, usage: d.usage || null };
