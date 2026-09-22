@@ -470,6 +470,19 @@ html[data-theme="dark"] .wx{--ink-2:#d5cfc5; --ink-3:#b3aca1; --ink-4:#a09a8f;}
   font-size:12.5px;font-weight:600;color:var(--ink-2);letter-spacing:.01em;
 }
 .cmt__tt svg{width:14px;height:14px;flex:none;color:var(--accent)}
+/* 日期徽标：告诉用户看的是今天还是明天。切到明天时用强调色，避免误读 */
+.cmt__day{
+  padding:1px 7px;border-radius:6px;
+  background:var(--surface-3);color:var(--ink-3);
+  font-size:10.5px;font-weight:600;letter-spacing:.01em;
+}
+.cmt__day.is-next{background:var(--accent-soft);color:var(--accent-ink)}
+/* 「已过下班时间」的说明行：只在切到明天时出现 */
+.cmt__note{
+  display:flex;align-items:flex-start;gap:6px;margin-top:9px;
+  font-size:11.5px;line-height:1.55;color:var(--ink-4);
+}
+.cmt__note svg{width:13px;height:13px;flex:none;margin-top:2px}
 .cmt__set{
   margin-left:auto;width:26px;height:26px;flex:none;
   display:grid;place-items:center;border-radius:8px;cursor:pointer;
@@ -1007,7 +1020,7 @@ const SCHEMA  = 1;
 /* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
    APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
    只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.6';
+const APP_VER    = '1.7';
 const APP_NAME   = '日常 · 生活工作台';
 const APP_BUILD  = '2026-09-22';
 
@@ -1669,52 +1682,70 @@ const WX_CACHE_MS = 15 * 60 * 1000; // 15 分钟内不重复请求
      1) 按 weatherCode 查 WWO 官方码表（最准，与文案无关）
      2) code 认不出时，按英文描述里的关键词匹配（覆盖未收录的新文案）
      3) 都不中则原样返回，至少不会显示空白
+   中文命名参照「彩云天气 API · 天气现象」术语表：
+     https://docs.caiyunapp.com/weather-api/v2/v2.6/tables/skycon.html
+   即小/中/大/暴雨、小/中/大/暴雪、雾霾（不细分轻中重）、浮尘、沙尘、大风、雾。
    WWO 码表见 https://www.worldweatheronline.com/developer/api/docs/weather-icons.aspx */
 const WWO_ZH = {
-  113:'晴', 116:'局部多云', 119:'多云', 122:'阴',
-  125:'霾', 134:'沙尘暴', 137:'沙尘暴', 143:'薄雾', 145:'薄雾', 148:'薄雾',
-  149:'烟霾', 152:'霾', 154:'霾', 248:'雾', 251:'雾', 254:'雾', 260:'冻雾',
-  176:'附近有阵雨', 179:'附近有阵雪', 182:'附近有雨夹雪', 185:'附近有冻毛毛雨',
-  200:'附近有雷阵雨', 227:'吹雪', 230:'暴风雪',
-  263:'零星毛毛雨', 266:'毛毛雨', 281:'冻毛毛雨', 284:'强冻毛毛雨',
-  293:'零星小雨', 296:'小雨', 299:'间歇中雨', 302:'中雨',
-  305:'间歇大雨', 308:'大雨', 311:'小冻雨', 314:'中到大冻雨',
-  317:'小雨夹雪', 320:'中到大雨夹雪', 323:'零星小雪', 326:'小雪',
-  329:'零星中雪', 332:'中雪', 335:'零星大雪', 338:'大雪',
-  350:'冰粒', 353:'小阵雨', 356:'中到大阵雨', 359:'暴雨',
-  362:'小阵雨夹雪', 365:'中到大阵雨夹雪', 368:'小阵雪', 371:'中到大阵雪',
-  374:'小冰粒阵雨', 377:'中到大冰粒阵雨',
-  386:'零星雷阵雨', 389:'中到大雷阵雨', 392:'零星雷阵雪', 395:'中到大雷阵雪'
+  113:'晴', 116:'多云', 119:'阴', 122:'阴',
+  125:'雾霾', 134:'沙尘', 137:'沙尘', 143:'雾', 145:'雾', 148:'雾',
+  149:'浮尘', 152:'雾霾', 154:'雾霾', 248:'雾', 251:'雾', 254:'雾', 260:'雾',
+  176:'阵雨', 179:'阵雪', 182:'雨夹雪', 185:'冻毛毛雨',
+  200:'雷阵雨', 227:'吹雪', 230:'暴雪',
+  263:'毛毛雨', 266:'毛毛雨', 281:'冻雨', 284:'冻雨',
+  293:'小雨', 296:'小雨', 299:'中雨', 302:'中雨',
+  305:'大雨', 308:'大雨', 311:'冻雨', 314:'冻雨',
+  317:'雨夹雪', 320:'雨夹雪', 323:'小雪', 326:'小雪',
+  329:'中雪', 332:'中雪', 335:'大雪', 338:'大雪',
+  350:'冰粒', 353:'阵雨', 356:'大雨', 359:'暴雨',
+  362:'雨夹雪', 365:'雨夹雪', 368:'阵雪', 371:'大雪',
+  374:'冰粒', 377:'冰粒',
+  386:'雷阵雨', 389:'雷阵雨', 392:'雷阵雪', 395:'雷阵雪'
 };
 /** 英文描述关键词 → 中文（按「越具体越靠前」排序，命中即返回） */
 const EN_ZH_PATTERNS = [
-  [/freezing fog/i, '冻雾'], [/blizzard/i, '暴风雪'], [/blowing snow/i, '吹雪'],
-  [/torrential rain/i, '暴雨'],
+  [/freezing fog/i, '雾'], [/blizzard|storm snow/i, '暴雪'], [/blowing snow/i, '吹雪'],
+  [/torrential rain|storm rain/i, '暴雨'],
   [/thunder|thundery/i, '雷阵雨'],
-  [/heavy freezing drizzle/i, '强冻毛毛雨'], [/freezing drizzle/i, '冻毛毛雨'],
-  [/heavy freezing rain/i, '中到大冻雨'], [/freezing rain/i, '小冻雨'],
-  [/heavy rain shower/i, '中到大阵雨'], [/rain shower|shower/i, '小阵雨'],
-  [/heavy rain/i, '大雨'], [/moderate rain/i, '中雨'], [/light rain/i, '小雨'],
-  [/drizzle/i, '毛毛雨'], [/rain/i, '小雨'],
+  [/heavy freezing drizzle/i, '冻雨'], [/freezing drizzle/i, '冻雨'],
+  [/heavy freezing rain/i, '冻雨'], [/freezing rain/i, '冻雨'],
+  [/heavy rain|storm_rain/i, '大雨'], [/moderate rain/i, '中雨'], [/light rain/i, '小雨'],
+  [/drizzle/i, '毛毛雨'], [/rain shower|shower/i, '阵雨'], [/rain/i, '小雨'],
   [/heavy snow/i, '大雪'], [/moderate snow/i, '中雪'], [/light snow|snow/i, '小雪'],
   [/sleet/i, '雨夹雪'], [/ice pellet/i, '冰粒'],
-  [/smoky haze|smoky/i, '烟霾'], [/sandstorm/i, '沙尘暴'], [/dust/i, '沙尘暴'],
-  [/smog|haze/i, '霾'], [/mist/i, '薄雾'], [/fog/i, '雾'], [/hail/i, '冰雹'],
-  [/overcast/i, '阴'], [/partly cloudy|partly/i, '局部多云'], [/cloudy/i, '多云'],
-  [/sunny|clear/i, '晴'], [/windy/i, '大风']
+  // 彩云术语：浮尘（Smoky haze）、沙尘（Sandstorm/Dust）、雾霾（Haze/Smog）、雾（Mist/Fog）
+  [/smoky|dust|blowing dust/i, '浮尘'], [/sandstorm|sand/i, '沙尘'],
+  [/smog|haze/i, '雾霾'], [/mist/i, '雾'], [/fog/i, '雾'], [/hail/i, '冰雹'],
+  [/overcast/i, '阴'], [/partly cloudy|partly/i, '多云'], [/cloudy/i, '阴'],
+  [/sunny|clear/i, '晴'], [/windy|gale/i, '大风']
 ];
+/** WMO 码（open-meteo）→ 彩云天气术语。数字区间 0~99，与 WWO 表不重叠 */
+const WMO_ZH = {
+  0:'晴',1:'晴',2:'多云',3:'阴',45:'雾',48:'雾',51:'毛毛雨',53:'毛毛雨',55:'毛毛雨',
+  56:'冻雨',57:'冻雨',61:'小雨',63:'中雨',65:'大雨',66:'冻雨',67:'冻雨',71:'小雪',73:'中雪',
+  75:'大雪',77:'冰粒',80:'阵雨',81:'中雨',82:'大雨',85:'阵雪',86:'大雪',95:'雷阵雨',96:'雷阵雨',99:'雷阵雨'
+};
 /**
  * 天气描述转中文。
  * @param {number|string} code 天气码（优先按它查表）
  * @param {string} desc 上游返回的原文（中英不限）
  * @returns {string} 中文描述；已含中文则原样返回
+ *
+ * ⚠️ 两套码表数字不重叠，必须区分，否则会张冠李戴：
+ *    WWO 码（wttr.in）  113 ~ 395
+ *    WMO 码（open-meteo） 0 ~ 99
+ *   例如 code=1 是 WMO 的「晴」，若误查 WWO 表会得到 113 对应的值。
  */
 function wxText(code, desc){
   const raw = String(desc || '').trim();
   // 上游已经给了中文（如 open-meteo 的 wmoText 结果）就直接用
   if (/[\u4e00-\u9fa5]/.test(raw)) return raw;
-  const zh = WWO_ZH[Number(code)];
-  if (zh) return zh;
+  const c = Number(code);
+  if (Number.isFinite(c)){
+    // 按数字区间判断属于哪套码表
+    if (c >= 113 && c <= 395 && WWO_ZH[c]) return WWO_ZH[c];
+    if (c >= 0 && c <= 99 && WMO_ZH[c]) return WMO_ZH[c];
+  }
   for (const [re, t] of EN_ZH_PATTERNS) if (re.test(raw)) return t;
   return raw || '未知';
 }
@@ -1909,18 +1940,31 @@ const Weather = {
     const d = await jjson(url, {}, 13000);
     const cur = d.current_condition && d.current_condition[0];
     if (!cur) throw new Error('无当前天气数据');
-    const descZh = (cur.lang_zh && cur.lang_zh[0] && cur.lang_zh[0].value) || cur.weatherDesc?.[0]?.value || '';    const area = d.nearest_area?.[0];
+    const descZh = (cur.lang_zh && cur.lang_zh[0] && cur.lang_zh[0].value) || cur.weatherDesc?.[0]?.value || '';
+    const area = d.nearest_area?.[0];
     const hours = [], today = d.weather?.[0];
     // hoursAll：今天 0~23 点的完整逐小时序列，供「通勤天气」按任意时刻取数。
     // 上面那个 hours 只截「当前时刻之后的 12 小时」，覆盖不到早班（如 8:00）。
-    const hoursAll = (today?.hourly || []).map(h => ({
+    // 注意 wttr 的 hourly 是 3 小时间隔（每天只有 8 条：0/3/6/9/12/15/18/21），
+    // 所以取到的是「最接近的一格」，精度不如 open-meteo 的逐小时。
+    const mkHour = h => ({
       h: Math.floor(Number(h.time) / 100),
       t: Number(h.tempC),
       code: Number(h.weatherCode),
       desc: wxText(h.weatherCode, h.lang_zh?.[0]?.value || h.weatherDesc?.[0]?.value || ''),
       precip: Number(h.precipMM) || 0,
       chance: Number(h.chanceofrain) || 0
-    })).filter(x => x.h >= 0 && x.h <= 23).sort((a, b) => a.h - b.h);
+    });
+    const hoursAll = (today?.hourly || []).map(mkHour)
+      .filter(x => x.h >= 0 && x.h <= 23).sort((a, b) => a.h - b.h);
+    // hoursByDay：按日期索引的逐小时表，供「过了下班时间看明天通勤」跨天取数。
+    // 键是 YYYY-MM-DD，值是当天逐小时数组。
+    const hoursByDay = {};
+    (d.weather || []).forEach(w => {
+      if (!w?.date) return;
+      hoursByDay[w.date] = (w.hourly || []).map(mkHour)
+        .filter(x => x.h >= 0 && x.h <= 23).sort((a, b) => a.h - b.h);
+    });
     if (today?.hourly){
       const nowH = new Date().getHours();
       today.hourly.forEach(h => {
@@ -1956,6 +2000,7 @@ const Weather = {
       obsTime: cur.observation_time || '',
       hours,
       hoursAll,
+      hoursByDay,
       days: (d.weather || []).slice(0, 5).map(w => ({
         date: w.date, max: Number(w.maxtempC), min: Number(w.mintempC),
         code: Number(w.hourly?.[4]?.weatherCode ?? w.hourly?.[0]?.weatherCode ?? 113),
@@ -1981,18 +2026,29 @@ const Weather = {
       const dt = new Date(t);
       if (dt >= nowI && hours.length < 12) hours.push({ h: dt.getHours(), t: d.hourly.temperature_2m[i], code: d.hourly.weather_code[i], desc: '' });
     });
-    // hoursAll：今天的完整逐小时序列（open-meteo 一天 24 条），供通勤天气取数
-    const todayStr = new Date().toISOString().slice(0, 10);
+    // hoursAll：今天的完整逐小时序列（open-meteo 一天 24 条），供通勤天气取数。
+    // 这里用「本地日期」而不是 toISOString()（那是 UTC，东八区晚 8 点后会差一天）
+    const pad = n => String(n).padStart(2, '0');
+    const nowD = new Date();
+    const todayStr = nowD.getFullYear() + '-' + pad(nowD.getMonth() + 1) + '-' + pad(nowD.getDate());
+    const mkHour = (t, i) => ({
+      h: Number(String(t).slice(11, 13)),
+      t: d.hourly.temperature_2m[i],
+      code: d.hourly.weather_code[i],
+      desc: wmoText(d.hourly.weather_code[i]),
+      precip: d.hourly.precipitation?.[i] || 0,
+      chance: 0
+    });
     const hoursAll = (d.hourly?.time || []).map((t, i) => ({ t, i }))
       .filter(({ t }) => String(t).slice(0, 10) === todayStr)
-      .map(({ t, i }) => ({
-        h: Number(String(t).slice(11, 13)),
-        t: d.hourly.temperature_2m[i],
-        code: d.hourly.weather_code[i],
-        desc: wmoText(d.hourly.weather_code[i]),
-        precip: d.hourly.precipitation?.[i] || 0,
-        chance: 0
-      })).sort((a, b) => a.h - b.h);
+      .map(({ t, i }) => mkHour(t, i)).sort((a, b) => a.h - b.h);
+    // hoursByDay：按日期索引的逐小时表（open-meteo 给 6 天 × 24 小时，覆盖最全）
+    const hoursByDay = {};
+    (d.hourly?.time || []).forEach((t, i) => {
+      const day = String(t).slice(0, 10);
+      (hoursByDay[day] = hoursByDay[day] || []).push(mkHour(t, i));
+    });
+    Object.values(hoursByDay).forEach(arr => arr.sort((a, b) => a.h - b.h));
     const DAYNAME = ['周日','周一','周二','周三','周四','周五','周六'];
     return {
       src: 'open-meteo',
@@ -2004,6 +2060,7 @@ const Weather = {
       precip: c.precipitation || 0, obsTime: (c.time || '').slice(11, 16),
       hours,
       hoursAll,
+      hoursByDay,
       days: (d.daily?.time || []).slice(0, 5).map((t, i) => ({
         date: t, max: d.daily.temperature_2m_max[i], min: d.daily.temperature_2m_min[i],
         code: d.daily.weather_code[i], desc: wmoText(d.daily.weather_code[i]),
@@ -2013,24 +2070,34 @@ const Weather = {
       at: Date.now()
     };
     function fmtHM(s){ return (s || '').slice(11, 16); }
-    function wmoText(c){
-      const m = {0:'晴',1:'大致晴朗',2:'局部多云',3:'阴',45:'有雾',48:'雾凇',51:'小毛毛雨',53:'毛毛雨',55:'浓毛毛雨',
-        56:'冻毛毛雨',57:'浓冻毛毛雨',61:'小雨',63:'中雨',65:'大雨',66:'冻雨',67:'强冻雨',71:'小雪',73:'中雪',
-        75:'大雪',77:'雪粒',80:'阵雨',81:'中阵雨',82:'强阵雨',85:'小阵雪',86:'大阵雪',95:'雷阵雨',96:'雷阵雨伴冰雹',99:'强雷暴伴冰雹'};
-      return m[c] || '未知';
-    }
+    function wmoText(c){ return WMO_ZH[c] || '未知'; }
   },
 
   /**
-   * 取「今天某个时刻」的天气，用于通勤卡。
+   * 取「某天某个时刻」的天气，用于通勤卡。
    * 优先在当前数据源里找最接近的小时；找不到就退回到用日高低温估算，
    * 保证任何数据源（wttr 主 / open-meteo 备 / 缓存）都能出内容。
+   * @param {object} d 天气数据
+   * @param {number} hh 小时
+   * @param {number} mm 分钟
+   * @param {number} dayOffset 0=今天、1=明天（跨天时用 hoursByDay 取对应日期）
    * @returns {{h:number,t:number,code:number,desc:string,precip:number,est:boolean}|null}
    */
-  atHour(d, hh, mm){
+  atHour(d, hh, mm, dayOffset = 0){
     if (!d) return null;
     const target = hh + (mm || 0) / 60;
-    const all = (d.hoursAll || []).filter(x => x && x.h != null);
+    // dayOffset=0 用 hoursAll（今日），>0 从 hoursByDay 里按日期取
+    let pool = d.hoursAll || [];
+    let day = d.days?.[0];
+    if (dayOffset > 0){
+      const dt = new Date();
+      dt.setDate(dt.getDate() + dayOffset);
+      const key = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+      pool = d.hoursByDay?.[key] || [];
+      // 对应的日高低温也换成那一天，估算时才不会用错温度
+      day = (d.days || []).find(x => String(x.date).slice(0, 10) === key) || d.days?.[dayOffset] || day;
+    }
+    const all = pool.filter(x => x && x.h != null);
     if (all.length){
       // 找时间上最接近的一条
       let best = all[0], gap = Infinity;
@@ -2042,7 +2109,6 @@ const Weather = {
       if (gap <= 1.5) return { ...best, est: false };
     }
     // 退化方案：按日高低温做一个正弦近似（最低出现在 5 点、最高出现在 14 点）
-    const day = d.days?.[0];
     if (!day || day.max == null || day.min == null) return null;
     const mid = (day.max + day.min) / 2, amp = (day.max - day.min) / 2;
     const t = mid + amp * Math.sin(((target - 9) / 24) * 2 * Math.PI);
@@ -2827,6 +2893,9 @@ function drawWeatherMain(d){
 /**
  * 通勤天气块 —— 展示上班、下班两个时刻的天气与提醒。
  * 仅在设置里开启时渲染；未开启时给一行轻量入口，不占地方。
+ *
+ * 日期切换规则：一旦当前时间过了「下班时间」，今天这两段通勤都已经过去了，
+ * 再看今天的没有意义 —— 整块切到「明天」，标题上注明「明天」。
  */
 function commuteBlock(d){
   const c = Store.db.settings.commute || {};
@@ -2835,9 +2904,21 @@ function commuteBlock(d){
       '<span>想看上下班时的天气？<button class="cmt__lnk" id="wxComute">设置通勤时间</button></span></div>';
   }
   const wd = Array.isArray(c.workdays) ? c.workdays : [1,2,3,4,5];
-  const isWork = wd.includes(new Date().getDay());
-  const go = Weather.atHour(d, c.goH, c.goM);
-  const hm = Weather.atHour(d, c.homeH, c.homeM);
+
+  // 是否已经过了今天的下班时间 → 决定看今天还是明天
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const homeMin = c.homeH * 60 + c.homeM;
+  const isNext = nowMin > homeMin;          // 过了下班点，切到明天
+  const off = isNext ? 1 : 0;
+
+  const dayRef = new Date(now);
+  dayRef.setDate(dayRef.getDate() + off);
+  const dayName = WEEK[dayRef.getDay()];
+  const isWork = wd.includes(dayRef.getDay());   // 注意：判断的是「要看的那天」
+
+  const go = Weather.atHour(d, c.goH, c.goM, off);
+  const hm = Weather.atHour(d, c.homeH, c.homeM, off);
   const cell = (label, time, x, iconCls) => {
     if (!x) return '<div class="cmt__c"><span class="cmt__lb">' + esc(label) + '</span>' +
       '<b class="cmt__tm">' + esc(time) + '</b><span class="cmt__d">暂无数据</span></div>';
@@ -2852,22 +2933,26 @@ function commuteBlock(d){
       '</div></div>';
   };
   const tips = [];
-  if (go && /雨|雪|雷/.test(wxText(go.code, go.desc))) tips.push('上班时段有降水，伞别忘');
-  if (hm && /雨|雪|雷/.test(wxText(hm.code, hm.desc))) tips.push('下班时段有降水，记得带伞');
+  const dGo = go ? wxText(go.code, go.desc) : '', dHm = hm ? wxText(hm.code, hm.desc) : '';
+  if (/雨|雪|雷/.test(dGo)) tips.push('上班时段有降水，伞别忘');
+  if (/雨|雪|雷/.test(dHm)) tips.push('下班时段有降水，记得带伞');
   if (go && go.t <= 8) tips.push('早上偏冷，加件外套');
   if (hm && hm.t >= 30) tips.push('下班时闷热，注意补水');
-  if (go && go.t - (hm ? hm.t : go.t) >= 10) tips.push('早晚温差大，穿脱方便些');
+  if (go && hm && go.t - hm.t >= 10) tips.push('早晚温差大，穿脱方便些');
 
   return '<div class="cmt">' +
     '<div class="cmt__hd">' +
-      '<span class="cmt__tt">' + ic('clock') + '通勤天气</span>' +
-      (isWork ? '' : '<span class="tag tag--sky" style="font-size:10.5px">今天休息</span>') +
+      '<span class="cmt__tt">' + ic('clock') + '通勤天气' +
+        '<span class="cmt__day' + (isNext ? ' is-next' : '') + '">' + (isNext ? '明天' : '今天') + ' ' + dayName + '</span>' +
+      '</span>' +
+      (isWork ? '' : '<span class="tag tag--sky" style="font-size:10.5px">' + (isNext ? '次日休息' : '今天休息') + '</span>') +
       '<button class="cmt__set" id="wxComute" title="修改通勤时间">' + ic('gear') + '</button>' +
     '</div>' +
     '<div class="cmt__row">' +
       cell('上班', pad2(c.goH) + ':' + pad2(c.goM), go) +
       cell('下班', pad2(c.homeH) + ':' + pad2(c.homeM), hm) +
     '</div>' +
+    (isNext ? '<div class="cmt__note">' + ic('info') + '今天的通勤时段已过，这里显示的是明天。</div>' : '') +
     (tips.length ? '<div class="cmt__tip">' + esc(tips.slice(0, 2).join('；')) + '</div>' : '') +
   '</div>';
 }
