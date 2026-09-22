@@ -167,6 +167,16 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
   color:#fff;display:grid;place-items:center;font-weight:700;font-size:17px;
   letter-spacing:-.5px;box-shadow:var(--sh-1);margin-bottom:10px;
   font-family:var(--f-serif);
+  position:relative;                /* 版本徽标的定位锚点 */
+}
+/* 版本徽标：贴在 logo 右下角。字号极小、描边用侧栏底色，压得住又不抢眼 */
+.rail__ver{
+  position:absolute;right:-5px;bottom:-4px;
+  padding:1px 4px;border-radius:6px;
+  background:var(--surface-2);border:1px solid var(--line);
+  color:var(--ink-3);font-size:8.5px;font-weight:600;line-height:1.35;
+  font-family:var(--f-sans, inherit);letter-spacing:0;white-space:nowrap;
+  box-shadow:0 1px 2px rgba(0,0,0,.05);
 }
 .rail__nav{display:flex;flex-direction:column;gap:3px;flex:1;width:100%;align-items:center}
 .rail__sep{width:24px;height:1px;background:var(--line-2);margin:8px 0}
@@ -215,6 +225,12 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
   color:var(--ink-3);font-weight:400;
 }
 .topbar__sub{font-size:12px;color:var(--ink-3);margin-top:1px;letter-spacing:.01em}
+/* 顶栏版本号：手机端 logo 被隐藏，版本显示在这里兜底 */
+.topbar__ver{
+  display:inline-block;margin-left:7px;padding:0 5px;border-radius:5px;
+  background:var(--surface-3);color:var(--ink-4);
+  font-size:10px;font-weight:600;vertical-align:1px;letter-spacing:.02em;
+}
 .topbar__acts{display:flex;align-items:center;gap:7px;flex:none}
 
 .view{padding:24px 26px 0;max-width:1400px;width:100%;animation:viewIn .34s var(--ease) both}
@@ -775,6 +791,22 @@ table.tb td.num{text-align:right}
 .sect > h4::after{content:'';flex:1;height:1px;background:var(--line)}
 .hint{font-size:12px;color:var(--ink-4);line-height:1.55;margin:7px 0 0}
 .hint a{color:var(--accent)}
+/* 键值对清单：设置页「关于」里展示版本/构建/占用等信息 */
+.kv{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--r-sm);
+  overflow:hidden;
+}
+.kv > div{
+  display:flex;align-items:baseline;gap:8px;
+  padding:9px 12px;background:var(--surface-2);
+}
+.kv span{font-size:12px;color:var(--ink-3);flex:none}
+.kv b{
+  font-size:12.5px;font-weight:600;color:var(--ink);margin-left:auto;
+  font-variant-numeric:tabular-nums;text-align:right;
+}
+@media (max-width:520px){ .kv{grid-template-columns:1fr} }
 .stack{display:flex;flex-direction:column;gap:12px}
 .stack--sm{gap:8px}
 
@@ -971,6 +1003,13 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const LS_MAIN = 'lifehub.v1';
 const LS_BAK  = 'lifehub.v1.bak';
 const SCHEMA  = 1;
+
+/* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
+   APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
+   只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
+const APP_VER    = '1.6';
+const APP_NAME   = '日常 · 生活工作台';
+const APP_BUILD  = '2026-09-22';
 
 /** HTML 转义 —— 所有用户输入渲染前必过 */
 function esc(v){
@@ -1623,6 +1662,96 @@ const SVG = { ic };
    ========================================================================== */
 const WX_CACHE_MS = 15 * 60 * 1000; // 15 分钟内不重复请求
 
+/* ── 天气文案中文化 ────────────────────────────────────────────────
+   wttr.in 虽然支持 ?lang=zh，但实测它的 lang_zh 字段只是把英文原文
+   原样复制了一份（{"value":"Light rain shower"}），并不翻译。所以想
+   要中文只能自己映射。策略分三层，从可靠到兜底：
+     1) 按 weatherCode 查 WWO 官方码表（最准，与文案无关）
+     2) code 认不出时，按英文描述里的关键词匹配（覆盖未收录的新文案）
+     3) 都不中则原样返回，至少不会显示空白
+   WWO 码表见 https://www.worldweatheronline.com/developer/api/docs/weather-icons.aspx */
+const WWO_ZH = {
+  113:'晴', 116:'局部多云', 119:'多云', 122:'阴',
+  125:'霾', 134:'沙尘暴', 137:'沙尘暴', 143:'薄雾', 145:'薄雾', 148:'薄雾',
+  149:'烟霾', 152:'霾', 154:'霾', 248:'雾', 251:'雾', 254:'雾', 260:'冻雾',
+  176:'附近有阵雨', 179:'附近有阵雪', 182:'附近有雨夹雪', 185:'附近有冻毛毛雨',
+  200:'附近有雷阵雨', 227:'吹雪', 230:'暴风雪',
+  263:'零星毛毛雨', 266:'毛毛雨', 281:'冻毛毛雨', 284:'强冻毛毛雨',
+  293:'零星小雨', 296:'小雨', 299:'间歇中雨', 302:'中雨',
+  305:'间歇大雨', 308:'大雨', 311:'小冻雨', 314:'中到大冻雨',
+  317:'小雨夹雪', 320:'中到大雨夹雪', 323:'零星小雪', 326:'小雪',
+  329:'零星中雪', 332:'中雪', 335:'零星大雪', 338:'大雪',
+  350:'冰粒', 353:'小阵雨', 356:'中到大阵雨', 359:'暴雨',
+  362:'小阵雨夹雪', 365:'中到大阵雨夹雪', 368:'小阵雪', 371:'中到大阵雪',
+  374:'小冰粒阵雨', 377:'中到大冰粒阵雨',
+  386:'零星雷阵雨', 389:'中到大雷阵雨', 392:'零星雷阵雪', 395:'中到大雷阵雪'
+};
+/** 英文描述关键词 → 中文（按「越具体越靠前」排序，命中即返回） */
+const EN_ZH_PATTERNS = [
+  [/freezing fog/i, '冻雾'], [/blizzard/i, '暴风雪'], [/blowing snow/i, '吹雪'],
+  [/torrential rain/i, '暴雨'],
+  [/thunder|thundery/i, '雷阵雨'],
+  [/heavy freezing drizzle/i, '强冻毛毛雨'], [/freezing drizzle/i, '冻毛毛雨'],
+  [/heavy freezing rain/i, '中到大冻雨'], [/freezing rain/i, '小冻雨'],
+  [/heavy rain shower/i, '中到大阵雨'], [/rain shower|shower/i, '小阵雨'],
+  [/heavy rain/i, '大雨'], [/moderate rain/i, '中雨'], [/light rain/i, '小雨'],
+  [/drizzle/i, '毛毛雨'], [/rain/i, '小雨'],
+  [/heavy snow/i, '大雪'], [/moderate snow/i, '中雪'], [/light snow|snow/i, '小雪'],
+  [/sleet/i, '雨夹雪'], [/ice pellet/i, '冰粒'],
+  [/smoky haze|smoky/i, '烟霾'], [/sandstorm/i, '沙尘暴'], [/dust/i, '沙尘暴'],
+  [/smog|haze/i, '霾'], [/mist/i, '薄雾'], [/fog/i, '雾'], [/hail/i, '冰雹'],
+  [/overcast/i, '阴'], [/partly cloudy|partly/i, '局部多云'], [/cloudy/i, '多云'],
+  [/sunny|clear/i, '晴'], [/windy/i, '大风']
+];
+/**
+ * 天气描述转中文。
+ * @param {number|string} code 天气码（优先按它查表）
+ * @param {string} desc 上游返回的原文（中英不限）
+ * @returns {string} 中文描述；已含中文则原样返回
+ */
+function wxText(code, desc){
+  const raw = String(desc || '').trim();
+  // 上游已经给了中文（如 open-meteo 的 wmoText 结果）就直接用
+  if (/[\u4e00-\u9fa5]/.test(raw)) return raw;
+  const zh = WWO_ZH[Number(code)];
+  if (zh) return zh;
+  for (const [re, t] of EN_ZH_PATTERNS) if (re.test(raw)) return t;
+  return raw || '未知';
+}
+
+/* ── 行政区名中文化 ────────────────────────────────────────────────
+   wttr.in 返回的 region 是英文（Guangdong / Beijing），显示「广州 · Guangdong」
+   很跳。这里映射中国省级行政区 + 常见国家名。查不到就原样返回。 */
+const REGION_ZH = {
+  'guangdong':'广东','guangxi':'广西','beijing':'北京','shanghai':'上海','tianjin':'天津',
+  'chongqing':'重庆','hebei':'河北','shanxi':'山西','liaoning':'辽宁','jilin':'吉林',
+  'heilongjiang':'黑龙江','jiangsu':'江苏','zhejiang':'浙江','anhui':'安徽','fujian':'福建',
+  'jiangxi':'江西','shandong':'山东','henan':'河南','hubei':'湖北','hunan':'湖南',
+  'hainan':'海南','sichuan':'四川','guizhou':'贵州','yunnan':'云南','shaanxi':'陕西',
+  'gansu':'甘肃','qinghai':'青海','inner mongolia':'内蒙古','neimenggu':'内蒙古',
+  'ningxia':'宁夏','xinjiang':'新疆','xizang':'西藏','tibet':'西藏',
+  'hong kong':'中国香港','hong kong sar':'中国香港','macau':'中国澳门','macao':'中国澳门',
+  'taiwan':'中国台湾',
+  'china':'中国','japan':'日本','korea':'韩国','south korea':'韩国','singapore':'新加坡',
+  'malaysia':'马来西亚','thailand':'泰国','vietnam':'越南','united states':'美国',
+  'united kingdom':'英国','australia':'澳大利亚','canada':'加拿大'
+};
+/**
+ * 地名/行政区名转中文。支持 "A · B" 这种拼接串，逐段转换。
+ * @param {string} s 原始地区串
+ */
+function regionText(s){
+  const raw = String(s || '').trim();
+  if (!raw) return '';
+  return raw.split(/\s*·\s*/).map(seg => {
+    const t = seg.trim();
+    if (!t) return '';
+    if (/[\u4e00-\u9fa5]/.test(t)) return t;          // 已是中文
+    const zh = REGION_ZH[t.toLowerCase()];
+    return zh || t;
+  }).filter(Boolean).join(' · ');
+}
+
 /** WMO / wttr 天气码 → 图标 + 文案 + 配色 */
 function wxMeta(code, isDay = true, descText = ''){
   const c = Number(code);
@@ -1650,7 +1779,7 @@ function wxMeta(code, isDay = true, descText = ''){
     rain:{c:'#4a7189',bg:'var(--wx-rain)'}, storm:{c:'#7a5c78',bg:'var(--wx-storm)'},
     snow:{c:'#7d97ab',bg:'var(--wx-snow)'}, fog:{c:'#8c8578',bg:'var(--wx-fog)'}
   }[key] || {c:'#8a9099', bg:'var(--wx-cloud)'};
-  return { key, tone, icon: key };
+  return { key, tone, icon: key, label: wxText(c, descText) };
 }
 /** 天气大图标（彩色） */
 function wxIconBig(key, size = 88){
@@ -1780,8 +1909,7 @@ const Weather = {
     const d = await jjson(url, {}, 13000);
     const cur = d.current_condition && d.current_condition[0];
     if (!cur) throw new Error('无当前天气数据');
-    const descZh = (cur.lang_zh && cur.lang_zh[0] && cur.lang_zh[0].value) || cur.weatherDesc?.[0]?.value || '';
-    const area = d.nearest_area?.[0];
+    const descZh = (cur.lang_zh && cur.lang_zh[0] && cur.lang_zh[0].value) || cur.weatherDesc?.[0]?.value || '';    const area = d.nearest_area?.[0];
     const hours = [], today = d.weather?.[0];
     // hoursAll：今天 0~23 点的完整逐小时序列，供「通勤天气」按任意时刻取数。
     // 上面那个 hours 只截「当前时刻之后的 12 小时」，覆盖不到早班（如 8:00）。
@@ -1789,7 +1917,7 @@ const Weather = {
       h: Math.floor(Number(h.time) / 100),
       t: Number(h.tempC),
       code: Number(h.weatherCode),
-      desc: h.lang_zh?.[0]?.value || h.weatherDesc?.[0]?.value || '',
+      desc: wxText(h.weatherCode, h.lang_zh?.[0]?.value || h.weatherDesc?.[0]?.value || ''),
       precip: Number(h.precipMM) || 0,
       chance: Number(h.chanceofrain) || 0
     })).filter(x => x.h >= 0 && x.h <= 23).sort((a, b) => a.h - b.h);
@@ -1797,22 +1925,30 @@ const Weather = {
       const nowH = new Date().getHours();
       today.hourly.forEach(h => {
         const hh = Math.floor(Number(h.time) / 100);
-        if (hh >= nowH) hours.push({ h: hh, t: Number(h.tempC), code: Number(h.weatherCode), desc: h.lang_zh?.[0]?.value || h.weatherDesc?.[0]?.value || '' });
+        if (hh >= nowH) hours.push({ h: hh, t: Number(h.tempC), code: Number(h.weatherCode), desc: wxText(h.weatherCode, h.lang_zh?.[0]?.value || h.weatherDesc?.[0]?.value || '') });
       });
       today.hourly.slice(0, Math.max(0, 4 - hours.length)).forEach(h => {
-        hours.push({ h: Math.floor(Number(h.time) / 100), t: Number(h.tempC), code: Number(h.weatherCode), desc: h.lang_zh?.[0]?.value || '', next: true });
+        hours.push({ h: Math.floor(Number(h.time) / 100), t: Number(h.tempC), code: Number(h.weatherCode), desc: wxText(h.weatherCode, h.lang_zh?.[0]?.value || ''), next: true });
       });
     }
-    // 用经纬度查 wttr 时会返回英文地名，若用户已知中文城市名则优先采用
+    // 用经纬度查 wttr 时会返回英文地名，若用户已知中文城市名则优先采用。
+    // 注意：wttr 是「就近取站点」，边境地区常取到邻近行政区（如深圳坐标取到
+    // 中国香港的 Ma Tso Lung）。用户手动选的城市名比它准，有中文名就一律用它。
     const wtName = area?.areaName?.[0]?.value || '';
     const cnName = city.name || '';
-    const useCn = cnName && /[\u4e00-\u9fa5]/.test(cnName) && !/[\u4e00-\u9fa5]/.test(wtName);
+    const useCn = cnName && /[\u4e00-\u9fa5]/.test(cnName);
+    // 地区串：优先用用户所在城市的省（中文，准确），否则退回 wttr 的英文并翻译
+    const wtRegion = area?.region?.[0]?.value || '';
+    const region = regionText(city.region || '') || regionText(wtRegion);
+    // 城市名只保留市本身（去掉可能的「市 · 省」拼接），省名由 region 单独展示，
+    // 否则会出现「广州 · 广东 · 广东」这种重复
+    const place = String(useCn ? cnName : (wtName || cnName)).split(/\s*·\s*/)[0];
     return {
       src: 'wttr.in',
-      place: useCn ? cnName : (wtName || cnName),
-      region: (area?.region?.[0]?.value || city.region || ''),
+      place: place,
+      region: region,
       temp: Number(cur.temp_C), feels: Number(cur.FeelsLikeC),
-      code: Number(cur.weatherCode), desc: descZh || cur.weatherDesc?.[0]?.value || '',
+      code: Number(cur.weatherCode), desc: wxText(cur.weatherCode, descZh || cur.weatherDesc?.[0]?.value || ''),
       humidity: Number(cur.humidity), windK: Number(cur.windspeedKmph),
       windDir: cur.winddir16Point || '', pressure: Number(cur.pressure),
       vis: Number(cur.visibility), uv: Number(cur.uvIndex) || 0,
@@ -1823,7 +1959,7 @@ const Weather = {
       days: (d.weather || []).slice(0, 5).map(w => ({
         date: w.date, max: Number(w.maxtempC), min: Number(w.mintempC),
         code: Number(w.hourly?.[4]?.weatherCode ?? w.hourly?.[0]?.weatherCode ?? 113),
-        desc: w.hourly?.[4]?.lang_zh?.[0]?.value || w.hourly?.[4]?.weatherDesc?.[0]?.value || '',
+        desc: wxText(w.hourly?.[4]?.weatherCode ?? w.hourly?.[0]?.weatherCode, w.hourly?.[4]?.lang_zh?.[0]?.value || w.hourly?.[4]?.weatherDesc?.[0]?.value || ''),
         sunrise: w.astronomy?.[0]?.sunrise || '', sunset: w.astronomy?.[0]?.sunset || ''
       })),
       sunset: d.weather?.[0]?.astronomy?.[0]?.sunset || '',
@@ -1860,7 +1996,7 @@ const Weather = {
     const DAYNAME = ['周日','周一','周二','周三','周四','周五','周六'];
     return {
       src: 'open-meteo',
-      place: city.name, region: city.region || '',
+      place: city.name, region: regionText(city.region || ''),
       temp: c.temperature_2m, feels: c.apparent_temperature,
       code: c.weather_code, desc: wmoText(c.weather_code),
       humidity: c.relative_humidity_2m, windK: c.wind_speed_10m, windDir: '',
@@ -2597,6 +2733,9 @@ async function renderWeather(){
 
 function drawWeatherMain(d){
   const m = wxMeta(d.code, isDayNow(d), d.desc);
+  // 统一走一层中文兜底：老缓存里可能还存着英文 desc（数据层已修，但缓存 15 分钟内不会重取）
+  const dDesc = wxText(d.code, d.desc);
+  const dRegion = regionText(d.region);   // 地区名同样兜底，老缓存可能存着英文
   const host = $('#wxHost');
   if (!host) return;                       // 宿主已不存在（视图已切换），安全退出
   const tc = Weather.tempColor(d.temp);
@@ -2609,8 +2748,8 @@ function drawWeatherMain(d){
       '<div class="wx__inner">' +
         '<div class="wx__top">' +
           '<div>' +
-            '<div class="wx__place">' + ic('loc') + '<span>' + esc(d.place || Store.db.settings.city.name) + '</span>' +
-              (d.region ? '<span class="muted tiny" style="font-weight:400">· ' + esc(d.region) + '</span>' : '') +
+            '<div class="wx__place">' + ic('loc') + '<span>' + esc(String(d.place || Store.db.settings.city.name).split(/\s*·\s*/)[0]) + '</span>' +
+              (dRegion ? '<span class="muted tiny" style="font-weight:400">· ' + esc(dRegion) + '</span>' : '') +
               '<button id="wxPick" title="切换城市" aria-label="切换城市">' + ic('chev') + '</button>' +
             '</div>' +
             '<div class="tiny muted" style="margin-top:3px;padding-left:22px">' +
@@ -2620,7 +2759,7 @@ function drawWeatherMain(d){
             '</div>' +
           '</div>' +
           '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-            (d.desc ? '<span class="tag' + (/雨|雪|雷/.test(d.desc) ? ' tag--sky' : /晴/.test(d.desc) ? ' tag--amber' : '') + '">' + esc(d.desc) + '</span>' : '') +
+            (dDesc ? '<span class="tag' + (/雨|雪|雷/.test(dDesc) ? ' tag--sky' : /晴/.test(dDesc) ? ' tag--amber' : '') + '">' + esc(dDesc) + '</span>' : '') +
             (today.max != null ? '<span class="tag">' + esc(Math.round(today.min)) + '° ~ ' + esc(Math.round(today.max)) + '°</span>' : '') +
             '<button class="btn btn--sm btn--icon" id="wxRefresh" title="刷新天气">' + ic('refresh') + '</button>' +
           '</div>' +
@@ -2630,7 +2769,7 @@ function drawWeatherMain(d){
           '<div class="wx__icon">' + wxIconBig(m.key, 88) + '</div>' +
           '<div>' +
             '<div class="wx__temp" style="color:' + tc + '">' + esc(Math.round(d.temp)) + '<sup>°C</sup></div>' +
-            '<div class="wx__desc" style="margin-top:8px">' + esc(d.desc || '—') + '</div>' +
+            '<div class="wx__desc" style="margin-top:8px">' + esc(dDesc || '—') + '</div>' +
             '<div class="wx__feels">体感 ' + esc(Math.round(d.feels ?? d.temp)) + '°C' +
               (d.precip > 0 ? ' · 降水 ' + esc(d.precip) + 'mm' : '') + '</div>' +
           '</div>' +
@@ -2646,20 +2785,22 @@ function drawWeatherMain(d){
 
         (d.hours?.length ?
         '<div class="wx__hours">' + d.hours.slice(0, 12).map((h, i) => {
+          const hDesc = wxText(h.code, h.desc);
           const hm = wxMeta(h.code, h.h >= 6 && h.h < 19, h.desc);
-          return '<div class="wx__hr' + (i === 0 ? ' is-now' : '') + '" title="' + escAttr(h.desc || '') + '">' +
+          return '<div class="wx__hr' + (i === 0 ? ' is-now' : '') + '" title="' + escAttr(hDesc) + '">' +
             '<time>' + (i === 0 ? '现在' : esc(pad2(h.h) + ':00')) + '</time>' +
             wxIconSmall(hm.key) + '<b>' + esc(Math.round(h.t)) + '°</b></div>';
         }).join('') + '</div>' : '') +
 
         (d.days?.length > 1 ?
         '<div class="wx__days">' + d.days.slice(0, 5).map((x, i) => {
+          const xDesc = wxText(x.code, x.desc);
           const dm = wxMeta(x.code, true, x.desc);
           const dt = i === 0 ? '今天' : WEEK[new Date(x.date).getDay()];
-          return '<div class="wx__day" title="' + escAttr(x.desc || '') + '">' +
+          return '<div class="wx__day" title="' + escAttr(xDesc) + '">' +
             '<span>' + esc(dt) + '</span>' + wxIconSmall(dm.key) +
             '<b>' + esc(Math.round(x.max)) + '° <i style="color:var(--ink-4);font-style:normal">' + esc(Math.round(x.min)) + '°</i></b>' +
-            (x.desc ? '<i style="display:block;margin-top:2px">' + esc(x.desc.slice(0, 6)) + '</i>' : '') +
+            (xDesc ? '<i style="display:block;margin-top:2px">' + esc(xDesc.slice(0, 6)) + '</i>' : '') +
             '</div>';
         }).join('') + '</div>' : '') +
 
@@ -2700,18 +2841,19 @@ function commuteBlock(d){
   const cell = (label, time, x, iconCls) => {
     if (!x) return '<div class="cmt__c"><span class="cmt__lb">' + esc(label) + '</span>' +
       '<b class="cmt__tm">' + esc(time) + '</b><span class="cmt__d">暂无数据</span></div>';
+    const xDesc = wxText(x.code, x.desc);   // 通勤块里也过一层，防止缓存旧英文
     const mk = wxMeta(x.code, x.h >= 6 && x.h < 19, x.desc);
-    const wet = /雨|雪|雷/.test(x.desc || '');
+    const wet = /雨|雪|雷/.test(xDesc);
     return '<div class="cmt__c' + (wet ? ' is-wet' : '') + '">' +
       '<span class="cmt__lb">' + esc(label) + '<i>' + esc(time) + '</i></span>' +
       '<div class="cmt__m">' + wxIconSmall(mk.key) +
         '<b class="num">' + esc(Math.round(x.t)) + '°</b>' +
-        '<span class="cmt__d">' + esc((x.desc || '—').slice(0, 8)) + '</span>' +
+        '<span class="cmt__d">' + esc(xDesc.slice(0, 8)) + '</span>' +
       '</div></div>';
   };
   const tips = [];
-  if (go && /雨|雪|雷/.test(go.desc || '')) tips.push('上班时段有降水，伞别忘');
-  if (hm && /雨|雪|雷/.test(hm.desc || '')) tips.push('下班时段有降水，记得带伞');
+  if (go && /雨|雪|雷/.test(wxText(go.code, go.desc))) tips.push('上班时段有降水，伞别忘');
+  if (hm && /雨|雪|雷/.test(wxText(hm.code, hm.desc))) tips.push('下班时段有降水，记得带伞');
   if (go && go.t <= 8) tips.push('早上偏冷，加件外套');
   if (hm && hm.t >= 30) tips.push('下班时闷热，注意补水');
   if (go && go.t - (hm ? hm.t : go.t) >= 10) tips.push('早晚温差大，穿脱方便些');
@@ -4572,10 +4714,19 @@ function openSettings(){
       '<div class="sect"><h4>关于</h4>' +
         '<div class="row row--mid" style="gap:11px">' +
           '<div class="rail__logo" style="margin:0;width:44px;height:44px;font-size:19px;border-radius:12px">日</div>' +
-          '<div><b style="font-size:14.5px">日常 · 生活工作台</b>' +
+          '<div><b style="font-size:14.5px">' + esc(APP_NAME) + '</b>' +
           '<div class="tiny muted">单文件版本 · 无外部依赖 · 本地存储</div></div>' +
+          '<span class="tag tag--accent" style="margin-left:auto;flex:none">v' + esc(APP_VER) + '</span>' +
         '</div>' +
-        '<p class="hint" style="margin-top:11px">数据架构版本 v' + SCHEMA + '，创建于 ' + esc(new Date(Store.db.createdAt).toLocaleDateString('zh-CN')) + '。当前共 ' + Store.count() + ' 条记录，占用 ' + Store.usage().kb.toFixed(1) + ' KB。</p>' +
+        '<div class="kv" style="margin-top:12px">' +
+          '<div><span>应用版本</span><b>v' + esc(APP_VER) + '</b></div>' +
+          '<div><span>构建日期</span><b>' + esc(APP_BUILD) + '</b></div>' +
+          '<div><span>数据架构</span><b>v' + esc(SCHEMA) + '</b></div>' +
+          '<div><span>创建于</span><b>' + esc(new Date(Store.db.createdAt).toLocaleDateString('zh-CN')) + '</b></div>' +
+          '<div><span>记录条数</span><b>' + Store.count() + ' 条</b></div>' +
+          '<div><span>占用空间</span><b>' + Store.usage().kb.toFixed(1) + ' KB</b></div>' +
+        '</div>' +
+        '<p class="hint" style="margin-top:10px">应用版本随每次功能更新递增；数据架构版本只在存储结构变化时变动，用于兼容老数据。</p>' +
       '</div>'
   });
   $$('#stTheme button', d.body).forEach(b => b.onclick = () => {
@@ -4617,6 +4768,12 @@ const VIEWS = [
 let CUR = '';
 
 function buildNav(){
+  // logo 右下角挂一个版本徽标：PC 侧边栏和手机底部栏都能看到，一眼知道跑的是哪一版
+  const logo = $('#rail .rail__logo');
+  if (logo){
+    logo.innerHTML = '日<span class="rail__ver">v' + APP_VER + '</span>';
+    logo.title = APP_NAME + ' · 版本 v' + APP_VER;
+  }
   $('#railNav').innerHTML = VIEWS.map(v =>
     '<button class="navbtn" data-v="' + v.id + '" title="' + esc(v.name) + '">' + ic(v.icon) + '<span>' + esc(v.name) + '</span></button>').join('');
   $('#railFoot').innerHTML =
@@ -4641,7 +4798,7 @@ function go(id){
   const v = VIEWS.find(x => x.id === id);
   $$('[data-v]').forEach(b => b.classList.toggle('is-on', b.dataset.v === id));
   $('#ttl').innerHTML = esc(v.name) + '<em>' + esc(greeting()) + '</em>';
-  $('#sub').textContent = v.sub;
+  $('#sub').innerHTML = esc(v.sub) + '<span class="topbar__ver" title="' + escAttr(APP_NAME) + ' · 构建于 ' + escAttr(APP_BUILD) + '">v' + esc(APP_VER) + '</span>';
   WxCanvas.stop();
   location.hash = '#/' + id;
   v.render();
