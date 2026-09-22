@@ -40,6 +40,10 @@
   --danger:#a8452f;
   --danger-soft:#f8e7e2;
 
+  /* 天气卡渐变底色（浅色模式）—— 深色模式在下方覆盖 */
+  --wx-sun:#fbf0d8;    --wx-moon:#e7e9f2;   --wx-cloud:#eceef0;  --wx-partly:#f6efe0;
+  --wx-rain:#e3ecf1;   --wx-storm:#eee6ed;  --wx-snow:#eaf1f5;   --wx-fog:#efece6;
+
   --r-xs:6px; --r-sm:10px; --r-md:14px; --r-lg:20px; --r-xl:28px;
 
   --sh-1:0 1px 2px rgba(40,32,22,.045), 0 2px 8px -4px rgba(40,32,22,.07);
@@ -81,6 +85,11 @@ html[data-theme="dark"]{
   --sky-soft:#1d282f;
   --danger:#e08a72;
   --danger-soft:#33211c;
+
+  /* 天气卡渐变底色（深色模式）—— 压低明度并保留各天气的色相倾向，
+     确保与文字（--ink 系）有足够对比，不再出现「白底白字」。 */
+  --wx-sun:#3a2f1c;    --wx-moon:#252a3a;   --wx-cloud:#292c30;  --wx-partly:#332c1d;
+  --wx-rain:#1e2b33;   --wx-storm:#302534;  --wx-snow:#25303a;   --wx-fog:#2e2b25;
 
   --sh-1:0 1px 2px rgba(0,0,0,.3), 0 2px 8px -4px rgba(0,0,0,.4);
   --sh-2:0 2px 6px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.55);
@@ -333,6 +342,9 @@ html[data-theme="dark"] .sel{
 
 /* ============================ 天气 ============================ */
 .wx{position:relative;overflow:hidden;border-radius:var(--r-lg);border:1px solid var(--line)}
+/* 天气卡自带彩色渐变底，对比度要求比普通卡片高：
+   深色模式下把卡内文字整体提亮一档，避免「指标标签」这类弱化文字糊在背景上。 */
+html[data-theme="dark"] .wx{--ink-2:#d5cfc5; --ink-3:#b3aca1; --ink-4:#a09a8f;}
 .wx__canvas{
   position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;
 }
@@ -1503,12 +1515,14 @@ function wxMeta(code, isDay = true, descText = ''){
   else if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(c)) key = 'rain';
   else if ([71, 73, 75, 77, 85, 86].includes(c)) key = 'snow';
   else if ([95, 96, 99].includes(c)) key = 'storm';
+  // 背景色走 CSS 变量：浅色/深色模式各自一套，避免深色模式下「白底白字」。
+  // 变量定义见 part1_head.html 的 --wx-* ；此处只给 key，不再内联写死浅色。
   const tone = {
-    sun:{c:'#d9962f',bg:'#fbf0d8'}, moon:{c:'#6b7699',bg:'#e7e9f2'},
-    cloud:{c:'#8a9099',bg:'#eceef0'}, partly:{c:'#c99a3c',bg:'#f6efe0'},
-    rain:{c:'#4a7189',bg:'#e3ecf1'}, storm:{c:'#7a5c78',bg:'#eee6ed'},
-    snow:{c:'#7d97ab',bg:'#eaf1f5'}, fog:{c:'#8c8578',bg:'#efece6'}
-  }[key] || {c:'#8a9099', bg:'#eceef0'};
+    sun:{c:'#d9962f',bg:'var(--wx-sun)'}, moon:{c:'#6b7699',bg:'var(--wx-moon)'},
+    cloud:{c:'#8a9099',bg:'var(--wx-cloud)'}, partly:{c:'#c99a3c',bg:'var(--wx-partly)'},
+    rain:{c:'#4a7189',bg:'var(--wx-rain)'}, storm:{c:'#7a5c78',bg:'var(--wx-storm)'},
+    snow:{c:'#7d97ab',bg:'var(--wx-snow)'}, fog:{c:'#8c8578',bg:'var(--wx-fog)'}
+  }[key] || {c:'#8a9099', bg:'var(--wx-cloud)'};
   return { key, tone, icon: key };
 }
 /** 天气大图标（彩色） */
@@ -3166,7 +3180,17 @@ function renderNotes(){
 }
 
 function openNoteEditor(id){
-  const editing = id ? Store.db.notes.find(n => n.id === id) : null;
+  // 新建时 editing 为 null；首次落盘后会把新记录写回 editing / createdId，
+  // 否则每次输入都会走「新增」分支，产生重复笔记。
+  let editing = id ? Store.db.notes.find(n => n.id === id) : null;
+  let createdId = null;
+  let deleted = false;
+  const getNote = () => Store.db.notes.find(n => n.id === (createdId || editing?.id));
+  const isBlank = () => {
+    const t = ($('#neT', d.body)?.value || '').trim();
+    const b = ($('#neB', d.body)?.value || '').trim();
+    return !t && !b;
+  };
   let color = editing?.color || '';
   const COLORS = { '':'默认', accent:'赤陶', sage:'苔绿', amber:'琥珀', plum:'梅紫', sky:'雾蓝' };
   const body =
@@ -3205,22 +3229,54 @@ function openNoteEditor(id){
     });
     save();
   });
-  /** 输入即存 */
+  const onDelete = () => {
+    const cur = getNote();
+    const shown = ($('#neT', d.body)?.value || '').trim();
+    modal({ title:'删除笔记', desc:'「' + (cur?.title || shown || '无标题') + '」将被永久删除。', okText:'删除', danger:true,
+      onOk: () => {
+        const delId = createdId || editing?.id;
+        Store.mutate(db => { db.notes = db.notes.filter(n => n.id !== delId); });
+        // 标记为已删除，防止 onClose 里的 save() 把它重新写回来
+        createdId = null; editing = null; deleted = true;
+        d.close(); toast('ok', '笔记已删除');
+      }});
+  };
+  $('#neDel')?.addEventListener('click', onDelete);
+
+  /** 输入即存 —— 同一编辑器实例最多只新建一条记录 */
   const save = () => {
     const title = $('#neT', d.body).value.trim();
     const txt = $('#neB', d.body).value;
     const tags = $('#neTags', d.body).value.split(/[,，、\s]+/).map(s => s.trim()).filter(Boolean).slice(0, 8);
-    if (!title && !txt.trim() && !editing) return;   // 空白不建记录
+    const cur = createdId || editing?.id || null;
+    // 从未落盘过、且内容还是空的 → 不建记录（避免打开编辑器就产生空笔记）
+    if (!cur && !title && !txt.trim()) return;
+    let newId = null;
     Store.mutate(db => {
-      if (editing){
-        const n = db.notes.find(x => x.id === editing.id);
-        if (n) Object.assign(n, { title: title || '无标题', body: txt, tags, pin, color, updatedAt: Date.now() });
+      const exist = cur ? db.notes.find(x => x.id === cur) : null;
+      if (exist){
+        Object.assign(exist, { title: title || '无标题', body: txt, tags, pin, color, updatedAt: Date.now() });
       } else {
-        db.notes.push({ id: uid(), title: title || '无标题', body: txt, tags, pin, color,
+        newId = uid();
+        db.notes.push({ id: newId, title: title || '无标题', body: txt, tags, pin, color,
           createdAt: Date.now(), updatedAt: Date.now() });
         db.demo = false;
       }
     });
+    // 记下新 id，后续所有输入/关闭都走「更新」分支，杜绝重复
+    if (newId){
+      createdId = newId; editing = Store.db.notes.find(x => x.id === newId) || editing;
+      // 首次落盘后补上「删除」入口，并同步抽屉标题（否则新建的笔记本轮无法删除）
+      const hd = d.el.querySelector('.drawer__hd h2');
+      if (hd) hd.childNodes[0].nodeValue = '编辑笔记';
+      if (!$('#neDel', d.body)){
+        const del = document.createElement('button');
+        del.className = 'btn btn--sm btn--danger'; del.id = 'neDel';
+        del.innerHTML = ic('trash') + '删除';
+        $('#nePin', d.body)?.parentElement?.appendChild(del);
+        del.addEventListener('click', onDelete);
+      }
+    }
     if (d.foot){
       const st = d.foot.querySelector('#neSaved') || (() => {
         const s = document.createElement('span');
@@ -3234,16 +3290,14 @@ function openNoteEditor(id){
   ['#neT', '#neB', '#neTags'].forEach(s => {
     $(s, d.body).addEventListener('input', () => { debSave(); });
   });
-  $('#neDel')?.addEventListener('click', () => {
-    modal({ title:'删除笔记', desc:'「' + (editing.title || '无标题') + '」将被永久删除。', okText:'删除', danger:true,
-      onOk: () => {
-        Store.mutate(db => { db.notes = db.notes.filter(n => n.id !== editing.id); });
-        d.close(); toast('ok', '笔记已删除');
-      }});
-  });
   // 关闭编辑器时刷新列表。用 onClose 而不是改写 d.close ——
   // 抽屉的 × / 遮罩 / Esc 都绑定内部 close，改写属性对它们无效。
-  d.onClose = () => { save(); renderNotes(); };
+  d.onClose = () => {
+    if (deleted) { renderNotes(); return; }
+    if (isBlank()) { renderNotes(); return; }   // 没写任何东西就不落盘
+    save();                                      // 同一实例只会更新，不会再新增
+    renderNotes();
+  };
   if (!editing) setTimeout(() => $('#neT', d.body).focus(), 300);
 }
 
