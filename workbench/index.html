@@ -116,6 +116,38 @@ html[data-theme="dark"]{
 }
 /* hello__warn / stPrivacy 里的图标要与首行文字基线对齐，不能撑高行距 */
 .hello__warn > svg, .stPrivacy > svg{display:inline-block;vertical-align:-3px;margin-right:2px}
+/* ---------- 饮品记录 ---------- */
+/* 进度条：咖啡因 / 添加糖 两指标带每日上限 */
+.dk__bar + .dk__bar{margin-top:14px}
+.dk__barhd{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--ink-3);margin-bottom:6px}
+.dk__barhd b{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.dk__track{height:7px;border-radius:99px;background:var(--surface-3);overflow:hidden}
+.dk__track i{display:block;height:100%;border-radius:99px;transition:width .35s var(--ease)}
+.dk__note{display:flex;gap:7px;align-items:flex-start;margin-top:14px;padding-top:13px;
+  border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--ink-4)}
+/* 新容器必须自带真名规则 —— 兜底白名单只认白名单里的类，管不到这里 */
+.dk__note > svg{width:14px;height:14px;flex:none;margin-top:1px}
+/* 预设饮品宫格：窄屏两列，宽屏自动填充 */
+.dk__grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:9px}
+.dk__chip{
+  display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;
+  padding:11px 12px;min-height:44px;border-radius:var(--r-md);
+  border:1px solid var(--line);background:var(--surface-2);cursor:pointer;
+  transition:border-color .16s var(--ease),background .16s var(--ease);
+  font-family:inherit;color:inherit;
+}
+.dk__chip:hover{border-color:var(--accent);background:var(--accent-soft)}
+.dk__chip b{font-size:13px;font-weight:600;line-height:1.35}
+.dk__chip small{font-size:11px;color:var(--ink-4);line-height:1.45}
+@media (max-width:520px){
+  /* 小屏两列，避免按钮过窄导致文字折行难读 */
+  .dk__grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .dk__chip{padding:10px}
+  .dk__chip b{font-size:12.5px}
+}
+/* 欢迎弹窗功能块徽标：30×30 是设计值，图标随之放大到 17px（比正文图标大一档） */
+.hello__feat{width:30px;height:30px;border-radius:9px;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;flex:none}
+.hello__feat svg{width:17px;height:17px}
 /* 说明类图标真名（显式 class，不再依赖兜底名单） */
 .noteIc{width:17px;height:17px;flex:none;display:inline-block;vertical-align:-3px;margin-right:2px}
 /* 图表必须保持自身比例，禁止被上面的兜底规则压缩 */
@@ -186,8 +218,14 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
   font-family:var(--f-sans, inherit);letter-spacing:0;white-space:nowrap;
   box-shadow:0 1px 2px rgba(0,0,0,.05);
 }
-.rail__nav{display:flex;flex-direction:column;gap:3px;flex:1;width:100%;align-items:center}
-.rail__sep{width:24px;height:1px;background:var(--line-2);margin:8px 0}
+/* min-height:0 + overflow-y:auto —— 窗口压矮（横屏手机、分屏）时导航区自己滚，
+   不会把底部的主题/设置按钮挤出视口 */
+.rail__nav{
+  display:flex;flex-direction:column;gap:3px;flex:1;width:100%;align-items:center;
+  min-height:0;overflow-y:auto;scrollbar-width:none;
+}
+.rail__nav::-webkit-scrollbar{display:none}
+.rail__sep{width:24px;height:1px;background:var(--line-2);margin:8px 0;flex:none}
 .navbtn{
   position:relative;width:46px;height:44px;border-radius:var(--r-sm);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
@@ -947,15 +985,24 @@ table.tb td.num{text-align:right}
     flex-direction:row;justify-content:space-around;align-items:stretch;
     padding:5px 4px calc(5px + env(safe-area-inset-bottom));gap:0;
     border-right:0;border-top:1px solid var(--line);
-    overflow-x:auto;scrollbar-width:none;
+    overflow:hidden;                 /* 整体不滚，只让导航区滚 */
     box-shadow:0 -2px 14px rgba(40,32,22,.07);
   }
   html[data-theme="dark"] .rail{box-shadow:0 -2px 14px rgba(0,0,0,.35)}
   .rail::-webkit-scrollbar{display:none}
   .rail__logo{display:none}
-  .rail__nav{flex-direction:row;flex:none;gap:2px}
+  /* 模块超过 5 个后底部栏必然放不下 —— 导航区横向滚动，工具区常驻右侧。
+     之前用 margin-left:auto 把工具区推到滚动区外，窄屏上会盖住最后一项（点不到）。 */
+  .rail__nav{
+    flex:1 1 auto;min-width:0;flex-direction:row;gap:2px;justify-content:flex-start;
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding-bottom:7px;
+  }
+  .rail__nav::-webkit-scrollbar{display:none}
   .rail__sep{width:1px;height:24px;margin:0 2px;flex:none;align-self:center;opacity:.7}
-  .rail__foot{flex-direction:row;gap:2px;flex:none;margin-left:auto}
+  .rail__foot{
+    flex:0 0 auto;flex-direction:row;gap:2px;align-self:center;
+    margin-left:3px;padding-left:3px;border-left:1px solid var(--line);
+  }
   .rail__foot .navbtn{width:42px}
   .navbtn{width:54px;height:50px;border-radius:var(--r-md);flex:0 0 auto}
   .navbtn span{font-size:10px}
@@ -1056,7 +1103,7 @@ const SCHEMA  = 1;
 /* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
    APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
    只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.11';
+const APP_VER    = '1.12';
 const APP_NAME   = '日常 · 生活工作台';
 const APP_BUILD  = '2026-09-23';
 
@@ -1195,6 +1242,7 @@ const ICONS = {
   wallet:'<path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h11a2 2 0 0 1 2 2v1"/><rect x="3.5" y="7.5" width="17" height="11.5" rx="2.2"/><circle cx="16.5" cy="13.2" r="1.2"/>',
   spark:'<path d="M12 3.2l1.9 4.9 4.9 1.9-4.9 1.9L12 16.8l-1.9-4.9-4.9-1.9 4.9-1.9z"/><path d="M18.5 15.5l.8 2.1 2.1.8-2.1.8-.8 2.1-.8-2.1-2.1-.8 2.1-.8z"/>',
   jar:'<path d="M6.5 8.5h11v10a3 3 0 0 1-3 3h-5a3 3 0 0 1-3-3z"/><path d="M5.2 4.5h13.6v4H5.2z"/><path d="M9.5 12.5h5"/>',
+  cup:'<path d="M5.6 7h11.3l-1 12.1a2 2 0 0 1-2 1.8h-5.3a2 2 0 0 1-2-1.8z"/><path d="M4.4 7h13.6"/><path d="M16.9 10.2h1.3a2.3 2.3 0 0 1 0 4.6h-1.4"/>',
   list:'<path d="M8 6.5h12M8 12h12M8 17.5h12"/><path d="M4 6.5h.01M4 12h.01M4 17.5h.01" stroke-width="2.6"/>',
   fire:'<path d="M12 21.5c3.6 0 6.2-2.4 6.2-5.7 0-4.4-4.3-5.5-4.3-9.3 0-1.2.4-2.3 1-3.2-3.3.5-5.4 2.6-5.4 5.3 0 1.7.8 2.6.8 3.5 0 .9-.7 1.5-1.5 1.5-.9 0-1.6-.7-1.8-1.6-.6.9-1 2-1 3.3 0 3.4 2.6 6.2 6 6.2z"/>',
   clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.2V12l3.2 2"/>',
@@ -1247,7 +1295,7 @@ const DEFAULT_SETTINGS = {
 function blankDB(){
   return { schema: SCHEMA, createdAt: Date.now(), demo: true,
            settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
-           providers: seedProviders(), notes: [], money: [], todo: [], habits: [] };
+           providers: seedProviders(), notes: [], money: [], todo: [], habits: [], drinks: [] };
 }
 
 /**
@@ -1358,6 +1406,12 @@ function seedDemo(){
       { id: uid(), name: '喝够 8 杯水', color: 'sky', days: last(9), createdAt: t - 12 * D },
       { id: uid(), name: '走够 6000 步', color: 'sage', days: last(6), createdAt: t - 12 * D },
       { id: uid(), name: '睡前不刷手机', color: 'plum', days: last(3), createdAt: t - 12 * D }
+    ],
+    drinks: [
+      // at 为时间戳；c=咖啡因mg  s=糖g  k=热量kcal  v=容量ml
+      { id: uid(), name: '美式咖啡', v: 355, s: 0,  c: 150, k: 5,   at: t - 7 * H },
+      { id: uid(), name: '拿铁',     v: 355, s: 15, c: 75,  k: 190, at: t - 4 * H },
+      { id: uid(), name: '珍珠奶茶', v: 500, s: 35, c: 30,  k: 350, at: t - 2 * H }
     ]
   };
   /** 过去 9 天中命中 n 天的日期键 */
@@ -1468,6 +1522,15 @@ const Store = {
       days: arr(h?.days).filter(d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)).slice(0, 4000),
       createdAt: Number(h?.createdAt) || Date.now()
     })).filter(h => h.name);
+    // 饮品记录：v=容量ml  s=糖g  c=咖啡因mg  k=热量kcal  at=时间戳
+    out.drinks = arr(raw.drinks).slice(0, 20000).map(x => ({
+      id: String(x?.id || uid()), name: String(x?.name || '饮品').slice(0, 24),
+      v: clamp(Number(x?.v) || 0, 0, 3000),
+      s: clamp(Number(x?.s) || 0, 0, 200),
+      c: clamp(Number(x?.c) || 0, 0, 1000),
+      k: clamp(Number(x?.k) || 0, 0, 2000),
+      at: Number(x?.at) || Date.now()
+    })).filter(x => x.name);
     return out;
   },
 
@@ -1572,7 +1635,8 @@ const Store = {
   },
   count(){
     const d = this.db; if (!d) return 0;
-    return (d.notes?.length || 0) + (d.money?.length || 0) + (d.todo?.length || 0) + (d.habits?.length || 0);
+    return (d.notes?.length || 0) + (d.money?.length || 0) + (d.todo?.length || 0) +
+           (d.habits?.length || 0) + (d.drinks?.length || 0);
   },
 
   /** 检查是否该提醒备份 */
@@ -4430,6 +4494,257 @@ function openHabitEditor(id){
   };
   setTimeout(() => $('#hbN', d.body).focus(), 320);
 }
+
+/* ==========================================================================
+   5. 饮品记录 —— 咖啡因 / 添加糖 / 热量
+   --------------------------------------------------------------------------
+   与「习惯」模块刻意分开，原因是两者的数据模型根本不同：
+     习惯 = 每天一个布尔值（打没打卡），关心「连续几天」；
+     饮品 = 每次一条记录（一天可能好几杯），关心「当日累计多少」。
+   硬塞进习惯会把 habit.days 从日期数组改成嵌套结构，还得迁移老数据，不划算。
+   ========================================================================== */
+
+/** 每日参考上限。热量不设上限 —— 饮品热量差异大且非主要风险，只求和展示。 */
+const DRINK_LIMIT = { caffeine: 400, sugar: 50 };
+
+/** 常见饮品典型值（按「常规一份」计），选中后仍可逐项微调。
+ *  v=容量ml  s=添加糖g  c=咖啡因mg  k=热量kcal
+ *  数值取各品牌中杯/常规份量的常见区间，仅供参考，不作营养建议。 */
+const DRINK_PRESETS = [
+  { n:'美式咖啡',   v:355, s:0,  c:150, k:5,   g:'咖啡' },
+  { n:'拿铁',       v:355, s:15, c:75,  k:190, g:'咖啡' },
+  { n:'卡布奇诺',   v:355, s:12, c:75,  k:140, g:'咖啡' },
+  { n:'摩卡',       v:355, s:30, c:90,  k:290, g:'咖啡' },
+  { n:'冷萃咖啡',   v:355, s:0,  c:200, k:5,   g:'咖啡' },
+  { n:'速溶咖啡',   v:200, s:8,  c:60,  k:60,  g:'咖啡' },
+  { n:'珍珠奶茶',   v:500, s:35, c:30,  k:350, g:'奶茶' },
+  { n:'奶茶（半糖）',v:500, s:20, c:25,  k:260, g:'奶茶' },
+  { n:'芝士奶盖茶', v:500, s:25, c:25,  k:300, g:'奶茶' },
+  { n:'水果茶',     v:500, s:30, c:0,   k:150, g:'奶茶' },
+  { n:'无糖茶饮',   v:500, s:0,  c:20,  k:0,   g:'茶'   },
+  { n:'绿茶',       v:250, s:0,  c:30,  k:0,   g:'茶'   },
+  { n:'红茶',       v:250, s:0,  c:45,  k:2,   g:'茶'   },
+  { n:'可乐',       v:330, s:35, c:35,  k:140, g:'碳酸' },
+  { n:'无糖可乐',   v:330, s:0,  c:35,  k:0,   g:'碳酸' },
+  { n:'能量饮料',   v:250, s:27, c:80,  k:110, g:'功能' },
+  { n:'运动饮料',   v:500, s:30, c:0,   k:120, g:'功能' },
+  { n:'果汁',       v:250, s:24, c:0,   k:110, g:'果汁' },
+  { n:'豆浆',       v:300, s:5,  c:0,   k:100, g:'其他' },
+  { n:'热可可',     v:250, s:20, c:10,  k:150, g:'其他' },
+  { n:'柠檬水',     v:400, s:10, c:0,   k:40,  g:'其他' },
+  { n:'白开水',     v:300, s:0,  c:0,   k:0,   g:'水'   }
+];
+
+/** 按天聚合求和 */
+function drinkTotals(list){
+  return list.reduce((a, d) => ({
+    caffeine: a.caffeine + (Number(d.c) || 0),
+    sugar:    a.sugar    + (Number(d.s) || 0),
+    kcal:     a.kcal     + (Number(d.k) || 0),
+    vol:      a.vol      + (Number(d.v) || 0),
+    n:        a.n + 1
+  }), { caffeine: 0, sugar: 0, kcal: 0, vol: 0, n: 0 });
+}
+
+function drinksOfDay(k){
+  return (Store.db.drinks || []).filter(d => dayKey(new Date(d.at)) === k);
+}
+
+function renderDrinks(){
+  const box = $('#view');
+  const all = (Store.db.drinks || []).slice().sort((a, b) => b.at - a.at);
+  const todayKey = dayKey();
+  const today = all.filter(d => dayKey(new Date(d.at)) === todayKey);
+  const tot = drinkTotals(today);
+
+  // 近 7 天（含今天）咖啡因与糖
+  const days = [];
+  for (let i = 6; i >= 0; i--){
+    const dt = addDays(new Date(), -i);
+    const k = dayKey(dt);
+    days.push({ k, label: (dt.getMonth() + 1) + '/' + dt.getDate(), ...drinkTotals(drinksOfDay(k)) });
+  }
+  const maxCaf = Math.max(DRINK_LIMIT.caffeine, ...days.map(d => d.caffeine));
+
+  const pct = (v, lim) => Math.min(100, Math.round(v / lim * 100));
+  const over = (v, lim) => v > lim;
+  // 达到 80% 即提醒，留一点缓冲
+  const near = (v, lim) => v >= lim * 0.8 && v <= lim;
+
+  box.innerHTML =
+    /* ① 今日摄入：三指标，咖啡因与糖带上限进度 */
+    '<div class="grid g-stats" style="margin-bottom:16px">' +
+      '<div class="stat"><span>咖啡因</span><b>' + tot.caffeine + '<small> / ' + DRINK_LIMIT.caffeine + 'mg</small></b>' +
+        '<em>' + (tot.caffeine === 0 ? '今天还没摄入'
+          : over(tot.caffeine, DRINK_LIMIT.caffeine) ? '已超上限'
+          : near(tot.caffeine, DRINK_LIMIT.caffeine) ? '接近上限了'
+          : '还在安全范围') + '</em></div>' +
+      '<div class="stat"><span>添加糖</span><b>' + tot.sugar + '<small> / ' + DRINK_LIMIT.sugar + 'g</small></b>' +
+        '<em>' + (tot.sugar === 0 ? '无糖，很好'
+          : over(tot.sugar, DRINK_LIMIT.sugar) ? '已超上限'
+          : near(tot.sugar, DRINK_LIMIT.sugar) ? '接近上限了'
+          : '还在安全范围') + '</em></div>' +
+      '<div class="stat"><span>热量</span><b>' + tot.kcal + '<small> kcal</small></b>' +
+        '<em>今日 ' + tot.n + ' 杯 · ' + tot.vol + 'ml</em></div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:18px"><div class="card__bd">' +
+      bar('咖啡因', tot.caffeine, DRINK_LIMIT.caffeine, 'mg', 'var(--accent)') +
+      bar('添加糖', tot.sugar, DRINK_LIMIT.sugar, 'g', 'var(--amber)') +
+      '<div class="dk__note">' + ic('info') +
+        '<span>上限参考：咖啡因 400mg（成人每日建议上限）、添加糖 50g（WHO 建议，理想 25g）。数值来自公开资料，不作医疗建议。</span></div>' +
+    '</div></div>' +
+
+    /* ② 快速记录：预设宫格 */
+    '<div class="card" style="margin-bottom:18px">' +
+      '<div class="card__hd"><h3>' + ic('cup') + '记一杯</h3>' +
+        '<button class="btn btn--sm btn--ghost" id="dkCustom">' + ic('edit') + '自定义</button></div>' +
+      '<div class="card__bd"><div class="dk__grid">' +
+        DRINK_PRESETS.map((p, i) =>
+          '<button class="dk__chip" data-preset="' + i + '">' +
+            '<b>' + esc(p.n) + '</b>' +
+            '<small>' + p.v + 'ml · ' + (p.c ? p.c + 'mg 咖啡因' : '无咖啡因') +
+            (p.s ? ' · ' + p.s + 'g 糖' : '') + '</small>' +
+          '</button>').join('') +
+      '</div></div>' +
+    '</div>' +
+
+    /* ③ 今日记录 */
+    '<div class="card" style="margin-bottom:18px">' +
+      '<div class="card__hd"><h3>' + ic('clock') + '今天喝过</h3>' +
+        (today.length ? '<span class="tag">' + today.length + ' 杯</span>' : '') + '</div>' +
+      '<div class="card__bd" style="padding:0" id="dkToday"></div>' +
+    '</div>' +
+
+    /* ④ 近 7 天咖啡因趋势（内联 SVG 手写，不引图表库） */
+    '<div class="card"><div class="card__hd"><h3>' + ic('barchart') + '近 7 天咖啡因</h3>' +
+      '<span class="tag">mg</span></div>' +
+      '<div class="card__bd">' + sparkBars(days, maxCaf) + '</div>' +
+    '</div>';
+
+  // ---- 局部渲染函数（供上面模板调用，保持单向依赖） ----
+  function bar(label, val, lim, unit, color){
+    const p = pct(val, lim);
+    const bad = over(val, lim);
+    const warn = near(val, lim);
+    return '<div class="dk__bar">' +
+      '<div class="dk__barhd"><span>' + esc(label) + '</span>' +
+        '<b style="color:' + (bad ? 'var(--danger)' : warn ? 'var(--amber)' : 'var(--ink-2)') + '">' +
+        val + unit + ' / ' + lim + unit + '</b></div>' +
+      '<div class="dk__track"><i style="width:' + p + '%;background:' +
+        (bad ? 'var(--danger)' : warn ? 'var(--amber)' : color) + '"></i></div>' +
+    '</div>';
+  }
+
+  function sparkBars(days, max){
+    const W = 100, H = 46, gap = 2;
+    const bw = (W - gap * (days.length - 1)) / days.length;
+    const limY = H - (DRINK_LIMIT.caffeine / max) * H;
+    let s = '<div class="chart" data-chart style="position:relative;height:' + (H + 22) + 'px">' +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="width:100%;height:' + H + 'px;display:block">' +
+      '<line x1="0" y1="' + limY.toFixed(1) + '" x2="' + W + '" y2="' + limY.toFixed(1) +
+        '" stroke="var(--danger)" stroke-width="0.4" stroke-dasharray="2 2" opacity="0.55"/>';
+    days.forEach((d, i) => {
+      const h = max ? (d.caffeine / max) * H : 0;
+      const x = i * (bw + gap);
+      const over = d.caffeine > DRINK_LIMIT.caffeine;
+      s += '<rect x="' + x.toFixed(2) + '" y="' + (H - h).toFixed(2) + '" width="' + bw.toFixed(2) +
+        '" height="' + Math.max(h, 0.6).toFixed(2) + '" rx="0.8" fill="' +
+        (over ? 'var(--danger)' : 'var(--accent)') + '" opacity="' + (i === days.length - 1 ? '1' : '0.75') + '"/>';
+    });
+    s += '</svg><div style="display:flex;justify-content:space-between;margin-top:4px">' +
+      days.map(d => '<span class="tiny" style="flex:1;text-align:center;color:var(--ink-4)">' + esc(d.label) + '</span>').join('') +
+    '</div></div>';
+    return s;
+  }
+
+  // ---- 事件绑定 ----
+  $$('#view .dk__chip').forEach(b => b.onclick = () => openDrinkEditor(DRINK_PRESETS[Number(b.dataset.preset)]));
+  $('#dkCustom').onclick = () => openDrinkEditor(null);
+  drawToday();
+
+  function drawToday(){
+    const el = $('#dkToday');
+    if (!today.length){
+      el.innerHTML = '<div class="empty" style="border:0;padding:26px">' + ic('cup') +
+        '<p>今天还没有记录</p><small>点上面任一饮品，或「自定义」手动填写。</small></div>';
+      return;
+    }
+    el.innerHTML = '<div class="list">' + today.map(d =>
+      '<div class="li" data-id="' + escAttr(d.id) + '">' +
+        '<div class="li__bd"><div class="li__t">' + esc(d.name) + '</div>' +
+          '<div class="li__m">' +
+            '<span>' + ic('clock') + ' ' + esc(fmtTime(d.at)) + '</span>' +
+            '<span>' + (Number(d.v) || 0) + 'ml</span>' +
+            (d.c ? '<span>' + d.c + 'mg 咖啡因</span>' : '') +
+            (d.s ? '<span>' + d.s + 'g 糖</span>' : '') +
+            (d.k ? '<span>' + d.k + 'kcal</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="li__acts"><button class="del" data-dk="' + escAttr(d.id) + '" title="删除">' + ic('trash') + '</button></div>' +
+      '</div>').join('') + '</div>';
+    $$('[data-dk]', el).forEach(b => b.onclick = () => {
+      const id = b.dataset.dk;
+      const one = (Store.db.drinks || []).find(x => x.id === id);
+      modal({ title:'删除这条记录', desc:'「' + (one?.name || '') + '」将被移除。', okText:'删除', danger:true,
+        onOk: () => {
+          Store.mutate(db => { db.drinks = (db.drinks || []).filter(x => x.id !== id); });
+          renderDrinks(); toast('ok', '已删除');
+        }});
+    });
+  }
+}
+
+/** 记一杯：preset 为预设项，null 表示完全自定义 */
+function openDrinkEditor(preset){
+  const now = new Date();
+  // datetime-local 要求「本地时间」的 YYYY-MM-DDTHH:mm。
+  // 不能用 toISOString().slice(0,16) —— 那是 UTC，东八区会差 8 小时。
+  const nowInput = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate()) +
+                   'T' + pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+  const d = drawer({
+    title: preset ? '记一杯 · ' + preset.n : '自定义饮品',
+    sub: '数值可改，按你的实际杯量调整',
+    body:
+      '<div class="stack">' +
+        '<label class="fld"><span>名称</span>' +
+          '<input id="dkN" type="text" value="' + escAttr(preset ? preset.n : '') + '" placeholder="例如：燕麦拿铁" maxlength="24"></label>' +
+        '<div class="row">' +
+          '<label class="fld" style="flex:1"><span>容量 (ml)</span>' +
+            '<input id="dkV" type="number" inputmode="numeric" min="0" max="3000" step="10" value="' + (preset ? preset.v : 300) + '"></label>' +
+          '<label class="fld" style="flex:1"><span>咖啡因 (mg)</span>' +
+            '<input id="dkC" type="number" inputmode="numeric" min="0" max="1000" step="5" value="' + (preset ? preset.c : 0) + '"></label>' +
+        '</div>' +
+        '<div class="row">' +
+          '<label class="fld" style="flex:1"><span>添加糖 (g)</span>' +
+            '<input id="dkS" type="number" inputmode="numeric" min="0" max="200" step="1" value="' + (preset ? preset.s : 0) + '"></label>' +
+          '<label class="fld" style="flex:1"><span>热量 (kcal)</span>' +
+            '<input id="dkK" type="number" inputmode="numeric" min="0" max="2000" step="5" value="' + (preset ? preset.k : 0) + '"></label>' +
+        '</div>' +
+        '<label class="fld"><span>时间</span>' +
+          '<input id="dkT" type="datetime-local" value="' + nowInput + '"></label>' +
+      '</div>',
+    foot: '<button class="btn" data-x="c">取消</button>' +
+          '<button class="btn btn--primary" id="dkSave">' + ic('check') + '记录</button>'
+  });
+
+  $('#dkSave', d.body.parentNode).onclick = () => {
+    const name = ($('#dkN', d.body).value || '').trim() || '未命名饮品';
+    const num = (id, def) => { const v = Number($('#' + id, d.body).value); return isFinite(v) && v >= 0 ? v : def; };
+    const tRaw = $('#dkT', d.body).value;
+    const at = tRaw ? new Date(tRaw).getTime() : Date.now();
+    const item = {
+      id: uid(), name,
+      v: num('dkV', 0), c: num('dkC', 0), s: num('dkS', 0), k: num('dkK', 0),
+      at: isFinite(at) ? at : Date.now()
+    };
+    Store.mutate(db => { db.drinks = db.drinks || []; db.drinks.push(item); db.demo = false; });
+    d.close(); renderDrinks();
+    toast('ok', '已记录「' + name + '」', '', 2200);
+    Store.checkBackupHint();
+  };
+  setTimeout(() => $('#dkN', d.body)?.select?.(), 320);
+}
 /* ==========================================================================
    8. 备份 / 导出 / 导入
    ========================================================================== */
@@ -4743,7 +5058,7 @@ const Backup = {
     $('#bkDemo', d.body).onclick = () => {
       const hasDemo = Store.db.notes.some(n => ['本周想做的事','记账小心得','想读的书'].includes(n.title));
       if (!hasDemo && !Store.db.demo){ toast('warn', '演示数据已经清理过了'); return; }
-      modal({ title:'清空演示数据', desc:'将移除预置的三条笔记、六笔收支、四条待办与三个习惯。你自己添加的内容不受影响。', okText:'清空', danger:true,
+      modal({ title:'清空演示数据', desc:'将移除预置的三条笔记、六笔收支、四条待办、三个习惯与三条饮品记录。你自己添加的内容不受影响。', okText:'清空', danger:true,
         onOk: () => {
           Store.mutate(db => {
             const demoTitles = ['本周想做的事','记账小心得','想读的书'];
@@ -4752,6 +5067,7 @@ const Backup = {
             db.money = db.money.filter(m => !(Store._demoIds?.money || []).includes(m.id));
             db.todo = db.todo.filter(t => !(Store._demoIds?.todo || []).includes(t.id));
             db.habits = db.habits.filter(h => !(Store._demoIds?.habits || []).includes(h.id));
+            db.drinks = db.drinks.filter(x => !(Store._demoIds?.drinks || []).includes(x.id));
             db.demo = false;
           });
           d.close(); go(location.hash.replace('#/','') || 'weather');
@@ -4893,7 +5209,8 @@ const VIEWS = [
   { id:'notes',   name:'笔记',   icon:'file',   sub:'随手记下的想法', render:() => renderNotes() },
   { id:'money',   name:'收支',   icon:'barchart',sub:'记账与消费结构', render:() => renderMoney() },
   { id:'todo',    name:'待办',   icon:'list',   sub:'要做的事与截止日期', render:() => renderTodo() },
-  { id:'habits',  name:'习惯',   icon:'jar',    sub:'每天坚持的一点小事', render:() => renderHabits() }
+  { id:'habits',  name:'习惯',   icon:'jar',    sub:'每天坚持的一点小事', render:() => renderHabits() },
+  { id:'drinks',  name:'饮品',   icon:'cup',    sub:'咖啡因 · 糖 · 热量', render:() => renderDrinks() }
 ];
 let CUR = '';
 
@@ -4927,12 +5244,22 @@ function go(id){
   CUR = id;
   const v = VIEWS.find(x => x.id === id);
   $$('[data-v]').forEach(b => b.classList.toggle('is-on', b.dataset.v === id));
+  syncNavScroll();
   $('#ttl').innerHTML = esc(v.name) + '<em>' + esc(greeting()) + '</em>';
   $('#sub').innerHTML = esc(v.sub) + '<span class="topbar__ver" title="' + escAttr(APP_NAME) + ' · 构建于 ' + escAttr(APP_BUILD) + '">v' + esc(APP_VER) + '</span>';
   WxCanvas.stop();
   location.hash = '#/' + id;
   v.render();
   renderTopActs(id);
+}
+/* 移动端底部导航放不下 8 个模块时会横向滚动，当前项可能落在视口外。
+   每次切页把它带回来，否则用户点完一次就再也找不到刚去的那一页。 */
+function syncNavScroll(){
+  const nav = $('.rail__nav'), on = $('.navbtn.is-on');
+  if (!nav || !on || nav.scrollWidth <= nav.clientWidth + 2) return;
+  const r = on.getBoundingClientRect(), n = nav.getBoundingClientRect();
+  if (r.left < n.left - 1 || r.right > n.right + 1)
+    nav.scrollLeft += (r.left + r.width / 2) - (n.left + n.width / 2);
 }
 function greeting(){
   const h = new Date().getHours();
@@ -4968,23 +5295,25 @@ function boot(){
   // 记录演示数据 id，便于「清空演示数据」精确移除
   if (Store.db.demo){
     const demo = seedDemo();
-    const existed = Store.db.notes.length || Store.db.money.length || Store.db.todo.length || Store.db.habits.length || Store.db.providers.some(p => p.key);
+    const existed = Store.db.notes.length || Store.db.money.length || Store.db.todo.length || Store.db.habits.length || Store.db.drinks.length || Store.db.providers.some(p => p.key);
     if (!existed){
       Store.db.notes = demo.notes;
       Store.db.money = demo.money;
       Store.db.todo = demo.todo;
       Store.db.habits = demo.habits;
+      Store.db.drinks = demo.drinks;
       Store._demoIds = {
         money: demo.money.map(x => x.id),
         todo: demo.todo.map(x => x.id),
-        habits: demo.habits.map(x => x.id)
+        habits: demo.habits.map(x => x.id),
+        drinks: demo.drinks.map(x => x.id)
       };
       Store.save();
     } else {
-      Store._demoIds = { money: [], todo: [], habits: [] };
+      Store._demoIds = { money: [], todo: [], habits: [], drinks: [] };
     }
   } else {
-    Store._demoIds = { money: [], todo: [], habits: [] };
+    Store._demoIds = { money: [], todo: [], habits: [], drinks: [] };
   }
 
   // 数据损坏 / 恢复提示（读取加载阶段的快照，避免被后续 save 覆盖）
@@ -5098,7 +5427,7 @@ function showHello(){
   });
   function item(i, t, s2){
     return '<div style="display:flex;gap:11px;align-items:flex-start">' +
-      '<div style="width:30px;height:30px;border-radius:9px;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;flex:none">' +
+      '<div class="hello__feat">' +
       ic(i) + '</div><div><b style="font-size:13.5px">' + esc(t) + '</b>' +
       '<div class="tiny" style="color:var(--ink-3);line-height:1.6">' + esc(s2) + '</div></div></div>';
   }
