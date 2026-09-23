@@ -102,12 +102,15 @@ html[data-theme="dark"]{
    项目里的图标都是「无 width/height 的内联 <svg>」，靠 CSS 给尺寸。
    一旦某个容器漏写 `svg{width:…}`，浏览器会把 SVG 当成替换元素按
    「撑满可用宽度」处理 —— 一个 24×24 的小图标能放大到 300px，
-   在手机上直接糊满整屏（曾出现于 .wx__advice / .reading）。
+   在手机上直接糊满整屏（曾出现于 .wx__advice / .bal__warn / .reading）。
    这里给「文字行内的 svg」设一个安全默认值，具体模块可再覆盖。
-   注意两点，否则会误伤图表：
+   注意三点，否则会误伤图表：
      1) 只作用于「直接子元素」，不深入卡片内部的图表容器；
-     2) 图表类容器（.chart/.donut）以及带 data-chart 的显式排除。 */
-:where(.reading, .wx__advice, .bal__note, .empty, .li__bd) > svg:not([width]):not([height]){
+     2) 图表类容器（.chart/.donut）以及带 data-chart 的显式排除；
+     3) .empty 也排除 —— 它的 svg 由 .empty svg 规则放大到 30px 作
+        空状态插图，兜底的 17px 会把它压小（.empty 的 svg 是唯一
+        允许大的图标，靠真名规则单独控制，不必进兜底名单）。 */
+:where(.card__bd, .reading, .wx__advice, .bal__note, .li__bd, .cmt, .toast) > svg:not([width]):not([height]){
   width:17px;height:17px;flex:none;
 }
 /* 图表必须保持自身比例，禁止被上面的兜底规则压缩 */
@@ -577,6 +580,12 @@ html[data-theme="dark"] .wx{--ink-2:#d5cfc5; --ink-3:#b3aca1; --ink-4:#a09a8f;}
 /* 「厂商未开放余额接口」这类说明性提示，用中性色，不当成报错 */
 .bal__note{display:flex;gap:7px;align-items:flex-start;font-family:var(--f-sans);font-size:13px;line-height:1.55;color:var(--ink-3);background:var(--surface-3);border-radius:9px;padding:9px 11px}
 .bal__note svg{flex:none;width:15px;height:15px;margin-top:1px;color:var(--ink-4)}
+/* 「还有 N 个供应商没填 Key」提示卡左侧的小图标。
+   这个 svg 是 .card__bd 的直接子元素，兜底规则虽已覆盖 .card__bd，
+   但这里显式钉住尺寸，避免有人改动卡片结构后再次被撑满。
+   注意必须对齐到标题首行的视觉中心，不能 flex-start —— 标题会折行，
+   顶部对齐会让图标看着往上飘。 */
+.bal__warnIc{flex:none;width:17px;height:17px;color:var(--amber);margin-top:1px}
 .bal__bar{height:4px;border-radius:99px;background:var(--surface-3);overflow:hidden}
 .bal__bar i{display:block;height:100%;border-radius:99px;background:var(--bal-c,var(--accent));transition:width .6s var(--ease)}
 .bal__ft{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -629,6 +638,8 @@ html[data-theme="dark"] .wx{--ink-2:#d5cfc5; --ink-3:#b3aca1; --ink-4:#a09a8f;}
 .newsi__m{display:flex;align-items:center;gap:9px;margin-top:5px;flex-wrap:wrap}
 .newsi__m small{font-size:11.5px;color:var(--ink-4);display:flex;align-items:center;gap:4px}
 .newsi__m small svg{width:11px;height:11px}
+/* 条目右侧的箭头：用 class 钉住尺寸，替代原来内联 style 的写法 */
+.newsi__go{flex:none;width:15px;height:15px;color:var(--ink-4);align-self:center}
 .newsai{
   padding:16px 18px;border-radius:var(--r-md);
   background:linear-gradient(165deg,var(--accent-soft),var(--surface-2) 65%);
@@ -1020,9 +1031,9 @@ const SCHEMA  = 1;
 /* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
    APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
    只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.7';
+const APP_VER    = '1.8';
 const APP_NAME   = '日常 · 生活工作台';
-const APP_BUILD  = '2026-09-22';
+const APP_BUILD  = '2026-09-23';
 
 /** HTML 转义 —— 所有用户输入渲染前必过 */
 function esc(v){
@@ -1234,6 +1245,21 @@ const RETIRED_MOONSHOT = /^(kimi-k2-(0711|0905|turbo)(-preview)?|kimi-k2-thinkin
 const NEW_MOONSHOT_MODELS = ['kimi-k3', 'kimi-k2.6', 'kimi-k2.5'];
 
 function migrateProviders(list){
+  // 0) 移除已下线的预置供应商（v1.8 起不再提供 Xiaomi Token Plan）。
+  //    判定条件收得很紧，只删「从来没被用过」的那一个，避免误删用户数据：
+  //      · 名字与预置完全一致（没被改过名）
+  //      · base 指向 token-plan（确认是那一个，而非用户自建的同名项）
+  //      · 没填 Key、也没查过余额（说明用户从未真正使用）
+  //    任何一条不满足就原样保留 —— 宁可多留一个卡片，也不能删掉用户的 Key。
+  const RETIRED_PRESET_IDS = new Set(['token-plan-cn.xiaomimimo.com']);
+  list = list.filter(p => {
+    const host = String((p.base || '').replace(/^https?:\/\//, '')).split('/')[0];
+    const untouched = String(p.name || '').trim() === 'MiMo Token Plan'
+      && RETIRED_PRESET_IDS.has(host)
+      && !p.key && !p.balAt;
+    return !untouched;
+  });
+
   return list.map(p => {
     const q = { ...p };
     if (q.kind === 'mimo'){
@@ -1271,9 +1297,6 @@ function seedProviders(){
     { id: uid(), name: 'Xiaomi MiMo', kind: 'mimo', key: '', base: 'https://api.xiaomimimo.com/v1',
       color: '#ff6900', letter: 'M', bal: null, balAt: 0, balErr: '',
       models: ['mimo-v2.6-pro', 'mimo-v2.6-flash', 'mimo-v2.6-pro-ultraspeed'] },
-    { id: uid(), name: 'MiMo Token Plan', kind: 'mimo', key: '', base: 'https://token-plan-cn.xiaomimimo.com/v1',
-      color: '#ff8c38', letter: 'T', bal: null, balAt: 0, balErr: '',
-      models: ['mimo-v2.6-pro', 'mimo-v2.6-flash'] },
     { id: uid(), name: 'Moonshot', kind: 'moonshot', key: '', base: 'https://api.moonshot.cn/v1',
       color: '#12b7a8', letter: 'K', bal: null, balAt: 0, balErr: '', models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.5'] }
   ];
@@ -2275,9 +2298,6 @@ const AI = {
     mimo: { name: 'Xiaomi MiMo', base: 'https://api.xiaomimimo.com/v1', color: '#ff6900', letter: 'M',
       keys: 'https://platform.xiaomimimo.com/#/console/api-keys',
       models: ['mimo-v2.6-pro', 'mimo-v2.6-flash', 'mimo-v2.6-pro-ultraspeed'] },
-    mimoPlan: { name: 'MiMo Token Plan', base: 'https://token-plan-cn.xiaomimimo.com/v1', color: '#ff8c38', letter: 'T',
-      keys: 'https://platform.xiaomimimo.com/#/console/plan-manage',
-      models: ['mimo-v2.6-pro', 'mimo-v2.6-flash'] },
     moonshot: { name: 'Moonshot', base: 'https://api.moonshot.cn/v1', color: '#12b7a8', letter: 'K',
       keys: 'https://platform.moonshot.cn/console/api-keys',
       models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.5', 'moonshot-v1-32k'] },
@@ -2341,7 +2361,7 @@ const AI = {
   },
 
   /**
-   * 小米 MiMo / MiMo Token Plan
+   * 小米 MiMo
    * 官方文档（mimo.mi.com/docs）只提供 OpenAI 兼容的 /chat/completions，
    * 并未开放任何余额查询接口（实测 /user/balance、/balance、/users/me/balance、
    * /dashboard/billing/credit_grants 均返回 404）。
@@ -3224,7 +3244,7 @@ function renderBalance(){
 
     (needKey.length ? '<div class="card" style="margin-bottom:18px;border-color:color-mix(in srgb,var(--amber) 34%,var(--line))">' +
       '<div class="card__bd" style="display:flex;gap:12px;align-items:flex-start;background:var(--amber-soft);border-radius:0">' +
-        ic('warn', '') + '<div style="flex:1"><b style="font-size:14px">还有 ' + needKey.length + ' 个供应商没填 Key</b>' +
+        ic('warn', 'bal__warnIc') + '<div style="flex:1"><b style="font-size:14px">还有 ' + needKey.length + ' 个供应商没填 Key</b>' +
         '<div class="tiny" style="color:var(--ink-2);margin-top:3px">' + esc(needKey.map(p => p.name).join('、')) + '。填好之后就能查余额、也能用来总结新闻。</div></div>' +
         '<button class="btn btn--sm" id="balFill">去填写</button>' +
       '</div></div>' : '') +
@@ -3605,7 +3625,7 @@ function renderNewsList(){
       '<div class="newsi__bd"><div class="newsi__t">' + esc(x.title) + '</div>' +
       '<div class="newsi__m"><small>' + ic('link') + esc(x.srcName) + '</small>' + hot +
       (x.sort === 'hot' ? '<small style="color:var(--accent)">热度榜</small>' : '') + '</div></div>' +
-      ic('chev', '') .replace('<svg', '<svg style="width:15px;height:15px;color:var(--ink-4);flex:none;align-self:center"') +
+      ic('chev', 'newsi__go') +
       '</a>';
   }).join('') + '</div>';
   return html;
