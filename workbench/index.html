@@ -707,6 +707,11 @@ html[data-theme="dark"] .wx{--ink-2:#d5cfc5; --ink-3:#b3aca1; --ink-4:#a09a8f;}
 .li__t{font-size:14px;font-weight:500;line-height:1.5;word-break:break-word}
 .li.is-done .li__t{text-decoration:line-through;color:var(--ink-4);text-decoration-thickness:1px}
 .li__m{font-size:11.5px;color:var(--ink-4);margin-top:2px;display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+/* 元数据行里的图标（时钟 / 优先级靶心）：裸 ic() 且深在 span 里，
+   白名单的「直接子元素」够不着 —— 必须用真名规则钉死，否则会撑到 25~45px。
+   用 em 跟随 11.5px 字号，图标与文字同高，不再喧宾夺主。 */
+.li__m svg{width:12px;height:12px;flex:none;vertical-align:-1.5px}
+.li__m > span{display:inline-flex;align-items:center;gap:3px}
 .li__acts{display:flex;gap:2px;opacity:0;transition:opacity .18s var(--ease);flex:none}
 .li:hover .li__acts,.li:focus-within .li__acts{opacity:1}
 @media (hover:none){.li__acts{opacity:1}}
@@ -1051,7 +1056,7 @@ const SCHEMA  = 1;
 /* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
    APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
    只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.10';
+const APP_VER    = '1.11';
 const APP_NAME   = '日常 · 生活工作台';
 const APP_BUILD  = '2026-09-23';
 
