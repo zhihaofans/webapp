@@ -110,9 +110,14 @@ html[data-theme="dark"]{
      3) .empty 也排除 —— 它的 svg 由 .empty svg 规则放大到 30px 作
         空状态插图，兜底的 17px 会把它压小（.empty 的 svg 是唯一
         允许大的图标，靠真名规则单独控制，不必进兜底名单）。 */
-:where(.card__bd, .reading, .wx__advice, .bal__note, .li__bd, .cmt, .toast) > svg:not([width]):not([height]){
+:where(.card__bd, .reading, .wx__advice, .bal__note, .li__bd, .cmt, .toast,
+       .hello__warn, .stPrivacy) > svg:not([width]):not([height]){
   width:17px;height:17px;flex:none;
 }
+/* hello__warn / stPrivacy 里的图标要与首行文字基线对齐，不能撑高行距 */
+.hello__warn > svg, .stPrivacy > svg{display:inline-block;vertical-align:-3px;margin-right:2px}
+/* 说明类图标真名（显式 class，不再依赖兜底名单） */
+.noteIc{width:17px;height:17px;flex:none;display:inline-block;vertical-align:-3px;margin-right:2px}
 /* 图表必须保持自身比例，禁止被上面的兜底规则压缩 */
 .chart svg, .donut svg, [data-chart] svg{width:auto;height:auto;max-width:100%}
 html,body{margin:0;padding:0}
@@ -1046,7 +1051,7 @@ const SCHEMA  = 1;
 /* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
    APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
    只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.9';
+const APP_VER    = '1.10';
 const APP_NAME   = '日常 · 生活工作台';
 const APP_BUILD  = '2026-09-23';
 
@@ -4812,8 +4817,8 @@ function openSettings(){
       '</div></div>' +
 
       '<div class="sect"><h4>隐私</h4>' +
-        '<div style="padding:13px 15px;border-radius:12px;background:var(--sage-soft);font-size:13px;line-height:1.65;color:var(--ink-2)">' +
-          ic('shield') + ' <b style="color:var(--sage)">数据不出本机。</b><br>' +
+        '<div class="stPrivacy" style="padding:13px 15px;border-radius:12px;background:var(--sage-soft);font-size:13px;line-height:1.65;color:var(--ink-2)">' +
+          ic('shield', 'noteIc') + ' <b style="color:var(--sage)">数据不出本机。</b><br>' +
           '所有记录都保存在这个浏览器的 localStorage 中，不上传服务器，也没有账号体系。' +
           'API Key 同样只存在本机，仅在与对应厂商接口通信时使用。' +
           '清除浏览器数据会导致记录丢失，请定期导出备份。' +
@@ -5080,8 +5085,8 @@ function showHello(){
           item('news', '热榜与 AI 摘要', '可同时抓取多个平台的榜单，再让模型帮你读成摘要，支持多个模型交叉对比。') +
           item('file', '笔记 · 收支 · 待办 · 习惯', '输入即保存，关闭页面也不会丢。每满 20 条会提醒你备份一次。') +
         '</div>' +
-        '<div style="padding:12px 14px;border-radius:12px;background:var(--amber-soft);font-size:12.5px;line-height:1.65;color:var(--ink-2)">' +
-          ic('warn') + ' 数据存在浏览器里，清理浏览器数据会一并清掉。<b>记得偶尔导出备份</b>，在左侧「备份」里可以随时导出。' +
+        '<div class="hello__warn" style="padding:12px 14px;border-radius:12px;background:var(--amber-soft);font-size:12.5px;line-height:1.65;color:var(--ink-2)">' +
+          ic('warn', 'noteIc') + ' 数据存在浏览器里，清理浏览器数据会一并清掉。<b>记得偶尔导出备份</b>，在左侧「备份」里可以随时导出。' +
         '</div>' +
         '<p class="tiny muted" style="margin:0">当前是演示状态，已经预置了几条示例记录，可以在「备份 → 清空演示数据」里一键移除。</p>' +
       '</div>'
