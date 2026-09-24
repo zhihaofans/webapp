@@ -59,6 +59,13 @@
   --ease-in-out:cubic-bezier(.65,.05,.36,1);
 }
 
+/* color-scheme 是原生控件的「主题开关」：
+   不加它，datetime-local 的日历按钮、数字框的步进箭头、滚动条、下拉浮层
+   一律按系统浅色画 —— 深色模式下就会出现白底白字的输入框。
+   auto 跟随，light/dark 由应用自己的 data-theme 决定。 */
+html{color-scheme:light}
+html[data-theme="dark"]{color-scheme:dark}
+
 html[data-theme="dark"]{
   --bg:#17181a;
   --bg-tint:#131416;
@@ -247,6 +254,77 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 }
 .rail__foot{display:flex;flex-direction:column;gap:3px;align-items:center}
 
+/* --- 手机端菜单抽屉（桌面端不出现，见响应式区） --- */
+.mnav,.mscrim{display:none}
+.mscrim{
+  position:fixed;inset:0;z-index:90;background:rgba(20,16,12,.42);
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+  opacity:0;transition:opacity .24s var(--ease);
+}
+.mscrim.is-on{opacity:1}
+.mnav{
+  position:fixed;top:0;bottom:0;left:0;z-index:91;
+  width:min(80vw,308px);
+  background:var(--surface);
+  border-right:1px solid var(--line);
+  box-shadow:var(--sh-3);
+  flex-direction:column;
+  transform:translateX(-102%);
+  transition:transform .28s var(--ease);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.mnav.is-on{transform:none}
+.mnav__hd{
+  flex:none;display:flex;align-items:center;gap:10px;
+  padding:16px 14px 14px;border-bottom:1px solid var(--line);
+}
+.mnav__brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.mnav__logo{
+  width:36px;height:36px;flex:none;border-radius:10px;
+  background:linear-gradient(145deg,var(--accent),var(--accent-ink));
+  color:#fff;display:grid;place-items:center;font-weight:700;font-size:16px;
+  font-family:var(--f-serif);
+}
+.mnav__name{font-size:13.5px;font-weight:600;color:var(--ink);min-width:0}
+.mnav__name em{
+  display:block;font-style:normal;font-size:10.5px;font-weight:500;
+  color:var(--ink-4);margin-top:2px;letter-spacing:.02em;
+}
+.mnav__x{
+  width:40px;height:40px;flex:none;border-radius:10px;display:grid;place-items:center;
+  color:var(--ink-3);background:transparent;
+}
+.mnav__x svg{width:17px;height:17px}
+.mnav__x:hover{background:var(--surface-3);color:var(--ink)}
+.mnav__list{flex:1;overflow-y:auto;padding:9px 9px 6px;display:flex;flex-direction:column;gap:2px}
+/* 菜单项：整行可点、高 48px（≥44px 触控标准） */
+.mitem{
+  display:flex;align-items:center;gap:11px;
+  width:100%;min-height:48px;padding:0 11px;
+  border-radius:11px;color:var(--ink-2);text-align:left;
+  transition:background .16s var(--ease),color .16s var(--ease);
+}
+.mitem svg{width:19px;height:19px;flex:none;color:var(--ink-4);transition:color .16s var(--ease)}
+.mitem__tx{min-width:0;flex:1}
+.mitem__tx b{display:block;font-size:14px;font-weight:600;color:inherit;line-height:1.25}
+.mitem__tx small{display:block;font-size:11px;color:var(--ink-4);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mitem:hover{background:var(--surface-2);color:var(--ink)}
+.mitem.is-on{background:var(--accent-soft);color:var(--accent-ink)}
+.mitem.is-on svg{color:var(--accent-ink)}
+.mnav__ft{
+  flex:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;
+  padding:9px 9px 4px;border-top:1px solid var(--line);
+}
+.mtool{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  min-height:52px;border-radius:11px;background:var(--surface-2);
+  border:1px solid var(--line);color:var(--ink-3);
+}
+.mtool svg{width:17px;height:17px}
+.mtool span{font-size:10.5px}
+.mtool:hover,.mtool:active{background:var(--surface-3);color:var(--ink)}
+
 /* --- 主区域 --- */
 .main{
   flex:1;min-width:0;margin-left:var(--rail);
@@ -262,6 +340,8 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
   border-bottom:1px solid var(--line);
 }
 .topbar__t{min-width:0;flex:1}
+/* 手机端顶栏的菜单按钮：桌面端隐藏，见响应式区 */
+.topbar__menu{display:none}
 .topbar__t h1{
   margin:0;font-size:19px;font-weight:600;letter-spacing:-.015em;
   display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
@@ -360,6 +440,33 @@ html[data-theme="dark"] .sel{
 }
 .inp::placeholder,.ta::placeholder{color:var(--ink-4)}
 .inp--mono{font-family:var(--f-num);font-size:12.5px;letter-spacing:.01em}
+
+/* 表单字段容器 .fld —— 原先是「有 class、无样式」，表单全靠浏览器默认样。
+   这里补齐外观，并让内部控件自动接管 .inp 的视觉。 */
+.fld{display:flex;flex-direction:column;gap:5px;min-width:0}
+.fld > span{font-size:11.5px;font-weight:600;color:var(--ink-3);letter-spacing:.05em}
+.fld > input,.fld > select,.fld > textarea{
+  width:100%;height:38px;padding:0 11px;
+  background:var(--surface-2);border:1px solid var(--line-2);
+  border-radius:var(--r-sm);color:var(--ink);font-size:16px;
+  transition:border-color .16s var(--ease),background .16s var(--ease),box-shadow .16s var(--ease);
+}
+.fld > textarea{height:auto;min-height:82px;padding:9px 11px;resize:vertical;line-height:1.55}
+.fld > input:hover,.fld > select:hover,.fld > textarea:hover{border-color:var(--ink-4)}
+.fld > input:focus,.fld > select:focus,.fld > textarea:focus{
+  border-color:var(--accent);background:var(--surface);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 13%,transparent);
+}
+.fld > input::placeholder,.fld > textarea::placeholder{color:var(--ink-4)}
+/* 数字框：去掉浏览器自绘的步进箭头，避免深色下出现浅色小三角 */
+.fld input[type=number]{appearance:textfield;-moz-appearance:textfield}
+.fld input[type=number]::-webkit-outer-spin-button,
+.fld input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+/* 日期时间控件：图标本想用 filter 反色，但 filter 同时作用于控件绘制层，
+   实测会把整个输入框渲染成空白 —— 所以交给 color-scheme 处理，这里不动它。 */
+@media (max-width:520px){
+  .fld > input,.fld > select{height:42px}     /* 手机上给足点击高度 */
+}
 .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
 .row--tight{gap:7px}
 .row--mid{align-items:center}
@@ -980,40 +1087,33 @@ table.tb td.num{text-align:right}
 }
 @media (max-width:860px){
   :root{--rail:0px}
-  .rail{
-    top:auto;bottom:0;right:0;width:100%;height:auto;
-    flex-direction:row;justify-content:space-around;align-items:stretch;
-    padding:5px 4px calc(5px + env(safe-area-inset-bottom));gap:0;
-    border-right:0;border-top:1px solid var(--line);
-    overflow:hidden;                 /* 整体不滚，只让导航区滚 */
-    box-shadow:0 -2px 14px rgba(40,32,22,.07);
+  /* 底部导航栏整体取消 —— 模块一多就必然溢出/遮挡。
+     改为顶栏左侧的菜单按钮 + 侧拉抽屉，模块再多也放得下。 */
+  .rail{display:none}
+  .main{margin-left:0;padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+  .topbar{padding:11px 15px;min-height:56px;gap:10px}
+
+  /* 顶栏菜单按钮：图标 + 当前页名，一眼知道在哪一页 */
+  .topbar__menu{
+    display:inline-flex;align-items:center;gap:7px;flex:none;
+    height:40px;padding:0 12px 0 9px;border-radius:11px;
+    background:var(--surface-2);border:1px solid var(--line);
+    color:var(--ink);font-size:13.5px;font-weight:600;
+    transition:background .16s var(--ease),border-color .16s var(--ease);
   }
-  html[data-theme="dark"] .rail{box-shadow:0 -2px 14px rgba(0,0,0,.35)}
-  .rail::-webkit-scrollbar{display:none}
-  .rail__logo{display:none}
-  /* 模块超过 5 个后底部栏必然放不下 —— 导航区横向滚动，工具区常驻右侧。
-     之前用 margin-left:auto 把工具区推到滚动区外，窄屏上会盖住最后一项（点不到）。 */
-  .rail__nav{
-    flex:1 1 auto;min-width:0;flex-direction:row;gap:2px;justify-content:flex-start;
-    overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding-bottom:7px;
-  }
-  .rail__nav::-webkit-scrollbar{display:none}
-  .rail__sep{width:1px;height:24px;margin:0 2px;flex:none;align-self:center;opacity:.7}
-  .rail__foot{
-    flex:0 0 auto;flex-direction:row;gap:2px;align-self:center;
-    margin-left:3px;padding-left:3px;border-left:1px solid var(--line);
-  }
-  .rail__foot .navbtn{width:42px}
-  .navbtn{width:54px;height:50px;border-radius:var(--r-md);flex:0 0 auto}
-  .navbtn span{font-size:10px}
-  .navbtn.is-on::before{
-    left:50%;top:auto;bottom:-6px;transform:translateX(-50%);
-    width:20px;height:3px;border-radius:3px 3px 0 0;
-  }
-  .navbtn__dot{top:6px;right:11px}
-  .main{margin-left:0;padding-bottom:calc(74px + env(safe-area-inset-bottom))}
-  .topbar{padding:11px 15px;min-height:56px}
-  .topbar__t h1{font-size:17px}
+  .topbar__menu svg{width:17px;height:17px;flex:none;color:var(--ink-3)}
+  .topbar__menu:active{background:var(--surface-3);border-color:var(--ink-4)}
+  /* 页名已挪进按钮，h1 让位（仍保留在 DOM 里供无障碍读取） */
+  .topbar__t h1{display:none}
+  .topbar__t{display:flex;align-items:center;min-width:0}
+  .topbar__sub{font-size:11.5px;margin-top:0}
+  .topbar__sub .topbar__ver{display:none}
+
+  /* 抽屉与遮罩只在手机端启用（桌面端全局规则里是 display:none） */
+  .mscrim{display:block;pointer-events:none}
+  .mnav{display:flex;pointer-events:auto}
+  .mscrim.is-on{pointer-events:auto}
+  body.mnav-open{overflow:hidden}
   .view{padding:16px 15px 0}
   .grid{gap:13px}
   .g-2,.g-3,.g-4,.g-auto{grid-template-columns:1fr}
@@ -1033,7 +1133,7 @@ table.tb td.num{text-align:right}
   .wx__main{gap:12px}
   .drawer{width:100vw;max-width:100vw}
   .drawer--c{width:calc(100vw - 24px)}
-  .toasts{bottom:calc(78px + env(safe-area-inset-bottom))}
+  .toasts{bottom:calc(22px + env(safe-area-inset-bottom))}
   .modal{padding:12px}
   .modal__box{max-height:92vh}
   .li__acts{opacity:1}
@@ -1044,7 +1144,7 @@ table.tb td.num{text-align:right}
   .stat b{font-size:25px}
 }
 @media print{
-  .rail,.topbar__acts,.toasts,.drawer,.scrim,.modal{display:none!important}
+  .rail,.topbar__acts,.toasts,.drawer,.scrim,.modal,.mnav,.mscrim{display:none!important}
   .main{margin:0}
 }
 @media (prefers-reduced-motion:reduce){
@@ -1054,7 +1154,7 @@ table.tb td.num{text-align:right}
 </head>
 <body>
 <div class="app">
-  <!-- ===================== 侧拉栏 ===================== -->
+  <!-- ===================== 侧拉栏（桌面） / 底部导航（手机） ===================== -->
   <nav class="rail" id="rail" role="navigation" aria-label="主导航">
     <div class="rail__logo" title="日常 · 生活工作台">日</div>
     <div class="rail__nav" id="railNav"></div>
@@ -1065,6 +1165,11 @@ table.tb td.num{text-align:right}
   <!-- ===================== 主区域 ===================== -->
   <main class="main">
     <header class="topbar">
+      <!-- 手机端：菜单按钮 + 当前页标题；桌面端隐藏按钮 -->
+      <button class="topbar__menu" id="btnMenu" aria-label="打开菜单" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <span class="topbar__menuLabel" id="menuLabel">今日</span>
+      </button>
       <div class="topbar__t">
         <h1 id="ttl">今日</h1>
         <div class="topbar__sub" id="sub"></div>
@@ -1074,6 +1179,22 @@ table.tb td.num{text-align:right}
     <div class="view" id="view"></div>
   </main>
 </div>
+
+<!-- ===================== 手机端菜单抽屉 ===================== -->
+<div class="mscrim" id="mScrim"></div>
+<aside class="mnav" id="mNav" role="dialog" aria-modal="true" aria-label="菜单">
+  <div class="mnav__hd">
+    <div class="mnav__brand">
+      <span class="mnav__logo">日</span>
+      <span class="mnav__name">日常 · 生活工作台<em id="mNavVer">v1.12</em></span>
+    </div>
+    <button class="mnav__x" id="mNavX" aria-label="关闭菜单">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="mnav__list" id="mNavList"></div>
+  <div class="mnav__ft" id="mNavFoot"></div>
+</aside>
 
 <!-- 抽屉 / 弹层挂载点 -->
 <div id="layer"></div>
@@ -1103,7 +1224,7 @@ const SCHEMA  = 1;
 /* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
    APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
    只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.12';
+const APP_VER    = '1.13';
 const APP_NAME   = '日常 · 生活工作台';
 const APP_BUILD  = '2026-09-23';
 
@@ -1409,11 +1530,18 @@ function seedDemo(){
     ],
     drinks: [
       // at 为时间戳；c=咖啡因mg  s=糖g  k=热量kcal  v=容量ml
-      { id: uid(), name: '美式咖啡', v: 355, s: 0,  c: 150, k: 5,   at: t - 7 * H },
-      { id: uid(), name: '拿铁',     v: 355, s: 15, c: 75,  k: 190, at: t - 4 * H },
-      { id: uid(), name: '珍珠奶茶', v: 500, s: 35, c: 30,  k: 350, at: t - 2 * H }
+      { id: uid(), name: '美式咖啡', v: 355, s: 0,  c: 150, k: 5,   at: demoAt(0, 3) },
+      { id: uid(), name: '拿铁',     v: 355, s: 15, c: 75,  k: 190, at: demoAt(1, 3) },
+      { id: uid(), name: '珍珠奶茶', v: 500, s: 35, c: 30,  k: 350, at: demoAt(2, 3) }
     ]
   };
+  /** 演示时间戳：在「今天已经过去的那段时间」里均匀铺开。
+      不能写成 now - N 小时 —— 凌晨打开时会整批退到昨天，今日列表直接变空。 */
+  function demoAt(i, n){
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const span = Math.max(Date.now() - start.getTime() - 15 * 60000, 300000);
+    return Math.round(start.getTime() + 15 * 60000 + span * (i + 1) / (n + 1));
+  }
   /** 过去 9 天中命中 n 天的日期键 */
   function last(n){
     const out = [];
@@ -4531,8 +4659,7 @@ const DRINK_PRESETS = [
   { n:'果汁',       v:250, s:24, c:0,   k:110, g:'果汁' },
   { n:'豆浆',       v:300, s:5,  c:0,   k:100, g:'其他' },
   { n:'热可可',     v:250, s:20, c:10,  k:150, g:'其他' },
-  { n:'柠檬水',     v:400, s:10, c:0,   k:40,  g:'其他' },
-  { n:'白开水',     v:300, s:0,  c:0,   k:0,   g:'水'   }
+  { n:'柠檬茶',     v:400, s:10, c:15,  k:40,  g:'其他' }
 ];
 
 /** 按天聚合求和 */
@@ -4595,6 +4722,13 @@ function renderDrinks(){
         '<span>上限参考：咖啡因 400mg（成人每日建议上限）、添加糖 50g（WHO 建议，理想 25g）。数值来自公开资料，不作医疗建议。</span></div>' +
     '</div></div>' +
 
+    /* ① 今日记录（放在最前 —— 最常看的是「今天喝了什么」） */
+    '<div class="card" style="margin-bottom:18px">' +
+      '<div class="card__hd"><h3>' + ic('clock') + '今天喝过</h3>' +
+        (today.length ? '<span class="tag">' + today.length + ' 杯</span>' : '') + '</div>' +
+      '<div class="card__bd" style="padding:0" id="dkToday"></div>' +
+    '</div>' +
+
     /* ② 快速记录：预设宫格 */
     '<div class="card" style="margin-bottom:18px">' +
       '<div class="card__hd"><h3>' + ic('cup') + '记一杯</h3>' +
@@ -4607,13 +4741,6 @@ function renderDrinks(){
             (p.s ? ' · ' + p.s + 'g 糖' : '') + '</small>' +
           '</button>').join('') +
       '</div></div>' +
-    '</div>' +
-
-    /* ③ 今日记录 */
-    '<div class="card" style="margin-bottom:18px">' +
-      '<div class="card__hd"><h3>' + ic('clock') + '今天喝过</h3>' +
-        (today.length ? '<span class="tag">' + today.length + ' 杯</span>' : '') + '</div>' +
-      '<div class="card__bd" style="padding:0" id="dkToday"></div>' +
     '</div>' +
 
     /* ④ 近 7 天咖啡因趋势（内联 SVG 手写，不引图表库） */
@@ -4667,7 +4794,7 @@ function renderDrinks(){
     const el = $('#dkToday');
     if (!today.length){
       el.innerHTML = '<div class="empty" style="border:0;padding:26px">' + ic('cup') +
-        '<p>今天还没有记录</p><small>点上面任一饮品，或「自定义」手动填写。</small></div>';
+        '<p>今天还没喝</p><small>点上面任一饮品，或「自定义」手动填写。</small></div>';
       return;
     }
     el.innerHTML = '<div class="list">' + today.map(d =>
@@ -5223,20 +5350,64 @@ function buildNav(){
   }
   $('#railNav').innerHTML = VIEWS.map(v =>
     '<button class="navbtn" data-v="' + v.id + '" title="' + esc(v.name) + '">' + ic(v.icon) + '<span>' + esc(v.name) + '</span></button>').join('');
+
+  /* ---- 手机端菜单抽屉（与侧栏同源，一份数据两处渲染） ---- */
+  const ml = $('#mNavList');
+  if (ml){
+    ml.innerHTML = VIEWS.map(v =>
+      '<button class="mitem" data-mv="' + v.id + '">' + ic(v.icon) +
+        '<span class="mitem__tx"><b>' + esc(v.name) + '</b><small>' + esc(v.sub) + '</small></span>' +
+      '</button>').join('');
+    $$('[data-mv]', ml).forEach(b => b.onclick = () => { closeMenu(); go(b.dataset.mv); });
+  }
+  const mf = $('#mNavFoot');
+  if (mf){
+    mf.innerHTML =
+      '<button class="mtool" data-mact="theme" title="切换深浅色">' + ic('sun') + '<span>深浅色</span></button>' +
+      '<button class="mtool" data-mact="backup" title="备份与导出">' + ic('shield') + '<span>备份</span></button>' +
+      '<button class="mtool" data-mact="settings" title="设置">' + ic('gear') + '<span>设置</span></button>';
+  }
+  const mv = $('#mNavVer'); if (mv) mv.textContent = 'v' + APP_VER;
+  if ($('#menuLabel')) $('#menuLabel').textContent = (VIEWS.find(v => v.id === CUR) || VIEWS[0]).name;
+
   $('#railFoot').innerHTML =
     '<button class="btn btn--ghost btn--icon btn--sm navbtn" data-act="theme" title="切换深浅色" style="width:46px;height:40px">' + ic('sun') + '</button>' +
     '<button class="btn btn--ghost btn--icon btn--sm navbtn" data-act="backup" title="备份与导出" style="width:46px;height:40px">' + ic('shield') + '</button>' +
     '<button class="btn btn--ghost btn--icon btn--sm navbtn" data-act="settings" title="设置" style="width:46px;height:40px">' + ic('gear') + '</button>';
   $$('[data-v]').forEach(b => b.onclick = () => go(b.dataset.v));
-  $$('[data-act]').forEach(b => b.onclick = () => {
-    if (b.dataset.act === 'settings') openSettings();
-    else if (b.dataset.act === 'backup') Backup.openPanel();
+  const doAct = act => {
+    if (act === 'settings') openSettings();
+    else if (act === 'backup') Backup.openPanel();
     else {
       const cur = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
       Store.db.settings.theme = cur; Store.save(); applyTheme();
       toast('ok', cur === 'dark' ? '已切到深色' : '已切到浅色', '', 1800);
     }
-  });
+  };
+  $$('[data-act]').forEach(b => b.onclick = () => doAct(b.dataset.act));
+  $$('[data-mact]').forEach(b => b.onclick = () => { closeMenu(); doAct(b.dataset.mact); });
+
+  // 菜单开关：按钮 / 关闭按钮 / 遮罩 / Esc
+  const bm = $('#btnMenu'), mn = $('#mNav'), sc = $('#mScrim');
+  if (bm) bm.onclick = openMenu;
+  if ($('#mNavX')) $('#mNavX').onclick = closeMenu;
+  if (sc) sc.onclick = closeMenu;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+}
+
+function openMenu(){
+  const mn = $('#mNav'), sc = $('#mScrim'), bm = $('#btnMenu');
+  if (!mn) return;
+  mn.classList.add('is-on'); sc.classList.add('is-on');
+  document.body.classList.add('mnav-open');
+  if (bm) bm.setAttribute('aria-expanded', 'true');
+}
+function closeMenu(){
+  const mn = $('#mNav'), sc = $('#mScrim'), bm = $('#btnMenu');
+  if (!mn || !mn.classList.contains('is-on')) return;
+  mn.classList.remove('is-on'); sc.classList.remove('is-on');
+  document.body.classList.remove('mnav-open');
+  if (bm) bm.setAttribute('aria-expanded', 'false');
 }
 
 function go(id){
@@ -5244,22 +5415,14 @@ function go(id){
   CUR = id;
   const v = VIEWS.find(x => x.id === id);
   $$('[data-v]').forEach(b => b.classList.toggle('is-on', b.dataset.v === id));
-  syncNavScroll();
+  $$('[data-mv]').forEach(b => b.classList.toggle('is-on', b.dataset.mv === id));
+  const mlb = $('#menuLabel'); if (mlb) mlb.textContent = v.name;
   $('#ttl').innerHTML = esc(v.name) + '<em>' + esc(greeting()) + '</em>';
   $('#sub').innerHTML = esc(v.sub) + '<span class="topbar__ver" title="' + escAttr(APP_NAME) + ' · 构建于 ' + escAttr(APP_BUILD) + '">v' + esc(APP_VER) + '</span>';
   WxCanvas.stop();
   location.hash = '#/' + id;
   v.render();
   renderTopActs(id);
-}
-/* 移动端底部导航放不下 8 个模块时会横向滚动，当前项可能落在视口外。
-   每次切页把它带回来，否则用户点完一次就再也找不到刚去的那一页。 */
-function syncNavScroll(){
-  const nav = $('.rail__nav'), on = $('.navbtn.is-on');
-  if (!nav || !on || nav.scrollWidth <= nav.clientWidth + 2) return;
-  const r = on.getBoundingClientRect(), n = nav.getBoundingClientRect();
-  if (r.left < n.left - 1 || r.right > n.right + 1)
-    nav.scrollLeft += (r.left + r.width / 2) - (n.left + n.width / 2);
 }
 function greeting(){
   const h = new Date().getHours();
