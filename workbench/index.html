@@ -870,6 +870,24 @@ html[data-theme="dark"] .wx{--ink-2:#d5cfc5; --ink-3:#b3aca1; --ink-4:#a09a8f;}
 .aipick button:hover{border-color:var(--accent);color:var(--accent-ink)}
 .aipick button.is-on{background:var(--accent);border-color:var(--accent);color:#fff}
 .aipick button i{width:7px;height:7px;border-radius:99px;background:currentColor;opacity:.55;font-style:normal}
+/* ---- 默认 AI 选择（v1.16）：设置页用的纵向列表形态，每项带模型副标题 ---- */
+.aipick--col{flex-direction:column;gap:7px;margin-bottom:0}
+.aipick--col button{
+  width:100%;justify-content:flex-start;gap:10px;padding:11px 13px;border-radius:var(--r-sm);
+  text-align:left;min-height:52px;   /* 触屏可点区域，窄屏下也不至于挤成一团 */
+}
+/* 选中态反白后，副标题的 muted 灰会糊在强调色上，单独提亮一档 */
+.aipick--col button.is-on .aipick__tx small{color:rgba(255,255,255,.78)}
+.aipick--col button:disabled{opacity:.5;cursor:not-allowed}
+.aipick--col button:disabled:hover{border-color:var(--line-2);color:var(--ink-2)}
+.aipick__tx{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.aipick__tx b{font-size:13.5px;font-weight:600;line-height:1.3}
+.aipick__tx small{font-size:11.5px;color:var(--ink-4);line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aipick__cur{
+  flex:none;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:99px;
+  background:rgba(255,255,255,.22);color:#fff;letter-spacing:.02em;
+}
 .reading{display:flex;align-items:flex-start;gap:12px;font-size:13.5px;line-height:1.6;color:var(--ink-2)}
 /* 同上：详情卡里 ic('info') 也是行内 SVG，不约束就会撑满整张卡 */
 .reading svg{width:17px;height:17px;flex:none;margin-top:1px;color:var(--ink-4)}
@@ -1229,7 +1247,7 @@ table.tb td.num{text-align:right}
   <div class="mnav__hd">
     <div class="mnav__brand">
       <span class="mnav__logo">日</span>
-      <span class="mnav__name">日常 · 生活工作台<em id="mNavVer">v1.15</em></span>
+      <span class="mnav__name">日常 · 生活工作台<em id="mNavVer">v1.16</em></span>
     </div>
     <button class="mnav__x" id="mNavX" aria-label="关闭菜单">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -1267,7 +1285,7 @@ const SCHEMA  = 1;
 /* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
    APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
    只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.15';
+const APP_VER    = '1.16';
 const APP_NAME   = '日常 · 生活工作台';
 const APP_BUILD  = '2026-09-24';
 
@@ -1447,6 +1465,9 @@ const DEFAULT_SETTINGS = {
                 { name: '广州', lat: 23.1291, lon: 113.2644, region: '广东' }],
   newsSources: ['zhihu', 'weibo', 'baidu', '36kr'],
   newsAI: 'deepseek',
+  // 默认 AI（v1.16）：饮品查值、摘要等「只用一个模型」的功能统一读它。
+  // 空串表示还没选过 —— 运行时由 AI.pickDefault() 回退到第一个有 Key 的供应商。
+  defaultAI: '',
   lastNews: null,
   lastWeather: null,
   backupHint: 20,
@@ -1626,6 +1647,10 @@ const Store = {
       })).filter(c => c.name);
       if (Array.isArray(s.newsSources)) out.settings.newsSources = s.newsSources.filter(x => typeof x === 'string').slice(0, 30);
       if (typeof s.newsAI === 'string') out.settings.newsAI = s.newsAI;
+      // 默认 AI（v1.16）：只做字符串登记，合法性交给 AI.pickDefault() 运行时判断。
+      // 这里不校验 id 是否存在 —— 供应商是后加载的，normalize 阶段拿到的是原始数组，
+      // 在这里判断容易误杀；且用户删掉供应商后 id 会短暂失效，运行时回退更稳。
+      if (typeof s.defaultAI === 'string') out.settings.defaultAI = s.defaultAI.slice(0, 60);
       if (s.lastNews && typeof s.lastNews === 'object') out.settings.lastNews = s.lastNews;
       if (s.lastWeather && typeof s.lastWeather === 'object') out.settings.lastWeather = s.lastWeather;
       out.settings.backupHint = clamp(Number(s.backupHint) || 20, 5, 500);
@@ -2575,6 +2600,30 @@ const AI = {
 
   get all(){ return Store.db.providers; },
   get(id){ return Store.db.providers.find(p => p.id === id); },
+
+  /** 当前默认供应商（v1.16）—— 所有「只需要一个 AI」的功能都走这里。
+   *
+   *  三级回退，保证任何历史数据状态下都能拿到一个合理结果：
+   *    ① 用户显式选的默认项（且必须填了 Key，否则等于没配）
+   *    ② 第一个填了 Key 的供应商（老用户没选过默认时的兜底，行为与升级前一致）
+   *    ③ null —— 调用方据此渲染「去配置」引导，而不是抛错
+   *
+   *  为什么不让调用方各自 find(p => p.key)：那样每处都要重复写回退逻辑，
+   *  迟早有一处写漏；而且用户在设置里选了默认，某些页面却不认，体验上很割裂。
+   */
+  pickDefault(){
+    const list = this.all || [];
+    const wantId = Store.db?.settings?.defaultAI;
+    const want = wantId ? list.find(p => p.id === wantId) : null;
+    if (want && want.key) return want;
+    return list.find(p => p.key) || null;
+  },
+
+  /** 默认供应商的展示名，用于「AI 查值」等按钮旁的提示文案 */
+  defaultName(){
+    const p = this.pickDefault();
+    return p ? p.name : '';
+  },
 
   /** 结构化错误提示 */
   friendly(e, p){
@@ -5177,11 +5226,11 @@ function openDrinkEditor(preset){
     }
     const vol = Number($('#dkV', d.body).value) || 355;
 
-    // 挑一个填了 Key 的供应商（按列表顺序，预置顺序即优先级）
-    const prov = (AI.all || []).find(p => p.key);
+    // 走统一的默认 AI（设置页可指定；没指定则第一个有 Key 的）
+    const prov = AI.pickDefault();
     if (!prov){
       out.innerHTML = notice('warn', '还没有可用的 AI 供应商',
-        '去「AI 余额」页填一个 API Key 就能用了。');
+        '去「AI 余额」页填一个 API Key，再到「设置 → 默认 AI」里选它。');
       return;
     }
 
@@ -5685,6 +5734,28 @@ function openSettings(){
           '通勤天气' + (st.commute?.on ? ' · 已开启' : ' · 未开启') + '</button>' +
       '</div>' +
 
+      '<div class="sect"><h4>默认 AI</h4>' +
+        '<p class="hint" style="margin:-2px 0 10px">饮品查值、摘要等「只需要一个模型」的功能都走这里。多模型交叉对比不受影响。</p>' +
+        (AI.all.length
+          ? '<div class="aipick aipick--col" id="stAI">' +
+              AI.all.map(p => {
+                // 没填 Key 的项也给出来，但标记为不可选 —— 让用户看得见「还差什么」，
+                // 比直接藏起来更好，否则他会疑惑「我明明配过为什么列表里没有」。
+                const usable = !!p.key;
+                const on = AI.pickDefault()?.id === p.id;
+                return '<button data-p="' + escAttr(p.id) + '"' + (usable ? '' : ' disabled') +
+                  ' class="' + (on ? 'is-on' : '') + '">' +
+                  '<i style="background:' + escAttr(p.color) + '"></i>' +
+                  '<span class="aipick__tx"><b>' + esc(p.name) + '</b>' +
+                  '<small>' + esc(usable ? (p.models?.[0] || '未指定模型') : '未填 API Key') + '</small></span>' +
+                  (on ? '<span class="aipick__cur">当前</span>' : '') +
+                '</button>';
+              }).join('') +
+            '</div>'
+          : '<div class="empty" style="padding:22px 14px">' + ic('key') +
+            '<p>还没有供应商</p><small>先在「AI 余额」里加一个，填上 API Key。</small></div>') +
+      '</div>' +
+
       '<div class="sect"><h4>数据</h4><div class="stack--sm" style="display:flex;flex-direction:column;gap:8px">' +
         '<button class="btn btn--primary btn--block" id="stExp">' + ic('dl') + '导出备份</button>' +
         '<button class="btn btn--block" id="stImp">' + ic('ul') + '导入备份</button>' +
@@ -5738,8 +5809,23 @@ function openSettings(){
     try { localStorage.setItem('lifehub.v1.home', e.target.value); } catch(err){}
     toast('ok', '启动页面已设为「' + VIEWS.find(v => v.id === e.target.value).name + '」');
   };
-  $('#stExp', d.body).onclick = () => Backup.exportAll();
-  $('#stImp', d.body).onclick = () => Backup.openImport();
+  // 默认 AI：点选即存。重绘整个分组，保证「当前」徽标与 is-on 状态同步。
+  $$('#stAI button', d.body).forEach(b => b.onclick = () => {
+    const p = AI.get(b.dataset.p);
+    if (!p || !p.key) return;
+    Store.db.settings.defaultAI = p.id;
+    Store.save();
+    $$('#stAI button', d.body).forEach(x => {
+      const cur = AI.pickDefault()?.id === x.dataset.p;
+      x.classList.toggle('is-on', cur);
+      // 徽标是动态文本，直接增删比在 HTML 里预留占位更省事
+      const old = $('.aipick__cur', x);
+      if (cur && !old) x.insertAdjacentHTML('beforeend', '<span class="aipick__cur">当前</span>');
+      if (!cur && old) old.remove();
+    });
+    toast('ok', '默认 AI 已设为 ' + p.name, '模型：' + (p.models?.[0] || '未指定'));
+  });
+  $('#stExp', d.body).onclick = () => Backup.exportAll();  $('#stImp', d.body).onclick = () => Backup.openImport();
   $('#stPanel', d.body).onclick = () => { d.close(); setTimeout(() => Backup.openPanel(), 260); };
   // 通勤设置：先关掉当前抽屉再打开，避免两层抽屉叠在一起
   $('#stCommute', d.body).onclick = () => { d.close(); setTimeout(() => openCommuteSettings(), 260); };
