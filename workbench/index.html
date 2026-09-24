@@ -152,6 +152,49 @@ html[data-theme="dark"]{
   .dk__chip{padding:10px}
   .dk__chip b{font-size:12.5px}
 }
+/* ---- AI 查值（v1.15）---- */
+.dk__ai{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 12px;border-radius:var(--r-sm);background:var(--surface-2);border:1px solid var(--line-2)}
+.dk__ai .btn{flex:none}
+.dk__ai .btn svg{width:14px;height:14px}
+.dk__aihint{font-size:11.5px;color:var(--ink-4);line-height:1.45;flex:1;min-width:120px}
+/* 数值来源徽标：官方/AI估/参考/手填 —— 必须能一眼分清，避免误以为都是官方数据 */
+.dk__badge{font-style:normal;font-size:10px;font-weight:600;letter-spacing:.02em;
+  margin-left:5px;padding:1px 5px;border-radius:5px;vertical-align:1px}
+.dk__badge--official{background:var(--accent-soft);color:var(--accent-ink)}
+.dk__badge--ai{background:var(--amber-soft);color:var(--amber)}
+.dk__badge--preset{background:var(--surface-3);color:var(--ink-3)}
+/* 查询结果卡 */
+.dk__result{margin-top:2px;padding:12px;border-radius:var(--r-sm);
+  background:var(--surface-2);border:1px solid var(--line-2)}
+.dk__result .tiny{margin:9px 0 0;color:var(--ink-4);line-height:1.55}
+.dk__src{display:flex;gap:9px;font-size:12.5px;line-height:1.6;padding:5px 0}
+.dk__src + .dk__src{border-top:1px dashed var(--line)}
+.dk__src > b{flex:none;width:62px;font-weight:600;color:var(--ink-2)}
+.dk__src > span{flex:1;min-width:0;color:var(--ink-3);word-break:break-word}
+.dk__src em{font-style:normal;color:var(--ink-4);font-size:11.5px}
+.dk__src--warn > b{color:var(--amber)}
+/* 提示条 */
+.dk__msg{display:flex;gap:8px;align-items:flex-start;padding:11px 12px;border-radius:var(--r-sm);
+  font-size:12.5px;line-height:1.6;background:var(--surface-2);border:1px solid var(--line-2)}
+.dk__msgIc{width:15px;height:15px;flex:none;margin-top:2px}
+.dk__msg > div{flex:1;min-width:0}
+.dk__msg b{display:block;font-weight:600;color:var(--ink);margin-bottom:2px}
+.dk__msg span{color:var(--ink-3)}
+.dk__msg--err{border-color:var(--danger)}
+.dk__msg--err .dk__msgIc,.dk__msg--err b{color:var(--danger)}
+.dk__msg--warn .dk__msgIc,.dk__msg--warn b{color:var(--amber)}
+.dk__msg--ok .dk__msgIc,.dk__msg--ok b{color:var(--accent-ink)}
+@media (max-width:520px){
+  /* 手机端按钮独占一行，点击区够大 */
+  .dk__ai{flex-direction:column;align-items:stretch;gap:8px}
+  .dk__ai .btn{width:100%;height:42px;justify-content:center}
+  .dk__aihint{text-align:center}
+}
+/* 记录列表里的来源小标 */
+.dk__tag{font-size:10px;font-weight:600;padding:1px 5px;border-radius:5px;
+  background:var(--surface-3);color:var(--ink-4);margin-left:6px;flex:none}
+.dk__tag--official{background:var(--accent-soft);color:var(--accent-ink)}
 /* 欢迎弹窗功能块徽标：30×30 是设计值，图标随之放大到 17px（比正文图标大一档） */
 .hello__feat{width:30px;height:30px;border-radius:9px;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;flex:none}
 .hello__feat svg{width:17px;height:17px}
@@ -1186,7 +1229,7 @@ table.tb td.num{text-align:right}
   <div class="mnav__hd">
     <div class="mnav__brand">
       <span class="mnav__logo">日</span>
-      <span class="mnav__name">日常 · 生活工作台<em id="mNavVer">v1.12</em></span>
+      <span class="mnav__name">日常 · 生活工作台<em id="mNavVer">v1.15</em></span>
     </div>
     <button class="mnav__x" id="mNavX" aria-label="关闭菜单">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -1224,9 +1267,9 @@ const SCHEMA  = 1;
 /* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
    APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
    只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.13';
+const APP_VER    = '1.15';
 const APP_NAME   = '日常 · 生活工作台';
-const APP_BUILD  = '2026-09-23';
+const APP_BUILD  = '2026-09-24';
 
 /** HTML 转义 —— 所有用户输入渲染前必过 */
 function esc(v){
@@ -1651,13 +1694,16 @@ const Store = {
       createdAt: Number(h?.createdAt) || Date.now()
     })).filter(h => h.name);
     // 饮品记录：v=容量ml  s=糖g  c=咖啡因mg  k=热量kcal  at=时间戳
+    // src（v1.15 新增）=数据来源标记数组，取值 official（瑞幸官网实测）/ ai（AI 估算）。
+    // 忘登记就会像 v1.12 那样「记录了，刷新就没了」—— normalize 是逐字段重建。
     out.drinks = arr(raw.drinks).slice(0, 20000).map(x => ({
       id: String(x?.id || uid()), name: String(x?.name || '饮品').slice(0, 24),
       v: clamp(Number(x?.v) || 0, 0, 3000),
       s: clamp(Number(x?.s) || 0, 0, 200),
       c: clamp(Number(x?.c) || 0, 0, 1000),
       k: clamp(Number(x?.k) || 0, 0, 2000),
-      at: Number(x?.at) || Date.now()
+      at: Number(x?.at) || Date.now(),
+      src: arr(x?.src).filter(t => t === 'official' || t === 'ai').slice(0, 4)
     })).filter(x => x.name);
     return out;
   },
@@ -1848,7 +1894,9 @@ function modal({ title, desc, body, okText = '确认', cancelText = '取消', on
   layer.appendChild(wrap);
   const close = () => { wrap.remove(); document.body.classList.remove('noscroll'); };
   document.body.classList.add('noscroll');
-  $('[data-x="c"]', wrap)?.addEventListener('click', close);
+  // 用 $$ 遍历，别用 $（querySelector 只返回第一个）。
+  // body 里若也写了 data-x="c"，$ 会永远只绑到那一个，弹窗自带按钮反而成了死键。
+  $$('[data-x="c"]', wrap).forEach(b => b.addEventListener('click', close));
   $('[data-x="o"]', wrap).addEventListener('click', () => {
     const r = onOk && onOk(bd, close);
     if (r !== false) close();
@@ -1902,7 +1950,9 @@ function drawer({ title, sub, side = 'r', body, foot, onClose }){
   api.close = close;
   const onKey = e => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', onKey);
-  $('[data-x="c"]', dr).addEventListener('click', close);
+  // 同上：抽屉头部有 ×，foot 里也可能有「取消/完成」。
+  // 用 $$ 全绑，任何位置的 data-x="c" 都能关抽屉。
+  $$('[data-x="c"]', dr).forEach(b => b.addEventListener('click', close));
   wrap.addEventListener('click', close);
   dr.addEventListener('click', e => e.stopPropagation());
   return api;
@@ -1910,6 +1960,7 @@ function drawer({ title, sub, side = 'r', body, foot, onClose }){
 
 /* SVG 图标选择器（供天气调用） */
 const SVG = { ic };
+
 /* ==========================================================================
    4. 天气模块
    ========================================================================== */
@@ -2500,6 +2551,7 @@ const WxCanvas = (() => {
     resize(cv){ if (cv && ctx){ fit(cv); seed(key); } }
   };
 })();
+
 /* ==========================================================================
    5. AI 供应商 / 余额查询
    --------------------------------------------------------------------------
@@ -2734,6 +2786,60 @@ const AI = {
       const ids = arr.map(m => (typeof m === 'string' ? m : m.id)).filter(Boolean);
       return ids.length ? ids : null;
     } catch (e){ return null; }
+  },
+
+  /** 让模型估算一杯饮品的糖分（官网不公开的字段）。
+   *  热量与咖啡因优先用内置官方表，这里主要补糖分，顺便给一份兜底三件套。
+   *
+   *  为什么让模型只回 JSON：自然语言没法抄进输入框。
+   *  prompt 里把「只回 JSON、不要解释、数字不带单位」写死，并做严格解析，
+   *  解析失败就抛出——由调用方降级成「只填官网值，糖分留空」，不猜。 */
+  async estimateDrink(providerId, { name, volume, official }){
+    const sys = '你是一位饮品营养数据助手。只输出一个 JSON 对象，不要任何解释文字、不要 markdown 代码块、不要单位。';
+    const known = official && (official.k != null || official.c != null)
+      ? '已知该饮品的官方数据：' +
+        (official.k != null ? '热量 ' + official.k + ' kcal；' : '') +
+        (official.c != null ? '咖啡因 ' + official.c + ' mg；' : '') +
+        '规格为「' + (official.d || '官方默认配置') + '」。这些已知值请原样返回，不要修改。'
+      : '没有官方数据，请按你的知识估算。';
+
+    const ask = '饮品名称：' + name + '（容量约 ' + volume + 'ml）\n' + known +
+      '\n请返回 JSON，字段：\n' +
+      '{"kcal":热量千卡整数,"caffeine":咖啡因毫克整数,"sugar":添加糖克整数,"confidence":"high|medium|low","basis":"依据简述20字内"}\n' +
+      '要求：三个数值都必须是不带单位的纯数字；不确定的字段给最接近的整数，不要写 null；' +
+      'sugar 指添加糖（不含牛奶等天然存在的乳糖）；confidence 表示你对估算的把握。';
+
+    const r = await this.chat(providerId, [
+      { role: 'system', content: sys },
+      { role: 'user', content: ask }
+    ], { maxTokens: 400, temperature: 0.2, timeout: 45000 });
+
+    // 严格解析：剥掉可能包裹的 ``` 与前后杂字，取第一个 {...}
+    let txt = String(r.text || '').trim();
+    txt = txt.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    const m = txt.match(/\{[\s\S]*?\}/);
+    if (!m) throw new Error('模型没有返回可解析的 JSON');
+
+    let o;
+    try { o = JSON.parse(m[0]); }
+    catch (e){ throw new Error('模型返回的 JSON 格式不正确'); }
+
+    const n = (v, max) => {
+      const x = Number(String(v).replace(/[^0-9.\-]/g, ''));
+      return isFinite(x) && x >= 0 ? Math.min(Math.round(x), max) : null;
+    };
+    const out = {
+      kcal: n(o.kcal, 3000),
+      caffeine: n(o.caffeine, 2000),
+      sugar: n(o.sugar, 500),
+      confidence: ['high', 'medium', 'low'].includes(o.confidence) ? o.confidence : 'medium',
+      basis: String(o.basis || '').slice(0, 40),
+      model: r.model
+    };
+    if (out.kcal === null && out.caffeine === null && out.sugar === null){
+      throw new Error('模型返回的数值都不可用');
+    }
+    return out;
   }
 };
 
@@ -2985,6 +3091,7 @@ const News = {
     return html || '<p class="muted">（内容为空）</p>';
   }
 };
+
 /* ==========================================================================
    7. 视图内渲染器：天气 / 余额 / 新闻 / 笔记 / 收支 / 待办 / 习惯
    ========================================================================== */
@@ -3609,8 +3716,11 @@ function openProviderEditor(id){
     title: editing ? '编辑供应商' : '添加供应商',
     sub: editing ? editing.name : '支持主流厂商与任意 OpenAI 兼容接口',
     body: parts.join(''),
-    foot: '<button class="btn" data-x="c">取消</button><button class="btn btn--primary" id="pvSave">' + ic('save') + '保存</button>'
+    foot: '<button class="btn" id="pvCancel">取消</button><button class="btn btn--primary" id="pvSave">' + ic('save') + '保存</button>'
   });
+
+  // 显式绑 close()：不依赖 drawer() 的通用关闭钩子，按钮自己就是一个确定入口。
+  $('#pvCancel', d.foot).onclick = () => d.close();
 
   const applyKind = (k, force) => {
     kind = k;
@@ -3912,6 +4022,7 @@ function openSourcePicker(){
     News.fetchAll();
   };
 }
+
 /* ------------------------------ 笔记 ------------------------------ */
 function renderNotes(){
   const box = $('#view');
@@ -4662,6 +4773,129 @@ const DRINK_PRESETS = [
   { n:'柠檬茶',     v:400, s:10, c:15,  k:40,  g:'其他' }
 ];
 
+/* ==========================================================================
+   瑞幸官方产品营养表（内置）
+   --------------------------------------------------------------------------
+   数据来源：瑞幸官网产品页 https://lkcoffee.com/products 各分类页，
+   抓取日期 2026-09-24，共 36 款在售饮品。
+
+   为什么值得内置一张表，而不是全靠 AI 估：
+     ① 官网给的是实测值，AI 只能凭印象估。像「茉莉花香拿铁」76kcal 却有
+        236mg 咖啡因、「生椰三重奏拿铁」470kcal 但只有 148mg —— 热量和
+        咖啡因根本不同向变化，凭常识猜必错。
+     ② 联表命中时零网络、零 API 消耗、离线可用。
+     ③ AI 只负责「表里没有的」和「官网不公开的糖分」。
+
+   字段：n=名称  g=分类  k=热量kcal  c=咖啡因mg  d=官网标注的杯型/甜度规格
+   注意 k / c 可能缺省（官网部分产品只标了热量）——缺的交给 AI 补。
+   ========================================================================== */
+const LUCKIN_TABLE = [
+  { n:'生椰拿铁',           g:'拿铁',   k:179, c:118, d:'大杯/冰/默认浓度/不另外加糖' },
+  { n:'茉莉花香拿铁',       g:'拿铁',   k:76,  c:236, d:'大杯/冰/默认浓度/不另外加糖' },
+  { n:'拿铁',               g:'拿铁',   k:268, c:99,  d:'大杯/热/默认浓度/不另外加糖' },
+  { n:'冰吸生椰拿铁',       g:'拿铁',   k:196, c:163, d:'大杯/冰/默认浓度/不另外加糖' },
+  { n:'小黄油拿铁',         g:'拿铁',   k:250, c:172, d:'大杯/冰/默认浓度/不另外加糖' },
+  { n:'生椰三重奏拿铁',     g:'拿铁',   k:470, c:148, d:'大杯/冰/默认浓度/微甜' },
+  { n:'轻椰茉莉拿铁',       g:'拿铁',   k:120, c:179, d:'大杯/冰/默认浓度/不另外加糖' },
+  { n:'丝绒拿铁',           g:'拿铁',   k:376,           d:'大杯/热/默认浓度/不另外加糖' },
+  { n:'钱塘龙井拿铁',       g:'拿铁',   k:76,  c:228, d:'大杯/冰/少少甜' },
+  { n:'海盐焦糖拿铁',       g:'拿铁',   k:206, c:152, d:'16oz/冰/少甜' },
+  { n:'绿沙沙拿铁',         g:'拿铁',   k:197, c:130, d:'16oz/冰/不另外加糖' },
+  { n:'桂花米酿拿铁',       g:'拿铁',   k:198, c:136, d:'16oz/冰/少甜' },
+
+  { n:'标准美式',           g:'美式',   k:11,  c:164, d:'大杯/冰/不另外加糖' },
+  { n:'加浓美式',           g:'美式',   k:14,  c:199, d:'大杯/冰/不另外加糖' },
+  { n:'小黄油美式',         g:'美式',   k:173, c:212, d:'大杯/冰' },
+  { n:'柚C美式',            g:'美式',   k:137, c:184, d:'大杯/冰' },
+  { n:'苹果C美式',          g:'美式',   k:133, c:172, d:'大杯/冰' },
+  { n:'橙C美式',            g:'美式',   k:122, c:158, d:'大杯/冰' },
+  { n:'小青桔C美式',        g:'美式',   k:115, c:154, d:'大杯/冰' },
+  { n:'柠C气泡美式',        g:'美式',   k:83,  c:134, d:'鲜果版/大杯/冰' },
+  { n:'缤纷C美式',          g:'美式',   k:100, c:37,  d:'大杯/冰' },
+  { n:'全冰黑巧美式',       g:'美式',   k:132, c:36,  d:'大杯/冰' },
+
+  { n:'Hello苹果茉莉',      g:'冰茶',   k:173, c:42,  d:'16oz/冰/不另外加糖' },
+  { n:'小青桔茉莉冰奶',     g:'冰茶',   k:148, c:30,  d:'16oz/冰/不另外加糖' },
+  { n:'荔枝茉莉冰奶',       g:'冰茶',   k:128, c:26,  d:'16oz/冰/不另外加糖' },
+  { n:'弗朗明戈跳跳冰茶',   g:'冰茶',   k:149, c:24,  d:'超大杯/24oz/冰/少少甜' },
+  { n:'苹果C冰茶',          g:'冰茶',   k:130,           d:'大杯/冰/不另外加糖' },
+  { n:'葡萄冰茶',           g:'冰茶',   k:115,           d:'大杯/16oz/冰/不另外加糖' },
+  { n:'皇后限定苹果C冰茶',  g:'冰茶',   k:130           },
+
+  { n:'桂花米酿乌龙',       g:'轻乳茶', k:219, c:78,  d:'大杯/冰/少甜' },
+  { n:'鲜萃轻轻茉莉',       g:'轻乳茶', k:95            },
+
+  { n:'瑰夏之梦',           g:'冷萃',   k:161, c:79,  d:'大杯/冰' },
+  { n:'大西瓜生椰冷萃',     g:'冷萃',   k:112, c:13,  d:'大杯/冰' },
+
+  { n:'羽衣轻体果蔬茶',     g:'果蔬茶', k:94            },
+  { n:'生椰杨枝甘露',       g:'非咖啡', k:176           },
+  { n:'牛油果羽衣酸奶昔',   g:'非咖啡', k:305           }
+];
+
+/** 名称归一化：去掉空格、大小写、常见修饰词，便于模糊匹配。
+ *  用户输入千奇百怪（「瑞幸生椰拿铁」「生椰拿铁 大杯」「luckin 生椰拿铁」），
+ *  归一化后再比对，命中率明显提高。 */
+function normDrinkName(s){
+  return String(s || '')
+    .toLowerCase()
+    .replace(/瑞幸|luckin|咖啡|饮品/g, '')   // 品牌/通用词：去掉，「瑞幸咖啡」类前缀太多
+    .replace(/[的的了]/g, '')                // 去掉虚词：「瑞幸的美式咖啡」→「美式」
+    .replace(/[\s·•・\-—_（）()【】\[\]「」]/g, '')
+    .trim();
+}
+
+/** 在瑞幸官方表里找最匹配的一条。
+ *  策略：先精确（归一化后相等），再包含（双向），最后取公共字符最多的。
+ *  返回 {row, score} 或 null。score 用于 UI 上提示匹配可信度。 */
+function matchLuckin(name){
+  const q = normDrinkName(name);
+  if (q.length < 2) return null;
+
+  // ① 归一化后完全相等
+  for (const row of LUCKIN_TABLE){
+    if (normDrinkName(row.n) === q) return { row, score: 1 };
+  }
+  // ② 双向包含（「生椰拿铁」↔「冰吸生椰拿铁」都算）
+  //    短的一侧只要 ≥2 字即可 —— 用户常只输入「美式」「拿铁」这种通用名。
+  //    但 2 字匹配容易歧义（表里有 10 款美式），所以要求「该长度下候选唯一」，
+  //    多候选取最长公共子串更长的那个（更具体），仍并列则放弃。
+  const cands = [];
+  for (const row of LUCKIN_TABLE){
+    const t = normDrinkName(row.n);
+    if (t.includes(q) || q.includes(t)){
+      const shorter = Math.min(t.length, q.length);
+      if (shorter >= 2) cands.push({ row, score: shorter / Math.max(t.length, q.length) });
+    }
+  }
+  if (cands.length){
+    cands.sort((a, b) => b.score - a.score || a.row.n.length - b.row.n.length);
+    // 通用名（2 字）只有在没有更具体的候选时才用，避免「美式」压过「标准美式」
+    const top = cands[0];
+    const tie = cands.filter(c => Math.abs(c.score - top.score) < 1e-6);
+    if (tie.length === 1) return top;
+    // 同分多个：取名字最短的（最接近通用名），但仅当它明显是「基础款」
+    return tie.sort((a, b) => a.row.n.length - b.row.n.length)[0];
+  }
+  // ③ 最长公共子串兜底：要求至少 4 个连续字相同，避免乱匹配
+  //    （用户会把名字写长写歪，比如「瑞幸的绿沙沙冰拿铁」）
+  let best = null;
+  for (const row of LUCKIN_TABLE){
+    const t = normDrinkName(row.n);
+    let longest = 0;
+    for (let i = 0; i < t.length; i++){
+      for (let len = Math.min(t.length - i, q.length); len > longest; len--){
+        if (q.includes(t.slice(i, i + len))){ longest = len; break; }
+      }
+    }
+    if (longest >= 4){
+      const score = longest / Math.max(t.length, q.length) * 0.8;
+      if (!best || score > best.score) best = { row, score };
+    }
+  }
+  return best;
+}
+
 /** 按天聚合求和 */
 function drinkTotals(list){
   return list.reduce((a, d) => ({
@@ -4797,9 +5031,14 @@ function renderDrinks(){
         '<p>今天还没喝</p><small>点上面任一饮品，或「自定义」手动填写。</small></div>';
       return;
     }
-    el.innerHTML = '<div class="list">' + today.map(d =>
-      '<div class="li" data-id="' + escAttr(d.id) + '">' +
-        '<div class="li__bd"><div class="li__t">' + esc(d.name) + '</div>' +
+    el.innerHTML = '<div class="list">' + today.map(d => {
+      // 数据来源小标：让「官方实测值」和「AI 估算值」在列表里也分得清
+      const hasOfficial = (d.src || []).includes('official');
+      const hasAi = (d.src || []).includes('ai');
+      const tag = hasOfficial ? '<i class="dk__tag dk__tag--official">官网</i>'
+                : hasAi ? '<i class="dk__tag">AI估</i>' : '';
+      return '<div class="li" data-id="' + escAttr(d.id) + '">' +
+        '<div class="li__bd"><div class="li__t">' + esc(d.name) + tag + '</div>' +
           '<div class="li__m">' +
             '<span>' + ic('clock') + ' ' + esc(fmtTime(d.at)) + '</span>' +
             '<span>' + (Number(d.v) || 0) + 'ml</span>' +
@@ -4809,7 +5048,8 @@ function renderDrinks(){
           '</div>' +
         '</div>' +
         '<div class="li__acts"><button class="del" data-dk="' + escAttr(d.id) + '" title="删除">' + ic('trash') + '</button></div>' +
-      '</div>').join('') + '</div>';
+      '</div>';
+    }).join('') + '</div>';
     $$('[data-dk]', el).forEach(b => b.onclick = () => {
       const id = b.dataset.dk;
       const one = (Store.db.drinks || []).find(x => x.id === id);
@@ -4822,38 +5062,218 @@ function renderDrinks(){
   }
 }
 
-/** 记一杯：preset 为预设项，null 表示完全自定义 */
+/** 记一杯：preset 为预设项，null 表示完全自定义
+ *  opts.type：可选，直接指定饮品名（如从 AI 查值入口进来） */
 function openDrinkEditor(preset){
   const now = new Date();
   // datetime-local 要求「本地时间」的 YYYY-MM-DDTHH:mm。
   // 不能用 toISOString().slice(0,16) —— 那是 UTC，东八区会差 8 小时。
   const nowInput = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate()) +
                    'T' + pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+
+  // 打开时先看看名字是否命中瑞幸官方表，命中就直接带出准确值
+  const presetName = preset ? preset.n : '';
+  const hit = presetName ? matchLuckin(presetName) : null;
+  const official = hit ? hit.row : null;
+
+  const initC = official && official.c != null ? official.c : (preset ? preset.c : 0);
+  const initK = official && official.k != null ? official.k : (preset ? preset.k : 0);
+  const initS = preset ? preset.s : 0;
+
   const d = drawer({
     title: preset ? '记一杯 · ' + preset.n : '自定义饮品',
     sub: '数值可改，按你的实际杯量调整',
     body:
       '<div class="stack">' +
         '<label class="fld"><span>名称</span>' +
-          '<input id="dkN" type="text" value="' + escAttr(preset ? preset.n : '') + '" placeholder="例如：燕麦拿铁" maxlength="24"></label>' +
+          '<input id="dkN" type="text" value="' + escAttr(presetName) + '" placeholder="例如：瑞幸 生椰拿铁" maxlength="30"></label>' +
+
+        /* AI 查值入口 —— 放在名称下方，填完名字下一步就点它 */
+        '<div class="dk__ai">' +
+          '<button class="btn btn--sm" id="dkAi">' + ic('spark') + 'AI 查热量 / 咖啡因 / 糖</button>' +
+          '<span class="dk__aihint" id="dkAiHint">' +
+            (official
+              ? '已命中瑞幸官方表：' + esc(official.n)
+              : '填好名称和容量，点左边的按钮让 AI 估算') +
+          '</span>' +
+        '</div>' +
+        '<div id="dkAiOut"></div>' +
+
         '<div class="row">' +
           '<label class="fld" style="flex:1"><span>容量 (ml)</span>' +
-            '<input id="dkV" type="number" inputmode="numeric" min="0" max="3000" step="10" value="' + (preset ? preset.v : 300) + '"></label>' +
-          '<label class="fld" style="flex:1"><span>咖啡因 (mg)</span>' +
-            '<input id="dkC" type="number" inputmode="numeric" min="0" max="1000" step="5" value="' + (preset ? preset.c : 0) + '"></label>' +
+            '<input id="dkV" type="number" inputmode="numeric" min="0" max="3000" step="10" value="' + (preset ? preset.v : 355) + '"></label>' +
+          '<label class="fld" style="flex:1"><span>咖啡因 (mg)<i class="dk__badge" id="dkBC"></i></span>' +
+            '<input id="dkC" type="number" inputmode="numeric" min="0" max="1000" step="1" value="' + initC + '"></label>' +
         '</div>' +
         '<div class="row">' +
-          '<label class="fld" style="flex:1"><span>添加糖 (g)</span>' +
-            '<input id="dkS" type="number" inputmode="numeric" min="0" max="200" step="1" value="' + (preset ? preset.s : 0) + '"></label>' +
-          '<label class="fld" style="flex:1"><span>热量 (kcal)</span>' +
-            '<input id="dkK" type="number" inputmode="numeric" min="0" max="2000" step="5" value="' + (preset ? preset.k : 0) + '"></label>' +
+          '<label class="fld" style="flex:1"><span>添加糖 (g)<i class="dk__badge" id="dkBS"></i></span>' +
+            '<input id="dkS" type="number" inputmode="numeric" min="0" max="200" step="1" value="' + initS + '"></label>' +
+          '<label class="fld" style="flex:1"><span>热量 (kcal)<i class="dk__badge" id="dkBK"></i></span>' +
+            '<input id="dkK" type="number" inputmode="numeric" min="0" max="2000" step="1" value="' + initK + '"></label>' +
         '</div>' +
         '<label class="fld"><span>时间</span>' +
           '<input id="dkT" type="datetime-local" value="' + nowInput + '"></label>' +
       '</div>',
-    foot: '<button class="btn" data-x="c">取消</button>' +
+    foot: '<button class="btn" id="dkCancel">取消</button>' +
           '<button class="btn btn--primary" id="dkSave">' + ic('check') + '记录</button>'
   });
+
+  // 取消必须显式绑 close()：抽屉内部有 stopPropagation，靠冒泡到遮罩是不生效的。
+  // 另外别用 data-x="c" 当钩子 —— drawer() 用 querySelector 只抓第一个，
+  // 那个位置永远属于头部的 ×，底部按钮拿不到任何事件。
+  $('#dkCancel', d.foot).onclick = () => d.close();
+
+  /* ---------------- 数据来源标注 ----------------
+   * 三个字段各自记住「这个值是怎么来的」，在标签上挂一个小徽标。
+   * 官方实测值与 AI 估值必须能一眼分清 —— 否则用户会以为糖分也是官方数据。 */
+  const src = {
+    c: official && official.c != null ? 'official' : (preset && preset.c ? 'preset' : 'manual'),
+    k: official && official.k != null ? 'official' : (preset && preset.k ? 'preset' : 'manual'),
+    s: preset && preset.s ? 'preset' : 'manual'
+  };
+  const SRC_TEXT = { official: '官方', ai: 'AI估', preset: '参考', manual: '' };
+
+  function paintBadges(){
+    [['dkBC', 'c'], ['dkBK', 'k'], ['dkBS', 's']].forEach(([id, key]) => {
+      const el = $('#' + id, d.body);
+      if (!el) return;
+      const t = SRC_TEXT[src[key]] || '';
+      el.textContent = t;
+      el.className = 'dk__badge' + (t ? ' dk__badge--' + src[key] : '');
+    });
+  }
+  /** 用户手动改过输入框，来源就降级为「手动」 —— 不能继续挂着「官方」误导人 */
+  function watchManual(id, key){
+    const el = $('#' + id, d.body);
+    if (el) el.addEventListener('input', () => { src[key] = 'manual'; paintBadges(); });
+  }
+  ['dkC:c', 'dkK:k', 'dkS:s'].forEach(p => watchManual(p.split(':')[0], p.split(':')[1]));
+  paintBadges();
+
+  /* ---------------- AI 查值 ---------------- */
+  const aiBtn = $('#dkAi', d.body);
+  const out = $('#dkAiOut', d.body);
+
+  // 输入名字时实时看能不能命中官方表，给个即时反馈（不发请求，纯本地）
+  const nameIn = $('#dkN', d.body);
+  nameIn.addEventListener('blur', () => {
+    const n = (nameIn.value || '').trim();
+    const hit = matchLuckin(n);
+    const h = $('#dkAiHint', d.body);
+    if (!h) return;
+    h.textContent = hit && hit.score >= 0.5
+      ? '这个名字在瑞幸官方表里，点右侧按钮直接取官方值'
+      : '填好名称和容量，点左侧按钮让 AI 估算';
+  });
+
+  aiBtn.onclick = async () => {
+    const name = (nameIn.value || '').trim();
+    if (!name){
+      // 双通道反馈：toast 容易被忽略，输入框旁边再给一条内联提示
+      out.innerHTML = notice('warn', '先填饮品名称', '例如「瑞幸 生椰拿铁」「珍珠奶茶」。');
+      nameIn.focus();
+      toast('warn', '先填饮品名称', '填好名字再点「AI 查值」。', 3500);
+      return;
+    }
+    const vol = Number($('#dkV', d.body).value) || 355;
+
+    // 挑一个填了 Key 的供应商（按列表顺序，预置顺序即优先级）
+    const prov = (AI.all || []).find(p => p.key);
+    if (!prov){
+      out.innerHTML = notice('warn', '还没有可用的 AI 供应商',
+        '去「AI 余额」页填一个 API Key 就能用了。');
+      return;
+    }
+
+    // ① 先查本地官方表 —— 零成本，命中就不用发请求
+    const localHit = matchLuckin(name);
+    const local = localHit && localHit.score >= 0.5 ? localHit.row : null;
+
+    aiBtn.disabled = true;
+    const oldHtml = aiBtn.innerHTML;
+    aiBtn.innerHTML = ic('refresh') + '查询中…';
+    out.innerHTML = '';
+
+    try {
+      // ② 需要 AI 的场景：没命中官方表，或命中了但缺值（官网部分产品没标咖啡因）
+      const needAI = !local || local.c == null || local.k == null;
+      let r = null, aiErr = null;
+
+      if (needAI){
+        try {
+          r = await AI.estimateDrink(prov.id, { name, volume: vol, official: local });
+        } catch (e){ aiErr = e; }
+      }
+
+      // ③ 合并结果：官方值优先，AI 只补缺
+      const merged = { c: null, k: null, s: null };
+      if (local){
+        merged.c = local.c; merged.k = local.k;
+      }
+      if (r){
+        if (merged.c == null) merged.c = r.caffeine;
+        if (merged.k == null) merged.k = r.kcal;
+        merged.s = r.sugar;
+      }
+
+      if (merged.c == null && merged.k == null && merged.s == null){
+        out.innerHTML = notice('warn', '没查到数据',
+          aiErr ? 'AI 返回异常：' + esc(aiErr.message) + '。可以手动填。' : '可以手动填写数值。');
+        return;
+      }
+
+      // ④ 回填输入框并更新来源标注
+      const fill = (id, key, v, from) => {
+        if (v == null) return;
+        $('#' + id, d.body).value = v;
+        src[key] = from;
+      };
+      fill('dkC', 'c', merged.c, local && local.c != null ? 'official' : 'ai');
+      fill('dkK', 'k', merged.k, local && local.k != null ? 'official' : 'ai');
+      fill('dkS', 's', merged.s, 'ai');
+      paintBadges();
+
+      out.innerHTML = resultCard(local, r, aiErr, prov);
+
+    } catch (e){
+      out.innerHTML = notice('err', '查询失败', esc(e.message || '未知错误'));
+    } finally {
+      aiBtn.disabled = false;
+      aiBtn.innerHTML = oldHtml;
+    }
+  };
+
+  /** 内联 SVG 提示条（不引外部资源） */
+  function notice(kind, title, desc){
+    const iconName = kind === 'err' ? 'warn' : kind === 'warn' ? 'info' : 'check';
+    const cls = kind === 'err' ? 'dk__msg--err' : kind === 'warn' ? 'dk__msg--warn' : 'dk__msg--ok';
+    return '<div class="dk__msg ' + cls + '">' + ic(iconName, 'dk__msgIc') +
+      '<div><b>' + esc(title) + '</b>' + (desc ? '<span>' + desc + '</span>' : '') + '</div></div>';
+  }
+
+  /** 查询结果卡片：显示数据来源与依据，让用户知道该信几分 */
+  function resultCard(local, ai, err, prov){
+    const rows = [];
+    if (local){
+      rows.push('<div class="dk__src"><b>瑞幸官网</b><span>' + esc(local.n) + '　' +
+        (local.k != null ? '热量 ' + local.k + 'kcal' : '') +
+        (local.c != null ? '　咖啡因 ' + local.c + 'mg' : '') +
+        (local.d ? '<br><em>' + esc(local.d) + '</em>' : '') + '</span></div>');
+    }
+    if (ai){
+      rows.push('<div class="dk__src"><b>AI 估算</b><span>' +
+        '糖 ' + ai.sugar + 'g　热量 ' + ai.kcal + 'kcal　咖啡因 ' + ai.caffeine + 'mg' +
+        (ai.basis ? '<br><em>' + esc(ai.basis) + '</em>' : '') +
+        '<br><em>把握：' + ({ high: '较高', medium: '中等', low: '较低' }[ai.confidence] || '中等') +
+        ' · 模型 ' + esc(ai.model) + '</em></span></div>');
+    }
+    const tip = local
+      ? '热量和咖啡因来自瑞幸官网，糖分为 AI 估算（官网未公开）。数值会随杯型/甜度变化，可手动微调。'
+      : '三项均为 AI 估算，仅供参考。如果包装上有标注，建议按实际填写。';
+    if (err) rows.push('<div class="dk__src dk__src--warn"><b>部分失败</b><span>' + esc(err.message) + '</span></div>');
+    return '<div class="dk__result">' + rows.join('') +
+      '<p class="tiny">' + esc(tip) + '</p></div>';
+  }
 
   $('#dkSave', d.body.parentNode).onclick = () => {
     const name = ($('#dkN', d.body).value || '').trim() || '未命名饮品';
@@ -4865,6 +5285,11 @@ function openDrinkEditor(preset){
       v: num('dkV', 0), c: num('dkC', 0), s: num('dkS', 0), k: num('dkK', 0),
       at: isFinite(at) ? at : Date.now()
     };
+    // 记下数据来源，列表里可以标出来（official=官网实测，ai=AI 估算，manual=手填）
+    const tags = [];
+    if (src.k === 'official' || src.c === 'official') tags.push('official');
+    if (src.s === 'ai' || src.k === 'ai' || src.c === 'ai') tags.push('ai');
+    if (tags.length) item.src = tags;
     Store.mutate(db => { db.drinks = db.drinks || []; db.drinks.push(item); db.demo = false; });
     d.close(); renderDrinks();
     toast('ok', '已记录「' + name + '」', '', 2200);
@@ -4872,6 +5297,7 @@ function openDrinkEditor(preset){
   };
   setTimeout(() => $('#dkN', d.body)?.select?.(), 320);
 }
+
 /* ==========================================================================
    8. 备份 / 导出 / 导入
    ========================================================================== */
@@ -5145,8 +5571,9 @@ const Backup = {
           '<button class="btn btn--danger btn--block" id="bkWipe">' + ic('trash') + '清空全部数据</button>' +
           '<p class="hint">清空前会先导出一份备份文件到你的下载目录，避免误操作。</p>' +
         '</div></div>',
-      foot: '<button class="btn btn--primary btn--block" data-x="c">完成</button>'
+      foot: '<button class="btn btn--primary btn--block" id="bkDone">完成</button>'
     });
+    $('#bkDone', d.foot).onclick = () => d.close();   // 同上：显式绑，别只靠通用钩子
     $('#bkExp', d.body).onclick = () => this.exportAll();
     $('#bkImp', d.body).onclick = () => this.openImport();
     $('#bkPaste', d.body).onclick = () => this.openPaste();
