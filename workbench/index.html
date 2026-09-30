@@ -3323,9 +3323,12 @@ const Holiday = {
 };
 
 /** 放假倒计时卡片（首页） */
+let holiTimer = null;   // 时分倒计时的定时刷新句柄（明天放假 + 启用下班时间时使用）
 function renderHolidayCountdown(){
   const host = $('#holidayHost');
   if (!host) return;
+  // 每次渲染先取消上一次的定时刷新，避免多次调度累积
+  if (holiTimer){ clearTimeout(holiTimer); holiTimer = null; }
   const h = Store.db.settings.holiday;
   // 关闭时清空并把上边距归零，避免留下一个空白的 18px 间隙
   if (!h || !h.on){ host.innerHTML = ''; host.style.marginTop = '0'; return; }
@@ -3357,14 +3360,46 @@ function renderHolidayCountdown(){
         (r.nextName ? '<span>下次 ' + esc(r.nextName) + ' 还有 <b>' + r.nextDays + '</b> 天</span>' : '') +
       '</div>';
   } else {
-    inner =
-      '<div class="holi__hd"><span class="holi__tt">' + ic('cal') + '放假倒计时</span>' +
-        '<span class="tag tag--accent">' + esc(Holiday.label(h.type)) + '</span></div>' +
-      '<div class="holi__big">' +
-        '<div class="holi__lead">距离 <b>' + esc(r.name) + '</b> 还有</div>' +
-        '<div class="holi__num">' + r.days + '<small>天</small></div>' +
-        '<div class="holi__date">' + esc(dateText(r.target)) + '</div>' +
-      '</div>';
+    // 明天放假 + 启用下班时间 → 从「N 天」升级为「时分」倒计时（精确到分，不显示秒）
+    const cm = Store.db.settings.commute;
+    if (cm && cm.on && r.days === 1){
+      const now = new Date();
+      const off = new Date(now.getFullYear(), now.getMonth(), now.getDate(),
+                           cm.homeH ?? 18, cm.homeM ?? 30, 0, 0);
+      const diffMin = Math.ceil((off - now) / 60000);
+      if (diffMin > 0){
+        const H = Math.floor(diffMin / 60), M = diffMin % 60;
+        inner =
+          '<div class="holi__hd"><span class="holi__tt">' + ic('cal') + '放假倒计时</span>' +
+            '<span class="tag tag--accent">' + esc(Holiday.label(h.type)) + '</span></div>' +
+          '<div class="holi__big">' +
+            '<div class="holi__lead">明天放假 · 距下班还有</div>' +
+            '<div class="holi__num">' + H + '<small>小时 ' + pad2(M) + ' 分</small></div>' +
+            '<div class="holi__date">' + esc(r.name) + ' · ' + esc(dateText(r.target)) + '</div>' +
+          '</div>';
+        // 30 秒刷新一次，保证分钟数准确（不显示秒，无需秒级刷新）
+        holiTimer = setTimeout(renderHolidayCountdown, 30000);
+      } else {
+        // 已过今天下班时刻：假期前夜已开始，不再倒计时
+        inner =
+          '<div class="holi__hd"><span class="holi__tt">' + ic('cal') + '放假倒计时</span>' +
+            '<span class="tag tag--accent">' + esc(Holiday.label(h.type)) + '</span></div>' +
+          '<div class="holi__big">' +
+            '<div class="holi__lead">已下班 · 明天放假</div>' +
+            '<div class="holi__name">' + esc(r.name) + '</div>' +
+            '<div class="holi__date">' + esc(dateText(r.target)) + '</div>' +
+          '</div>';
+      }
+    } else {
+      inner =
+        '<div class="holi__hd"><span class="holi__tt">' + ic('cal') + '放假倒计时</span>' +
+          '<span class="tag tag--accent">' + esc(Holiday.label(h.type)) + '</span></div>' +
+        '<div class="holi__big">' +
+          '<div class="holi__lead">距离 <b>' + esc(r.name) + '</b> 还有</div>' +
+          '<div class="holi__num">' + r.days + '<small>天</small></div>' +
+          '<div class="holi__date">' + esc(dateText(r.target)) + '</div>' +
+        '</div>';
+    }
   }
 
   host.innerHTML = '<div class="holi holi--' + h.type + '">' + inner + '</div>';
