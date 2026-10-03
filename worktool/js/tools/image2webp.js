@@ -24,28 +24,55 @@
   var delayTimer = null;
   var dragDepth = 0;
 
-  /* ---------------- 能力检测 ---------------- */
-  var webpOK = null;
-  function detectWebP() {
-    if (webpOK !== null) return webpOK;
+  /* ---------------- 能力检测 ----------------
+     Canvas 编码没有「能力查询」接口，只能真的编一张再问它返回了什么。
+     规范允许浏览器在不支持请求格式时**静默改成 PNG**，所以唯一可靠的
+     判据是看返回值本身：dataURL 的前缀 / blob.type。
+     关键事实：Safari / WebKit 至今不支持 Canvas 编码 WebP，
+     iOS 上所有浏览器都是 WebKit，所以都会走到兜底分支。 */
+  var CAP = null;
+  function probeCap() {
+    if (CAP) return CAP;
+    var cap = { webp: false, jpeg: false, png: false };
     try {
       var c = document.createElement('canvas');
       c.width = 2; c.height = 2;
-      webpOK = c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
-    } catch (e) { webpOK = false; }
-    return webpOK;
+      var x = c.getContext('2d');
+      x.fillStyle = 'rgba(0,128,255,.5)';   /* 半透明，顺带探一下 alpha */
+      x.fillRect(0, 0, 1, 1);
+      cap.png = c.toDataURL('image/png').indexOf('data:image/png') === 0;
+      cap.jpeg = c.toDataURL('image/jpeg').indexOf('data:image/jpeg') === 0;
+      cap.webp = c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+    } catch (e) { /* 异常就保持全 false */ }
+    CAP = cap;
+    return cap;
+  }
+  function resetCap() { CAP = null; return probeCap(); }
+
+  var MIME_LABEL = { 'image/webp': 'WebP', 'image/jpeg': 'JPEG', 'image/png': 'PNG' };
+  var MIME_EXT = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png' };
+
+  /* 当前实际使用的输出格式：WebP 可用就一定是 WebP；
+     不可用才退到用户选的兜底格式 */
+  function currentMime() {
+    var cap = probeCap();
+    if (cap.webp) return 'image/webp';
+    var f = T.Store.settings.fallbackFmt;
+    if (f === 'image/png' && cap.png) return 'image/png';
+    if (f === 'image/jpeg' && cap.jpeg) return 'image/jpeg';
+    return cap.jpeg ? 'image/jpeg' : 'image/png';
   }
 
   /* ---------------- 编码 ---------------- */
-  function canvasToBlob(canvas, quality) {
+  function canvasToBlob(canvas, quality, mime) {
     return new Promise(function (resolve, reject) {
       if (canvas.toBlob) {
         canvas.toBlob(function (b) {
           if (b) resolve(b); else reject(new Error('编码失败'));
-        }, 'image/webp', quality);
+        }, mime, quality);
       } else {
         try {
-          var url = canvas.toDataURL('image/webp', quality);
+          var url = canvas.toDataURL(mime, quality);
           var bin = atob(url.split(',')[1]);
           var u8 = new Uint8Array(bin.length);
           for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
@@ -83,25 +110,36 @@
       var tw = Math.max(1, Math.round(w * scale));
       var th = Math.max(1, Math.round(h * scale));
 
+      var mime = opt.mime || 'image/webp';
       var canvas = document.createElement('canvas');
       canvas.width = tw; canvas.height = th;
       var ctx = canvas.getContext('2d');
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
+      /* JPEG 没有 alpha 通道。不先铺白底的话，透明区域会变成纯黑 —— 这是
+         把 PNG 转 JPEG 时最常见的一个坑。 */
+      if (mime === 'image/jpeg') {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, tw, th);
+      }
       ctx.drawImage(img, 0, 0, tw, th);
       URL.revokeObjectURL(r.url);
 
-      return canvasToBlob(canvas, opt.quality).then(function (blob) {
-        /* 个别浏览器在编码格式不支持时会静默返回 PNG，这里明确报错 */
-        if (blob.type !== 'image/webp') throw new Error('当前浏览器不支持 WebP 编码');
-        return { blob: blob, w: tw, h: th, ow: w, oh: h };
+      return canvasToBlob(canvas, opt.quality, mime).then(function (blob) {
+        /* 再兜一道：规范允许浏览器静默改用 PNG。这里必须核对真实类型，
+           否则会产出「后缀 .webp 内容是 PNG」的坏文件。 */
+        if (blob.type !== mime) {
+          throw new Error('浏览器实际返回了 ' + (MIME_LABEL[blob.type] || blob.type) +
+            ' 而不是 ' + MIME_LABEL[mime] + '，已中止以免产出错误格式的文件');
+        }
+        return { blob: blob, w: tw, h: th, ow: w, oh: h, mime: mime };
       });
     });
   }
 
-  function outName(origName, suffix) {
+  function outName(origName, suffix, mime) {
     var base = origName.replace(/\.[^.]+$/, '');
-    return base + (suffix || '') + '.webp';
+    return base + (suffix || '') + '.' + (MIME_EXT[mime] || 'webp');
   }
 
   /* ---------------- 队列操作 ---------------- */
@@ -141,16 +179,12 @@
     if (busy) return Promise.resolve();
     var pending = items.filter(function (it) { return it.status === 'pending' || it.status === 'error'; });
     if (!pending.length) return Promise.resolve();
-    if (!detectWebP()) {
-      pending.forEach(function (it) { it.status = 'error'; it.err = '当前浏览器不支持 WebP 编码'; });
-      paint();
-      return Promise.resolve();
-    }
 
     busy = true;
     var i = 0;
     var quality = T.Store.settings.quality;
     var maxEdge = T.Store.settings.maxEdge;
+    var mime = currentMime();
 
     function step() {
       if (i >= pending.length) {
@@ -163,16 +197,17 @@
       it.err = '';
       updateRow(it.id);
 
-      encodeOne(it.file, { quality: quality, maxEdge: maxEdge }).then(function (res) {
+      encodeOne(it.file, { quality: quality, maxEdge: maxEdge, mime: mime }).then(function (res) {
         it.blob = res.blob;
         it.outBytes = res.blob.size;
         it.w = res.w; it.h = res.h; it.ow = res.ow; it.oh = res.oh;
         it.quality = quality;
+        it.mime = res.mime;
         it.status = 'done';
         if (!it.thumb) it.thumb = URL.createObjectURL(it.file);
         T.Store.addHistory({
           name: it.name, srcBytes: it.srcBytes, outBytes: it.outBytes,
-          w: res.w, h: res.h, quality: quality
+          w: res.w, h: res.h, quality: quality, fmt: res.mime
         });
       }).catch(function (e) {
         it.status = 'error';
@@ -195,7 +230,7 @@
 
   function downloadOne(it) {
     if (!it.blob) return;
-    T.downloadBlob(it.blob, outName(it.name, T.Store.settings.suffix));
+    T.downloadBlob(it.blob, outName(it.name, T.Store.settings.suffix, it.mime || currentMime()));
   }
 
   function downloadAll() {
@@ -223,11 +258,12 @@
     var pct = totalSrc > 0 ? Math.round(saved / totalSrc * 100) : 0;
     var working = items.filter(function (it) { return it.status === 'working'; }).length;
 
+    var mime = currentMime();
     return '<div class="sum">' +
       '<div class="sum__i"><b>' + items.length + '</b><span>张已加入</span></div>' +
       '<div class="sum__i"><b>' + done.length + '</b><span>张已转换</span></div>' +
       '<div class="sum__i"><b>' + T.fmtBytes(totalSrc) + '</b><span>原体积</span></div>' +
-      '<div class="sum__i"><b>' + T.fmtBytes(totalOut) + '</b><span>WebP 体积</span></div>' +
+      '<div class="sum__i"><b>' + T.fmtBytes(totalOut) + '</b><span>' + MIME_LABEL[mime] + ' 体积</span></div>' +
       '<div class="sum__i sum__saved"><b>' + (saved > 0 ? '−' + pct + '%' : '—') + '</b><span>' +
         (saved > 0 ? '省下 ' + T.fmtBytes(saved) : '等待转换') + '</span></div>' +
       '<div class="sum__sp"></div>' +
@@ -252,7 +288,10 @@
         '<i>·</i><span>' + it.w + '×' + it.h + '</span>' +
         (it.ow && it.oh && (it.ow !== it.w || it.oh !== it.h)
           ? '<i>·</i><span>原 ' + it.ow + '×' + it.oh + '</span>' : '') +
-        '<i>·</i><span>质量 ' + Math.round((it.quality || T.Store.settings.quality) * 100) + '%</span>';
+        '<i>·</i><span>' + (MIME_LABEL[it.mime] || 'WebP') + '</span>' +
+        (it.mime === 'image/png'
+          ? ''
+          : '<i>·</i><span>质量 ' + Math.round((it.quality || T.Store.settings.quality) * 100) + '%</span>');
       soon = '<div class="qbar" title="灰色为原图，橙色为转换后">' +
         '<i class="qbar__a" style="width:' + (wA / total * 100) + '%"></i>' +
         '<i class="qbar__b" style="width:' + (wB / total * 100) + '%"></i>' +
@@ -339,7 +378,8 @@
         '<div class="hitem__tx">' +
           '<b title="' + T.esc(x.name) + '">' + T.esc(x.name) + '</b>' +
           '<small>' + T.fmtBytes(x.srcBytes) + ' → ' + T.fmtBytes(x.outBytes) +
-            (diff > 0 ? '  (−' + pct + '%)' : '') + ' · ' + T.relTime(x.at) + '</small>' +
+            (diff > 0 ? '  (−' + pct + '%)' : '') +
+            ' · ' + T.esc(MIME_LABEL[x.fmt] || 'WebP') + ' · ' + T.relTime(x.at) + '</small>' +
         '</div>' +
       '</div>';
     }).join('') + '</div>';
@@ -388,12 +428,37 @@
   /* ---------------- 设置面板 ---------------- */
   function ctlHTML() {
     var s = T.Store.settings;
+    var cap = probeCap();
+    var mime = currentMime();
     return '<div class="ctl">' +
-      '<div class="ctl__row">' +
+
+      /* 能力状态：WebP 可用就一句话确认；不可用才展开兜底选择 */
+      (cap.webp
+        ? '<div class="ctl__row"><div class="capok">' + T.ic('check', '', 0) +
+            '<span>本设备支持 WebP 编码，输出就是 WebP。</span></div></div>'
+        : '<div class="ctl__row">' +
+            '<div class="ctl__hd"><b>兜底输出格式</b></div>' +
+            '<div class="seg" id="segFmt">' +
+              ['image/jpeg', 'image/png'].map(function (m) {
+                return '<button class="seg__b' + (mime === m ? ' is-on' : '') + '" type="button" data-v="' + m + '">' +
+                  MIME_LABEL[m] + '</button>';
+              }).join('') +
+            '</div>' +
+            '<div class="ctl__hint">本设备不能编码 WebP，这里选的是实际输出格式。' +
+              'JPEG 有损但体积小得多；PNG 无损、保留透明，但通常比原图还大。</div>' +
+            '<button class="btn btn--sm" type="button" id="btnRecheck" style="align-self:flex-start">' +
+              T.ic('restore', '', 0) + '重新检测编码能力</button>' +
+          '</div>') +
+
+      '<div class="ctl__row' + (mime === 'image/png' ? ' is-off' : '') + '">' +
         '<div class="ctl__hd"><b>输出质量</b><em id="qVal">' + Math.round(s.quality * 100) + '%</em></div>' +
         '<input class="rng" type="range" id="rngQ" min="40" max="98" step="1" value="' + Math.round(s.quality * 100) + '"' +
           ' style="--pct:' + Math.round((s.quality * 100 - 40) / 58 * 100) + '%" aria-label="输出质量">' +
-        '<div class="ctl__hint">数值越高越清晰、文件越大。照片一般 75–85%，截图和线稿 88% 以上更稳。</div>' +
+        '<div class="ctl__hint">' +
+          (mime === 'image/png'
+            ? 'PNG 是无损格式，质量设置对它不生效。'
+            : '数值越高越清晰、文件越大。照片一般 75–85%，截图和线稿 88% 以上更稳。') +
+        '</div>' +
       '</div>' +
       '<div class="ctl__row">' +
         '<div class="ctl__hd"><b>最长边限制</b></div>' +
@@ -406,7 +471,8 @@
       '<div class="ctl__row">' +
         '<div class="ctl__hd"><b>文件名后缀</b><small>可选</small></div>' +
         '<input class="inp" type="text" id="inpSuffix" placeholder="例：-slim" value="' + T.escAttr(s.suffix) + '" maxlength="24" aria-label="文件名后缀">' +
-        '<div class="ctl__hint">photo.jpg → photo<span class="num">' + T.esc(s.suffix || '') + '</span>.webp</div>' +
+        '<div class="ctl__hint">photo.jpg → photo<span class="num">' + T.esc(s.suffix || '') + '</span>.' +
+          (MIME_EXT[mime] || 'webp') + '</div>' +
       '</div>' +
       '<div class="ctl__row">' +
         '<label class="sw">' +
@@ -418,10 +484,37 @@
       '<div class="tip">' + T.ic('shield', '', 0) +
         '<div><b>图片不会离开这台设备。</b>转换在浏览器里用 Canvas 完成，没有任何上传步骤，断网也能用。</div>' +
       '</div>' +
+      (cap.webp ? '' :
+        '<button class="btn btn--sm btn--block" type="button" id="btnRecheck2">' +
+          T.ic('restore', '', 0) + '重新检测编码能力</button>') +
     '</div>';
   }
 
   function bindControls(host) {
+    /* 兜底格式切换：改了要让已有结果失效，提示重转 */
+    var segFmt = host.querySelector('#segFmt');
+    if (segFmt) {
+      segFmt.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-v]');
+        if (!b) return;
+        T.Store.patch({ fallbackFmt: b.getAttribute('data-v') });
+        resetCap();
+        if (items.some(function (it) { return it.status === 'done'; })) dirty = true;
+        if (viewHost) renderView(viewHost);   /* 事件 → 重建视图，单向 */
+      });
+    }
+    /* 重新检测：万一系统/浏览器升级后就能编码 WebP 了，不必刷新页面 */
+    ['#btnRecheck', '#btnRecheck2'].forEach(function (sel) {
+      var b = host.querySelector(sel);
+      if (!b) return;
+      b.addEventListener('click', function () {
+        var cap = resetCap();
+        if (viewHost) renderView(viewHost);
+        T.toast(cap.webp ? '这台设备现在支持 WebP 编码了' : '仍然不支持 WebP 编码，继续用兜底格式',
+          { icon: cap.webp ? 'check' : 'info', ms: 3600 });
+      });
+    });
+
     var rng = host.querySelector('#rngQ');
     if (rng) {
       rng.addEventListener('input', function () {
@@ -583,18 +676,25 @@
   }
   var _guard = null;
 
-  /* ---------------- 注册 ---------------- */
-  T.register('image2webp', {
-    render: function (host) {
-      var ok = detectWebP();
+  /* ---------------- 视图 ---------------- */
+  var viewHost = null;
+
+  var NOTICE_WEBP_OFF =
+    '<div class="capmsg">' + T.ic('warn', '', 0) +
+      '<div><b>这台设备无法用浏览器编码 WebP。</b>' +
+      '原因是 Safari / WebKit 至今不支持 Canvas 导出 WebP；iOS 上所有浏览器都是 WebKit，' +
+      '所以 iPhone / iPad 上都会碰到这个限制，换浏览器也没用。<br>' +
+      '这里会改为输出 <b id="fbLabel">JPEG</b> —— 体积收益与 WebP 很接近，且兼容性更好。' +
+      '想要 WebP 的话，用电脑上的 Chrome / Edge / Firefox 打开本页即可（会自动切成 WebP，无需设置）。' +
+      '</div></div><div style="height:14px"></div>';
+
+  function renderView(host) {
+      viewHost = host;
+      var cap = probeCap();
       T.Settings.bindFileInput();
 
       host.innerHTML =
-        (ok ? '' :
-          '<div class="capmsg">' + T.ic('warn', '', 0) +
-          '<div><b>这个浏览器不支持 WebP 编码。</b>换用较新版本的 Chrome / Edge / Firefox / Safari 即可，' +
-          '移动端的系统相册与聊天软件通常都能打开 WebP 图片。</div></div>' +
-          '<div style="height:14px"></div>') +
+        (cap.webp ? '' : NOTICE_WEBP_OFF) +
 
         '<div class="i2w">' +
           '<div class="i2w__drop">' +
@@ -633,6 +733,10 @@
           '图片在本机浏览器内转换，全程不联网上传。记录只保存文件名与体积，图片本身不会被存进浏览器。' +
         '</div>';
 
+      /* 通知文案里的格式名跟随实际输出格式，不写死 */
+      var fb = host.querySelector('#fbLabel');
+      if (fb) fb.textContent = MIME_LABEL[currentMime()] || 'JPEG';
+
       var ctlHost = host.querySelector('#ctlHost');
       if (ctlHost) {
         ctlHost.innerHTML = ctlHTML();
@@ -642,7 +746,11 @@
       bindQueue(host);
       _guard = guardWindowDrag();
       paint();
-    },
+  }
+
+  /* ---------------- 注册 ---------------- */
+  T.register('image2webp', {
+    render: renderView,
     onLeave: function () {
       if (pasteHandler) { document.removeEventListener('paste', pasteHandler); pasteHandler = null; }
       if (_guard) {

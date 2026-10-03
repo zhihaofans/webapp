@@ -199,6 +199,19 @@
 .capmsg .ic{width:16px;height:16px;flex:none;margin-top:1px;color:var(--danger)}
 .capmsg b{color:var(--danger)}
 
+/* 能力确认条（WebP 可用时的正向反馈） */
+.capok{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 12px;border-radius:var(--r-sm);
+  background:var(--sage-soft);
+  border:1px solid color-mix(in srgb,var(--sage) 26%,transparent);
+  font-size:11.5px;color:var(--ink-2);
+}
+.capok .ic{width:14px;height:14px;flex:none;color:var(--sage)}
+
+/* 被当前输出格式判定为「不适用」的控件：压暗但不禁用，去掉会有歧义 */
+.ctl__row.is-off{opacity:.45;pointer-events:none}
+
 /* 轻提示条（信息性） */
 .tip{
   display:flex;align-items:flex-start;gap:9px;

@@ -27,9 +27,23 @@
   var prog = document.getElementById('bootProg');
   var bar = document.getElementById('bootBar');
 
+  var verEl = document.getElementById('bootVer');
+  var verShown = false;
+
+  /* 版本号只在 core.js 里有一份。core.js 是第 1 个被注入的脚本，
+     它一到位就把它填进启动页 —— 不额外发请求，也不会出现两处版本号对不上。 */
+  function syncVersion() {
+    if (verShown || !verEl) return;
+    var v = window.Toolbox && window.Toolbox.APP_VER;
+    if (!v) return;
+    verEl.textContent = 'v' + v;
+    verShown = true;
+  }
+
   function paint() {
     if (prog) prog.textContent = '正在加载 ' + done + '/' + total;
     if (bar) bar.style.width = Math.round(done / total * 100) + '%';
+    syncVersion();
   }
 
   function loadOne(i) {
@@ -80,6 +94,7 @@
   }
 
   paint();
+  syncVersion();
   loadOne(0);
 
   /* ------------------------------------------------------------

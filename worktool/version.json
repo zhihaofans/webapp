@@ -1,7 +1,7 @@
 {
-  "ver": "1.1.0",
+  "ver": "1.2.0",
   "build": "2026-10-03",
   "name": "生活工具箱",
-  "note": "新增「GitHub 转 jsDelivr」工具；文档层级细化，历史列表样式上移到组件层。",
-  "url": "https://zhihaofans.github.io/webapp/worktool/"
+  "note": "修复 iOS/Safari 上图片工具直接报错的问题：改为能力探测 + JPEG/PNG 兜底；启动页显示版本号。",
+  "url": ""
 }
