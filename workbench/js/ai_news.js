@@ -16,6 +16,9 @@ const AI = {
     moonshot: { name: 'Moonshot', base: 'https://api.moonshot.cn/v1', color: '#12b7a8', letter: 'K',
       keys: 'https://platform.moonshot.cn/console/api-keys',
       models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.5', 'moonshot-v1-32k'] },
+    openrouter: { name: 'OpenRouter', base: 'https://openrouter.ai/api/v1', color: '#6a4fd8', letter: 'O',
+      keys: 'https://openrouter.ai/settings/keys',
+      models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'google/gemini-flash-1.5', 'deepseek/deepseek-chat'] },
     custom: { name: '自定义', base: '', color: '#7a5c78', letter: 'C', keys: '', models: [] }
   },
 
@@ -72,6 +75,7 @@ const AI = {
       if (p.kind === 'deepseek')       out = await this._deepseek(p, H);
       else if (p.kind === 'moonshot')  out = await this._moonshot(p, H);
       else if (p.kind === 'mimo')      out = await this._mimo(p, H);
+      else if (p.kind === 'openrouter') out = await this._openrouter(p, H);
       else                             out = await this._generic(p, H);
       return out;
     } catch (e){
@@ -118,6 +122,44 @@ const AI = {
     err.mimoModels = list;
     err.console = 'https://platform.xiaomimimo.com/#/console/usage';
     throw err;
+  },
+
+  /**
+   * OpenRouter
+   * 官方余额接口：GET /credits → { data: { total_credits, total_usage } }
+   *   「可用余额」= total_credits - total_usage（单位 USD）。
+   * 另有 GET /key → { data: { limit, usage, limit_remaining } }，
+   *   适合设置了消费上限的 Key，可取 limit_remaining。
+   * 两者都是 USD 计价。这里先取 /credits，失败再退回 /key。
+   * 文档：https://openrouter.ai/docs/api-reference/credits
+   */
+  async _openrouter(p, H){
+    const base = (p.base || 'https://openrouter.ai/api/v1').replace(/\/$/, '');
+    // 优先 /credits（账户总余额）
+    try {
+      const d = await jjson(base + '/credits', { headers: H }, 12000);
+      const info = d.data || d;
+      const total = Number(info.total_credits ?? NaN);
+      const used = Number(info.total_usage ?? 0);
+      if (!isNaN(total)){
+        const remain = Math.max(0, total - used);
+        return { ok: true, amount: remain, currency: 'USD',
+          granted: total, topped: used, raw: d };
+      }
+    } catch (e){
+      if (e.status === 401 || e.status === 403) throw e; // 鉴权错直接上报，不再退
+    }
+    // 退回 /key（按 Key 的额度）
+    const k = await jjson(base + '/key', { headers: H }, 12000);
+    const info = k.data || k;
+    const remain = info.limit_remaining;
+    if (remain === null || remain === undefined){
+      // 未设置上限 = 用账户余额，无独立额度可显示
+      const err = new Error('该 Key 未设置消费上限，请在 OpenRouter 控制台查看账户余额');
+      err.status = 404; throw err;
+    }
+    return { ok: true, amount: Number(remain), currency: 'USD',
+      granted: Number(info.limit ?? 0), topped: Number(info.usage ?? 0), raw: k };
   },
 
   /** 自定义 OpenAI 兼容：尝试一组常见余额端点 + /models 连通性探测 */

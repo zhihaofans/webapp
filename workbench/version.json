@@ -1,6 +1,6 @@
 {
-  "ver": "1.22",
+  "ver": "1.23",
   "build": "2026-10-03",
-  "note": "修复旧版缓存问题：Service Worker 静态资源改为网络优先（在线永远最新），新增自动更新与「立即更新」按钮，更新全程不触碰本地数据；PWA 场景一并优化",
+  "note": "新增 AI 供应商 OpenRouter（支持余额查询，USD 计价）；余额合计按币种分别统计，卡片币种符号自动适配",
   "url": "https://zhihaofans.github.io/webapp/workbench/"
 }

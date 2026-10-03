@@ -130,16 +130,20 @@ const Backup = {
       const mo = mergeArr(Store.db.money, p.money); added += mo.added;
       const td = mergeArr(Store.db.todo, p.todo); added += td.added;
       const hb = mergeArr(Store.db.habits, p.habits); added += hb.added;
-      // 供应商合并：已知预置供应商（deepseek/mimo/moonshot）按 kind 去重，
+      // 供应商合并：预置供应商（deepseek/mimo/moonshot/openrouter 等）按 kind 去重，
       // 避免换设备/清空后「合并」导入时，本地未配置的默认空壳与备份里已配置的
       // 同一厂商被叠加，导致「还有 N 个供应商没填 Key」误报。
-      const PV_KINDS = ['deepseek', 'mimo', 'moonshot'];
+      // 规则：只要备份项的 kind 与本地某项相同，就视为同一厂商——
+      //   · 本地是未配置的空壳 → 用备份里已配置的替换
+      //   · 本地已配置 → 保留现有，跳过备份项
+      // kind 为 'custom' 或空的不在此列（按 id 追加，避免误合并用户的自定义项）。
+      const DEDUP_KINDS = ['deepseek', 'mimo', 'moonshot', 'openrouter'];
       const pv = (() => {
         const out = (Store.db.providers || []).slice();
         const curByKind = {};
-        out.forEach(x => { if (PV_KINDS.includes(x.kind)) curByKind[x.kind] = x; });
+        out.forEach(x => { if (DEDUP_KINDS.includes(x.kind)) curByKind[x.kind] = x; });
         (p.providers || []).forEach(x => {
-          if (PV_KINDS.includes(x.kind) && curByKind[x.kind]){
+          if (DEDUP_KINDS.includes(x.kind) && curByKind[x.kind]){
             const ex = curByKind[x.kind];
             // 本地是未配置的默认空壳 → 用备份里已配置的同一厂商替换，不再重复
             if (!ex.key){ const i = out.indexOf(ex); if (i >= 0) out[i] = x; }

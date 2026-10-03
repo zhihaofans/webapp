@@ -645,18 +645,27 @@ const Bal = { working: [], filter: 'all' };
 //  批量刷新一按就抛 TypeError，请求根本发不出去）。
 Bal.render = () => renderBalance();
 
+/** 币种符号（目前只区分 USD / 人民币，其余按人民币展示并附代码） */
+function currSym(cur){ return cur === 'USD' ? '$' : '¥'; }
+
 function renderBalance(){
   const box = $('#view');
   const ps = AI.all;
   const withKey = ps.filter(p => p.key);
-  const totalCny = withKey.reduce((s, p) => s + (p.bal || 0), 0);
+  // 余额合计：按币种分别累计（不同币种不能直接相加）
+  const okList = withKey.filter(p => p.bal !== null && p.balErr === '');
+  const sumCny = okList.filter(p => (p.balMeta?.currency || 'CNY') !== 'USD').reduce((s, p) => s + (p.bal || 0), 0);
+  const sumUsd = okList.filter(p => (p.balMeta?.currency || 'CNY') === 'USD').reduce((s, p) => s + (p.bal || 0), 0);
+  const totalText = (sumCny || sumUsd)
+    ? (sumCny ? '¥' + money(sumCny) : '') + (sumCny && sumUsd ? ' + ' : '') + (sumUsd ? '$' + money(sumUsd) : '')
+    : '¥0.00';
   const low = withKey.filter(p => p.bal !== null && p.balErr === '' && p.bal < 10);
   const needKey = ps.filter(p => !p.key);
 
   box.innerHTML =
     '<div class="grid g-4" style="margin-bottom:18px">' +
       statCard('可用供应商', withKey.length + ' / ' + ps.length, '已填 Key 的账户') +
-      statCard('余额合计（约）', '¥' + money(totalCny), '仅统计成功查询的账户') +
+      statCard('余额合计（约）', totalText, '仅统计成功查询的账户') +
       statCard('需要关注', String(low.length), low.length ? low.map(p => p.name).join('、') + ' 余额偏低' : '余额都还充足') +
       statCard('最近汇总', AI.all.filter(p => p.balAt).length ? fmtAgo(Math.max(...AI.all.map(p => p.balAt || 0))) : '—', '最后一次成功查询') +
     '</div>' +
@@ -736,12 +745,13 @@ function drawBalGrid(){
                         '" target="_blank" rel="noopener">' + ic('wallet') + '去官方控制台查看</a>'
                     : '')
                 : '<div class="bal__amt is-err">' + esc(p.balErr) + '</div>')
-            : '<div class="bal__amt">¥' + esc(money(bal)) + ' <i>' + esc(p.balMeta?.currency || 'CNY') + '</i></div>') +
+            : '<div class="bal__amt">' + currSym(p.balMeta?.currency) + esc(money(bal)) + ' <i>' + esc(p.balMeta?.currency || 'CNY') + '</i></div>') +
       (has && bal !== null ?
         '<div class="bal__bar"><i style="width:' + pct + '%"></i></div>' +
         (p.balMeta?.granted || p.balMeta?.topped ?
-          '<div class="bal__row"><span>赠送</span><b>¥' + esc(money(p.balMeta.granted || 0)) + '</b></div>' +
-          '<div class="bal__row"><span>充值</span><b>¥' + esc(money(p.balMeta.topped || 0)) + '</b></div>' : '')
+          '<div class="bal__row"><span>' + (p.balMeta?.currency === 'USD' ? '总额 / 已用' : '赠送') + '</span><b>' + currSym(p.balMeta?.currency) + esc(money(p.balMeta.granted || 0)) + '</b></div>' +
+          '<div class="bal__row"><span>' + (p.balMeta?.currency === 'USD' ? '已用' : '充值') + '</span><b>' + currSym(p.balMeta?.currency) + esc(money(p.balMeta.topped || 0)) + '</b></div>'
+          : '')
         : '') +
       '<div class="bal__ft">' +
         '<span class="tiny">' + (p.balAt ? '更新于 ' + fmtAgo(p.balAt) : '尚未查询') + '</span>' +

@@ -15,7 +15,7 @@
  * 注意：本文件里的版本号 CACHE 变化会触发浏览器 SW 字节比对 → 自动走新 SW 安装流程。
  *       所以每次发布只要保证 sw.js 内容有变（哪怕只改版本号），更新就能被触发。
  */
-const CACHE = 'lifehub-v1.22';
+const CACHE = 'lifehub-v1.23';
 const SHELL = [
   './',
   './index.html',

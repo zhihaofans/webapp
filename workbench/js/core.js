@@ -19,7 +19,7 @@ const SCHEMA  = 1;
 /* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
    APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
    只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.22';
+const APP_VER    = '1.23';
 const APP_NAME   = '日常 · 生活工作台';
 const APP_BUILD  = '2026-10-03';
 
@@ -256,7 +256,7 @@ function migrateProviders(list){
     return !untouched;
   });
 
-  return list.map(p => {
+  list = list.map(p => {
     const q = { ...p };
     if (q.kind === 'mimo'){
       let hit = false;
@@ -283,6 +283,21 @@ function migrateProviders(list){
     }
     return q;
   });
+
+  // 1) 补齐新增的预置供应商（如 v1.23 的 OpenRouter）：
+  //    老用户的 providers 已存在，seedProviders() 不会再跑，这里按 kind 补一条空骨架。
+  //    只补「完全没有该 kind」的情况，绝不覆盖用户已有的同名/同 kind 配置。
+  const hasOpenRouter = list.some(p => p.kind === 'openrouter' ||
+    /openrouter/i.test(String(p.base || '')) || /openrouter/i.test(String(p.name || '')));
+  if (!hasOpenRouter){
+    list = list.concat([{
+      id: uid(), name: 'OpenRouter', kind: 'openrouter', key: '', base: 'https://openrouter.ai/api/v1',
+      color: '#6a4fd8', letter: 'O', bal: null, balAt: 0, balErr: '',
+      consoleUrl: '', models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'google/gemini-flash-1.5', 'deepseek/deepseek-chat']
+    }]);
+  }
+
+  return list;
 }
 
 /** 预置供应商（Key 为空，仅骨架） */
@@ -294,7 +309,10 @@ function seedProviders(){
       color: '#ff6900', letter: 'M', bal: null, balAt: 0, balErr: '',
       models: ['mimo-v2.6-pro', 'mimo-v2.6-flash', 'mimo-v2.6-pro-ultraspeed'] },
     { id: uid(), name: 'Moonshot', kind: 'moonshot', key: '', base: 'https://api.moonshot.cn/v1',
-      color: '#12b7a8', letter: 'K', bal: null, balAt: 0, balErr: '', models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.5'] }
+      color: '#12b7a8', letter: 'K', bal: null, balAt: 0, balErr: '', models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.5'] },
+    { id: uid(), name: 'OpenRouter', kind: 'openrouter', key: '', base: 'https://openrouter.ai/api/v1',
+      color: '#6a4fd8', letter: 'O', bal: null, balAt: 0, balErr: '',
+      models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'google/gemini-flash-1.5', 'deepseek/deepseek-chat'] }
   ];
 }
 
