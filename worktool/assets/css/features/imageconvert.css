@@ -189,25 +189,27 @@
 }
 @media (max-width:900px){.ctl__chip{min-height:var(--tap)}}
 
-/* 能力提示（浏览器不支持 WebP 编码时） */
+/* 能力说明条。
+   注意用的是「信息」而不是「报错」配色：设备不支持 WebP 时工具依然可用，
+   只是换了个格式，涂成红色会让人误以为坏了。 */
 .capmsg{
   display:flex;align-items:flex-start;gap:9px;
   padding:12px 14px;border-radius:var(--r-sm);
-  background:var(--danger-soft);border:1px solid color-mix(in srgb,var(--danger) 30%,transparent);
+  background:var(--amber-soft);
+  border:1px solid color-mix(in srgb,var(--amber) 30%,transparent);
   font-size:12.5px;line-height:1.65;color:var(--ink-2);
 }
-.capmsg .ic{width:16px;height:16px;flex:none;margin-top:1px;color:var(--danger)}
-.capmsg b{color:var(--danger)}
+.capmsg .ic{width:16px;height:16px;flex:none;margin-top:1px;color:var(--amber)}
+.capmsg b{color:var(--amber)}
 
-/* 能力确认条（WebP 可用时的正向反馈） */
-.capok{
-  display:flex;align-items:center;gap:8px;
-  padding:10px 12px;border-radius:var(--r-sm);
-  background:var(--sage-soft);
-  border:1px solid color-mix(in srgb,var(--sage) 26%,transparent);
-  font-size:11.5px;color:var(--ink-2);
+/* 格式列表里的说明条：解释为什么某个格式没出现 */
+.ctl__note{
+  display:flex;align-items:flex-start;gap:7px;
+  padding:9px 11px;border-radius:var(--r-sm);
+  background:var(--surface-2);border:1px solid var(--line);
+  font-size:11px;line-height:1.6;color:var(--ink-4);
 }
-.capok .ic{width:14px;height:14px;flex:none;color:var(--sage)}
+.ctl__note .ic{width:13px;height:13px;flex:none;margin-top:1.5px}
 
 /* 被当前输出格式判定为「不适用」的控件：压暗但不禁用，去掉会有歧义 */
 .ctl__row.is-off{opacity:.45;pointer-events:none}

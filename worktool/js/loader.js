@@ -16,7 +16,7 @@
     'js/settings.js',
     'js/lib/github2jsdelivr.js',
     'js/tools/overview.js',
-    'js/tools/image2webp.js',
+    'js/tools/imageconvert.js',
     'js/tools/github2jsdelivr.js',
     'js/app.js'
   ];

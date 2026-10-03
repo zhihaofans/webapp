@@ -2,7 +2,7 @@
 
 泛生活人群的多功能在线工具箱工作台。**多文件交付、零外部依赖**：所有样式、脚本、图标都是本目录下的独立文件，不引用任何 CDN、字体服务或组件库。
 
-当前状态：**框架 + 两个可用工具** —— 图片转 WebP、GitHub 链接转 jsDelivr。侧拉栏还有 4 个分组、11 个已排期的工具位。
+当前状态：**两个可用的工具** —— 图片格式转换、GitHub 转 jsDelivr。侧拉栏分 4 组共 10 项（其中 8 项为已排期的占位）；**首页只列已上线的工具**。
 
 ---
 
@@ -39,7 +39,7 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 
 | 特性 | 为什么在 Pages 子路径下没问题 |
 |---|---|
-| 路由 | 用 **hash 路由**（`#/image2webp`），不依赖服务端重写，不需要 `404.html` 兜底 |
+| 路由 | 用 **hash 路由**（`#/imageconvert`），不依赖服务端重写，不需要 `404.html` 兜底 |
 | 路径 | 全部是**相对路径**，没有一处 `/assets/...` 这种绝对路径 |
 | Service Worker | `register('sw.js')` 是相对注册，作用域自动落在 `/仓库名/` |
 | Manifest | `start_url` 与 `scope` 都写的 `./`，安装到主屏后不会跳错目录 |
@@ -72,7 +72,7 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 │   │   ├── boot.css               启动遮罩
 │   │   └── features/
 │   │       ├── overview.css       概览页
-│   │       ├── image2webp.css     图片转 WebP
+│   │       ├── imageconvert.css    图片格式转换
 │   │       └── github2jsdelivr.css  GitHub 转 jsDelivr
 │   └── icons/                     43 个独立 SVG 图标 + logo.svg（应用标识）
 │
@@ -87,7 +87,7 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
     │   └── github2jsdelivr.js     GitHub→jsDelivr 纯转换逻辑（无 DOM，可被 node 直接跑）
     ├── tools/
     │   ├── overview.js            概览页（编辑部式分组清单）
-    │   ├── image2webp.js          图片转 WebP
+    │   ├── imageconvert.js         图片格式转换
     │   └── github2jsdelivr.js     GitHub 转 jsDelivr 界面
     └── app.js                     启动：按固定顺序调用上面各层
 ```
@@ -96,7 +96,7 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 
 ```
 core → registry → shell → router → settings → lib/github2jsdelivr
-     → tools/overview → tools/image2webp → tools/github2jsdelivr → app
+     → tools/overview → tools/imageconvert → tools/github2jsdelivr → app
 ```
 
 全部是**独立经典脚本**，共享 `window.Toolbox` 命名空间，跨文件按名互访；改哪个模块只动那个文件。
@@ -110,19 +110,21 @@ core → registry → shell → router → settings → lib/github2jsdelivr
 | 能力 | 说明 |
 |---|---|
 | **分组式侧拉栏** | 桌面端常驻、可收起为纯图标（68px）；手机端自动变成顶部菜单 + 左侧抽屉（≤900px 切换） |
+| **首页只列可用项** | 概览页通过 `T.readyTree()` 过滤，只展示 `status: 'ready'` 的工具；整组没有可用工具的分组也一并略过 —— 不拿点不动的条目充数 |
 | **工具注册表** | 分组与工具在 `registry.js` 里声明一次，侧拉栏、概览页、路由三处自动同步 |
-| **hash 路由** | `#/image2webp` 直达；未知地址有兜底页；未实现的工具有「路线图」占位页 |
+| **hash 路由** | `#/imageconvert` 直达；未知地址有兜底页；未实现的工具有「路线图」占位页 |
 | **深浅色主题** | 跟随系统 / 浅色 / 深色三态循环，深色为暖中性（不是纯黑） |
 | **数据存储** | 所有偏好与记录写 `localStorage`，**输入即保存**，关掉页面再打开还在 |
 | **备份与恢复** | 导出 JSON（文件名带日期）、导入（合并 / 覆盖）、清空均需二次确认 |
 | **PWA** | 可添加到主屏、离线可用、「检查更新」比对 `version.json` |
 
-### 图片转 WebP
+### 图片格式转换
 
 | 能力 | 说明 |
 |---|---|
 | 输入方式 | 拖拽、点击选择、`Ctrl / ⌘ + V` 粘贴剪贴板图片，支持多选与格式混合 |
-| 输出格式 | 设备支持时固定输出 **WebP**；Safari / WebKit 不支持 Canvas 编码 WebP，此时自动改用 **JPEG / PNG** 兜底（可在侧栏切换），文件名后缀随之变化 |
+| **输出格式自选** | WebP / JPEG / PNG 三选一，选择会存下来。**只列出当前设备真正能编码的格式** —— 不支持的选项直接不出现（如 iOS 上不会出现 WebP），没有点错的可能 |
+| 格式记忆 | 若保存的格式在当前设备不可用（例如设置从桌面端同步到了 iPhone），自动退到第一个可用格式，绝不产出编不出来的文件 |
 | 转换参数 | 输出质量 40–98%（滑块）、最长边限制（不限制 / 2560 / 1920 / 1280 / 800）、文件名后缀 |
 | 批量处理 | 串行队列，逐张显示进度，单张失败不阻塞其余；可重试、可移除 |
 | 结果呈现 | 原体积 → WebP 体积、缩减百分比、尺寸变化、体积对比条 |
@@ -265,6 +267,15 @@ node test/github2jsdelivr.test.js --online   # 再追加 3 条真实 GitHub API 
 
 ## 九、版本
 
+### v1.3.0 — 2026-10-03
+
+- **图片工具改为自选输出格式**：WebP / JPEG / PNG 三选一，选择持久化。格式列表由 `availableFormats()` 按设备能力动态生成 —— **不支持的格式根本不会出现**，而不是出现后再报错；保存的格式若在当前设备不可用会自动降级。
+- 工具随之更名：`图片转 WebP` → **`图片格式转换`**（路由 `#/image2webp` → `#/imageconvert`，文件同步改名）。名字不能骗人：能输出 JPEG/PNG 却叫「转 WebP」是错的。
+- **移除「日常助手」分组**（日常记账 / 习惯打卡 / 提醒与倒计时）。
+- **首页只展示已上线的工具**：新增 `T.readyTree()` 过滤，整组没有可用工具的分组也不显示；首页行内改为展示工具的能力标签，不再逐行挂「可用」徽标。
+- 修复：规划中占位页的「先用某工具」按钮指向了改名前的路由，是个断链。
+- 能力提示条从报错红改为信息琥珀色 —— 设备不支持 WebP 时工具照常可用，涂红会让人误以为坏了。
+
 ### v1.2.0 — 2026-10-03
 
 - **修复 iOS / Safari 上图片工具直接报错不能用**：原因是 WebKit 不支持 Canvas 导出 WebP，原实现只弹一句「不支持」就没了下文。现改为「能力探测 → 如实说明 → JPEG / PNG 兜底」，iPhone 上也能正常用；文件名后缀、汇总统计、历史记录、侧栏说明全部跟随真实输出格式，不再写死 WebP。
@@ -280,7 +291,7 @@ node test/github2jsdelivr.test.js --online   # 再追加 3 条真实 GitHub API 
 - **新增「GitHub 转 jsDelivr」**（开发工具分组）：批量生成 CDN 镜像链接，支持 blob / raw / tree / raw.githubusercontent 四种地址，可选联网校验版本、短 hash 补全、三种复制格式；纯逻辑独立成 `js/lib/github2jsdelivr.js`，无 DOM 依赖，可直接用 node 跑用例。
 - 数据层新增 `links`（链接记录）与 `drafts`（输入草稿）两个区，各自在 `normalizeDB()` 里登记字段。
 - 数据与设置面板新增「链接记录」计数与「清空链接记录」。
-- 历史列表样式（`.hist` / `.hitem`）从 `features/image2webp.css` 上移到 `components.css` —— 已被两个工具共用，放在功能层是错的。
+- 历史列表样式（`.hist` / `.hitem`）从 `features/` 下的图片工具样式上移到 `components.css` —— 已被两个工具共用，放在功能层是错的。
 - 版本号改为只在 `core.js` 维护一处，界面里的 `v1.x` 由 JS 填充，避免改版本时漏改 HTML。
 - `sw.js` 缓存版本号跟进到 `toolbox-v1.1.0`。
 

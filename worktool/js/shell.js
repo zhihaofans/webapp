@@ -58,7 +58,7 @@
         ? T.esc(tool.name) + (tool.status === 'ready' ? '' : ' <em>规划中</em>')
         : '概览';
     }
-    if (sub) sub.textContent = tool ? (tool.sub || '') : ('共 ' + T.totalCount() + ' 个工具 · 已上线 ' + T.readyCount() + ' 个');
+    if (sub) sub.textContent = tool ? (tool.sub || '') : (T.readyCount() + ' 个可用工具 · 数据存在本机');
     if (label) label.textContent = tool ? tool.name : '概览';
     if (!silent) document.title = (tool ? tool.name : '概览') + ' · ' + T.APP_NAME;
     var mlabel = $('#mnavLabel');

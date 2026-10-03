@@ -34,9 +34,9 @@
         '<h2>' + T.esc(tool.name) + '</h2>' +
         '<p>' + T.esc(tool.desc || '') + '</p>' +
         (plans ? '<div class="plans"><div class="plans__hd">计划包含</div><ul class="plist">' + plans + '</ul></div>' : '') +
-        '<p class="note">这个工具还只在路线图上，尚未实现。当前版本先把框架和一个可用的工具打磨好 —— ' +
+        '<p class="note">这个工具还只在路线图上，尚未实现。左侧已经能用的两个工具都已打磨过 —— ' +
         '侧拉栏里的分组、路由与数据存储都已就位，后续每加一个工具只需注册一行。</p>' +
-        '<div><a class="btn btn--primary" href="#/image2webp">' + T.ic('image', '', 0) + '先用「图片转 WebP」</a></div>' +
+        '<div><a class="btn btn--primary" href="#/imageconvert">' + T.ic('image', '', 0) + '先用「图片格式转换」</a></div>' +
       '</div>' +
     '</div>';
   }

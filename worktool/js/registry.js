@@ -13,18 +13,17 @@
     { id: 'image', name: '图像处理', desc: '压缩、转格式、裁剪' },
     { id: 'dev', name: '开发工具', desc: '链接、镜像、资源' },
     { id: 'text', name: '文本处理', desc: '统计、清洗、对比' },
-    { id: 'calc', name: '计算换算', desc: '单位、日期、比例' },
-    { id: 'life', name: '日常助手', desc: '记账、打卡、提醒' }
+    { id: 'calc', name: '计算换算', desc: '单位、日期、比例' }
   ];
 
   /* status: ready = 已实现；soon = 已在路线图、尚未实现 */
   T.TOOLS = {
-    'image2webp': {
-      id: 'image2webp', group: 'image', name: '图片转 WebP', icon: 'image',
+    'imageconvert': {
+      id: 'imageconvert', group: 'image', name: '图片格式转换', icon: 'image',
       status: 'ready',
-      sub: '批量转换 · 本地处理不上传',
-      desc: '把 PNG / JPG / GIF 等图片转成体积更小的 WebP，可调质量与最长边，支持批量与拖拽。',
-      tags: ['批量', '不上传', '可调质量']
+      sub: '自选输出格式 · 本地处理不上传',
+      desc: '把 PNG / JPG / GIF 等图片转成 WebP / JPEG / PNG，可调质量与最长边，支持批量与拖拽。',
+      tags: ['批量', '自选格式', '不上传']
     },
     'image-compress': {
       id: 'image-compress', group: 'image', name: '图片压缩', icon: 'compress',
@@ -93,27 +92,6 @@
       plan: ['涨跌幅与占比', '折扣与到手价', '按比例分摊金额']
     },
 
-    'life-ledger': {
-      id: 'life-ledger', group: 'life', name: '日常记账', icon: 'wallet',
-      status: 'soon',
-      sub: '收支与月度小结',
-      desc: '随手记一笔收支，按月汇总分类占比。支出用红、收入用绿。',
-      plan: ['分类收支与备注', '月度分布图', '导出 CSV']
-    },
-    'life-habit': {
-      id: 'life-habit', group: 'life', name: '习惯打卡', icon: 'check',
-      status: 'soon',
-      sub: '连续天数与完成率',
-      desc: '多个习惯一排格子的打卡矩阵，看连续天数和近 7 天完成率。',
-      plan: ['多习惯打卡矩阵', '连续天数统计', '近 7 天完成率']
-    },
-    'life-timer': {
-      id: 'life-timer', group: 'life', name: '提醒与倒计时', icon: 'hourglass',
-      status: 'soon',
-      sub: '纪念日与截止日',
-      desc: '给重要日子做倒计时，打开页面就能看到还剩多少天。',
-      plan: ['纪念日倒计时', '截止日提醒', '首页置顶展示']
-    }
   };
 
   /* 工具实现注册表：id → { render(host, tool), onLeave() } */
@@ -144,12 +122,22 @@
     }).filter(function (x) { return x.tools.length; });
   };
 
+  /* 首页只展示真正可用的工具：过滤掉规划中，且整组没有可用工具的分组也不显示 */
+  T.readyTree = function () {
+    return T.toolTree().map(function (node) {
+      return {
+        group: node.group,
+        tools: node.tools.filter(function (t) { return t.status === 'ready'; })
+      };
+    }).filter(function (x) { return x.tools.length; });
+  };
+
   T.readyCount = function () {
     return Object.keys(T.TOOLS).filter(function (k) { return T.TOOLS[k].status === 'ready'; }).length;
   };
   T.totalCount = function () { return Object.keys(T.TOOLS).length; };
 
-  /* 路由：'#/image2webp' → 'image2webp' */
+  /* 路由：'#/imageconvert' → 'imageconvert' */
   T.routeOf = function (id) { return '#/' + id; };
 
 })(window.Toolbox);

@@ -9,7 +9,7 @@ window.Toolbox = window.Toolbox || {};
   'use strict';
 
   var APP_NAME = '生活工具箱';
-  var APP_VER = '1.2.0';
+  var APP_VER = '1.3.0';
   var APP_BUILD = '2026-10-03';
   var SCHEMA = 1;
 
@@ -148,7 +148,7 @@ window.Toolbox = window.Toolbox || {};
         g2jResolve: true,     // 链接工具：联网校验版本
         g2jOmitLatest: true,  // 链接工具：latest 省略版本段
         g2jCopyMode: 'plain', // 链接工具：复制格式 plain | html | css
-        fallbackFmt: 'image/jpeg' // 设备不支持 WebP 编码时的兜底输出格式
+        outFormat: 'image/webp' // 图片工具的输出格式（WebP / JPEG / PNG）
       },
       recent: [],             // [{ id, tool, at }]                     使用痕迹
       history: [],            // [{ id, name, at, srcBytes, ... }]      图片转换记录
@@ -186,8 +186,10 @@ window.Toolbox = window.Toolbox || {};
     d.settings.g2jOmitLatest = bool(s.g2jOmitLatest, true);
     var cm = str(s.g2jCopyMode, 'plain');
     d.settings.g2jCopyMode = (cm === 'plain' || cm === 'html' || cm === 'css') ? cm : 'plain';
-    var ff = str(s.fallbackFmt, 'image/jpeg');
-    d.settings.fallbackFmt = (ff === 'image/png' || ff === 'image/jpeg') ? ff : 'image/jpeg';
+    /* 输出格式只认这三种；万一设备不支持（比如 iOS 上的 WebP），
+       由图片工具在可选列表里挑第一个可用的，不在这里兜底 */
+    var of = str(s.outFormat, 'image/webp');
+    d.settings.outFormat = (of === 'image/webp' || of === 'image/jpeg' || of === 'image/png') ? of : 'image/webp';
     d.createdAt = num(raw.createdAt, Date.now());
 
     /* 草稿：纯文本，限长防止异常输入把配额撑爆 */

@@ -1,7 +1,7 @@
 /* ============================================================
-   tools/image2webp.js — 图片转 WebP
-   全部在本地浏览器完成：File → Image → Canvas → toBlob('image/webp')。
-   不引用任何图像库，也不上传任何文件。
+   tools/imageconvert.js — 图片格式转换（WebP / JPEG / PNG）
+   全部在本地浏览器完成：File → Image → Canvas → toBlob(mime)。
+   输出格式只列本设备真正能编码的，不引用任何图像库，也不上传任何文件。
    ============================================================ */
 (function (T) {
   'use strict';
@@ -51,16 +51,34 @@
 
   var MIME_LABEL = { 'image/webp': 'WebP', 'image/jpeg': 'JPEG', 'image/png': 'PNG' };
   var MIME_EXT = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png' };
+  var MIME_HINT = {
+    'image/webp': '体积最小，现代浏览器与系统相册都能打开，保留透明。',
+    'image/jpeg': '兼容性最好；有损压缩，不支持透明（透明区域会自动填白）。',
+    'image/png': '无损、保留透明；体积通常比原图还大，适合图标与线稿。'
+  };
+  /* 展示顺序：WebP 最省流量，放第一个 */
+  var FORMAT_ORDER = ['image/webp', 'image/jpeg', 'image/png'];
 
-  /* 当前实际使用的输出格式：WebP 可用就一定是 WebP；
-     不可用才退到用户选的兜底格式 */
-  function currentMime() {
+  /* 本设备能编码哪些格式。
+     注意这里返回的是「可用清单」而不是「是否支持 WebP」——
+     界面直接照着它渲染，不支持的格式根本不会出现，也就没有可点错的地方。 */
+  function availableFormats() {
     var cap = probeCap();
-    if (cap.webp) return 'image/webp';
-    var f = T.Store.settings.fallbackFmt;
-    if (f === 'image/png' && cap.png) return 'image/png';
-    if (f === 'image/jpeg' && cap.jpeg) return 'image/jpeg';
-    return cap.jpeg ? 'image/jpeg' : 'image/png';
+    return FORMAT_ORDER.filter(function (m) {
+      if (m === 'image/webp') return cap.webp;
+      if (m === 'image/jpeg') return cap.jpeg;
+      return cap.png;
+    });
+  }
+
+  /* 当前生效的输出格式：优先用用户选的那个；
+     若它在当前设备上不可用（例如设置是桌面端同步来的 WebP，人却在 iPhone 上），
+     自动退到第一个可用格式，绝不产出编不出来的格式。 */
+  function currentMime() {
+    var list = availableFormats();
+    var want = T.Store.settings.outFormat;
+    if (list.indexOf(want) !== -1) return want;
+    return list[0] || 'image/png';
   }
 
   /* ---------------- 编码 ---------------- */
@@ -430,25 +448,26 @@
     var s = T.Store.settings;
     var cap = probeCap();
     var mime = currentMime();
+    var list = availableFormats();
     return '<div class="ctl">' +
 
-      /* 能力状态：WebP 可用就一句话确认；不可用才展开兜底选择 */
-      (cap.webp
-        ? '<div class="ctl__row"><div class="capok">' + T.ic('check', '', 0) +
-            '<span>本设备支持 WebP 编码，输出就是 WebP。</span></div></div>'
-        : '<div class="ctl__row">' +
-            '<div class="ctl__hd"><b>兜底输出格式</b></div>' +
-            '<div class="seg" id="segFmt">' +
-              ['image/jpeg', 'image/png'].map(function (m) {
-                return '<button class="seg__b' + (mime === m ? ' is-on' : '') + '" type="button" data-v="' + m + '">' +
-                  MIME_LABEL[m] + '</button>';
-              }).join('') +
-            '</div>' +
-            '<div class="ctl__hint">本设备不能编码 WebP，这里选的是实际输出格式。' +
-              'JPEG 有损但体积小得多；PNG 无损、保留透明，但通常比原图还大。</div>' +
-            '<button class="btn btn--sm" type="button" id="btnRecheck" style="align-self:flex-start">' +
-              T.ic('restore', '', 0) + '重新检测编码能力</button>' +
-          '</div>') +
+      '<div class="ctl__row">' +
+        '<div class="ctl__hd"><b>输出格式</b>' +
+          '<small>' + (list.length > 1 ? '本设备支持 ' + list.length + ' 种' : '本设备仅支持 1 种') + '</small>' +
+        '</div>' +
+        '<div class="seg" id="segFmt">' +
+          list.map(function (m) {
+            return '<button class="seg__b' + (mime === m ? ' is-on' : '') + '" type="button" data-v="' + m + '">' +
+              MIME_LABEL[m] + '</button>';
+          }).join('') +
+        '</div>' +
+        '<div class="ctl__hint">' + MIME_HINT[mime] + '</div>' +
+        (cap.webp ? '' :
+          '<div class="ctl__note">' + T.ic('info', '', 0) +
+            '<span>本设备不能编码 WebP（Safari / WebKit 的 Canvas 限制），所以列表里没有它。</span></div>' +
+          '<button class="btn btn--sm" type="button" id="btnRecheck" style="align-self:flex-start">' +
+            T.ic('restore', '', 0) + '重新检测编码能力</button>') +
+      '</div>' +
 
       '<div class="ctl__row' + (mime === 'image/png' ? ' is-off' : '') + '">' +
         '<div class="ctl__hd"><b>输出质量</b><em id="qVal">' + Math.round(s.quality * 100) + '%</em></div>' +
@@ -497,8 +516,7 @@
       segFmt.addEventListener('click', function (e) {
         var b = e.target.closest('[data-v]');
         if (!b) return;
-        T.Store.patch({ fallbackFmt: b.getAttribute('data-v') });
-        resetCap();
+        T.Store.patch({ outFormat: b.getAttribute('data-v') });
         if (items.some(function (it) { return it.status === 'done'; })) dirty = true;
         if (viewHost) renderView(viewHost);   /* 事件 → 重建视图，单向 */
       });
@@ -680,12 +698,12 @@
   var viewHost = null;
 
   var NOTICE_WEBP_OFF =
-    '<div class="capmsg">' + T.ic('warn', '', 0) +
-      '<div><b>这台设备无法用浏览器编码 WebP。</b>' +
-      '原因是 Safari / WebKit 至今不支持 Canvas 导出 WebP；iOS 上所有浏览器都是 WebKit，' +
-      '所以 iPhone / iPad 上都会碰到这个限制，换浏览器也没用。<br>' +
-      '这里会改为输出 <b id="fbLabel">JPEG</b> —— 体积收益与 WebP 很接近，且兼容性更好。' +
-      '想要 WebP 的话，用电脑上的 Chrome / Edge / Firefox 打开本页即可（会自动切成 WebP，无需设置）。' +
+    '<div class="capmsg">' + T.ic('info', '', 0) +
+      '<div><b>这台设备不能编码 WebP，所以格式列表里没有它。</b>' +
+      '原因是 Safari / WebKit 至今不支持 Canvas 导出 WebP，而 iOS 上所有浏览器都是 WebKit，' +
+      '换浏览器也不会有变化。<br>' +
+      '现在用 <b id="fbLabel">JPEG</b> 输出，体积收益与 WebP 很接近。' +
+      '想拿 WebP 的话，用电脑上的 Chrome / Edge / Firefox 打开本页即可，会自动多出 WebP 选项。' +
       '</div></div><div style="height:14px"></div>';
 
   function renderView(host) {
@@ -749,7 +767,7 @@
   }
 
   /* ---------------- 注册 ---------------- */
-  T.register('image2webp', {
+  T.register('imageconvert', {
     render: renderView,
     onLeave: function () {
       if (pasteHandler) { document.removeEventListener('paste', pasteHandler); pasteHandler = null; }
