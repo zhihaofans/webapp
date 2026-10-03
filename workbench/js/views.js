@@ -514,8 +514,11 @@ function renderWeatherExtra(d){
       '<div class="tiny muted" style="margin-top:6px">最低 ' + Math.round(lo) + '° · 最高 ' + Math.round(hi) + '° · 温差 ' + Math.round(span) + '°</div>' +
       '</div></div>' +
 
-    '<div class="card"><div class="card__hd"><h3>' + ic('target') + '今天怎么穿</h3></div>' +
-      '<div class="card__bd"><div class="reading">' + ic('info') + '<span>' + esc(Weather.advice(d)) + '</span></div>' +
+    '<div class="card"><div class="card__hd"><h3>' + ic('target') + '今天怎么穿</h3>' +
+      '<button class="btn btn--sm btn--ghost" id="wxDressAi">' + ic('spark') + 'AI 解析</button></div>' +
+      '<div class="card__bd">' +
+      '<div class="reading" id="wxDress"><span>' + esc(Weather.advice(d)) + '</span></div>' +
+      '<div id="wxDressAiOut"></div>' +
       (d.hours?.length ? '<div class="hr"></div><div class="tiny muted">未来几小时：' +
         d.hours.slice(0, 5).map(h => pad2(h.h) + ':00 ' + Math.round(h.t) + '°').join(' · ') + '</div>' : '') +
       '</div></div>' +
@@ -543,6 +546,97 @@ function renderWeatherExtra(d){
     };
   });
   $('#wxAddCity').onclick = () => openCityPicker();
+  const dressAi = $('#wxDressAi');
+  if (dressAi) dressAi.onclick = () => runDressAI(d);
+}
+
+/* ------------------------- 今天怎么穿 · AI 解析 ------------------------- */
+
+/**
+ * 用默认 AI 重写「今天怎么穿」。
+ *
+ *  调用链（单向，不与其他渲染函数互调）：
+ *    按钮点击 → 请求 → 就地更新 #wxDress / #wxDressAiOut 两个节点
+ *  失败时保留本地 advice() 兜底，不会让卡片变空。
+ *
+ *  缓存：按「城市 + 日期 + 天气指纹」存 localStorage，同一天同一套天气只问一次，
+ *  省 API 调用；用户手动点「重新解析」可绕过缓存。
+ */
+async function runDressAI(d, force){
+  const btn = $('#wxDressAi');
+  const out = $('#wxDressAiOut');
+  const host = $('#wxDress');
+  if (!out || !host) return;                 // 视图已切走
+
+  const prov = AI.pickDefault();
+  if (!prov){
+    out.innerHTML = '<div class="dai dai--warn">' + ic('warn') +
+      '<div><b>还没有可用的 AI 供应商</b><span>去「AI 余额」页填一个 API Key，再到「设置 → 默认 AI」里选它。</span></div></div>';
+    toast('warn', '还没有可用的 AI', '去「AI 余额」填一个 Key', 4000);
+    return;
+  }
+
+  const today = d.days?.[0] || {};
+  const payload = {
+    place: String(d.place || Store.db.settings.city.name || '').split(/\s*·\s*/)[0],
+    date: fmtDay(new Date()),
+    desc: wxText(d.code, d.desc),
+    temp: d.temp,
+    feels: d.feels ?? d.temp,
+    min: today.min,
+    max: today.max,
+    diff: (today.max != null && today.min != null) ? today.max - today.min : null,
+    humidity: d.humidity,
+    windK: d.windK,
+    windDir: d.windDir,
+    precip: d.precip,
+    uv: d.uv,
+    vis: d.vis
+  };
+
+  // 缓存 key：城市纬度经度 + 日期 + 天气指纹（温度/描述/湿度/风）——任一变化都重问
+  const fp = [payload.date, Math.round(payload.temp), payload.desc, payload.humidity, Math.round(payload.windK || 0)].join('|');
+  const ck = 'lifehub.v1.dress.' + Number(Store.db.settings.city.lat).toFixed(2) + '.' +
+    Number(Store.db.settings.city.lon).toFixed(2) + '.' + fp;
+
+  if (!force){
+    try {
+      const cached = JSON.parse(localStorage.getItem(ck) || 'null');
+      if (cached && cached.text && Date.now() - (cached.at || 0) < 12 * 3600 * 1000){
+        paintDress(cached.text, cached.model, prov, true);
+        return;
+      }
+    } catch (e){}
+  }
+
+  btn.disabled = true;
+  const oldHtml = btn.innerHTML;
+  btn.innerHTML = ic('refresh') + '解析中…';
+  out.innerHTML = '';
+
+  try {
+    const r = await AI.weatherDress(prov.id, payload);
+    try { localStorage.setItem(ck, JSON.stringify({ text: r.text, model: r.model, at: Date.now() })); } catch (e){}
+    paintDress(r.text, r.model, prov, false);
+    toast('ok', 'AI 已给出今天的穿法', '', 2200);
+  } catch (e){
+    out.innerHTML = '<div class="dai dai--warn">' + ic('warn') +
+      '<div><b>AI 解析失败</b><span>' + esc(e.message || '未知错误') + '，上面是本地建议，可稍后再试。</span></div></div>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = oldHtml;
+  }
+
+  function paintDress(text, model, p, cached){
+    host.innerHTML = '<span>' + esc(text) + '</span>';
+    out.innerHTML = '<div class="dai dai--ai">' + ic('spark') +
+      '<div><b>AI 建议 · ' + esc(p.name) + (cached ? '（缓存）' : '') + '</b>' +
+      '<span>由默认 AI 结合当日温度、湿度、风力、紫外线生成，仅供参考。</span>' +
+      (model ? '<em>模型 ' + esc(model) + '</em>' : '') + '</div>' +
+      '<button class="dai__again" id="wxDressAgain" title="重新解析">' + ic('refresh') + '</button></div>';
+    const again = $('#wxDressAgain');
+    if (again) again.onclick = () => runDressAI(d, true);
+  }
 }
 
 /** 城市选择器 */

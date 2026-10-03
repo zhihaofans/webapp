@@ -925,6 +925,31 @@ html[data-theme="dark"] .wx{--ink-2:#d5cfc5; --ink-3:#b3aca1; --ink-4:#a09a8f;}
 /* 同上：详情卡里 ic('info') 也是行内 SVG，不约束就会撑满整张卡 */
 .reading svg{width:17px;height:17px;flex:none;margin-top:1px;color:var(--ink-4)}
 
+/* ── 今天怎么穿 · AI 解析结果块 ─────────────────────────────── */
+.dai{
+  display:flex;align-items:flex-start;gap:8px;margin-top:12px;
+  padding:10px 13px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.55;
+}
+.dai svg{width:15px;height:15px;flex:none;margin-top:2px}
+.dai > div{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.dai b{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.dai span{color:var(--ink-3)}
+.dai em{font-style:normal;font-size:11px;color:var(--ink-4);margin-top:2px}
+.dai--ai{background:var(--accent-soft);border:1px solid var(--accent);border-left-width:3px}
+.dai--ai svg{color:var(--accent)}
+.dai--warn{background:var(--surface-2);border:1px solid var(--line);border-left:3px solid #d98a3f}
+.dai--warn svg{color:#d98a3f}
+.dai__again{
+  flex:none;width:26px;height:26px;padding:0;border:0;border-radius:8px;
+  background:rgba(255,255,255,.35);color:var(--ink-3);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;margin-top:-2px;
+  transition:all .16s var(--ease);
+}
+.dai__again:hover{background:rgba(255,255,255,.6);color:var(--accent)}
+.dai__again svg{width:14px;height:14px;margin:0}
+html[data-theme="dark"] .dai__again{background:rgba(255,255,255,.12)}
+html[data-theme="dark"] .dai__again:hover{background:rgba(255,255,255,.2)}
+
 /* ============================ 清单 / 表格 ============================ */
 .list{display:flex;flex-direction:column}
 .li{

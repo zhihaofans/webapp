@@ -357,8 +357,67 @@ const AI = {
       throw new Error('模型返回的数值都不可用');
     }
     return out;
+  },
+
+  /**
+   * 让默认 AI 根据当日天气给一段「今天怎么穿」的穿搭建议。
+   *
+   *  与 advice() 的关系：advice() 是纯本地的规则拼接（阈值硬编码），
+   *  离线可用、零成本，但文案机械、不会结合湿度/风/温差综合取舍。
+   *  AI 版把结构化的天气数据交给模型，让它给一段更自然、更有针对性的建议。
+   *
+   *  约束（和 estimateDrink 同思路）：
+   *    · 只输出一段纯文本，不要 markdown、不要列表符号、不要标题；
+   *    · 限制字数，避免手机端卡片被撑爆；
+   *    · 明确「不要编造天气数据」，只用给定的数值；
+   *    · 不要医疗建议、不要问句、不要寒暄。
+   */
+  async weatherDress(providerId, w){
+    const sys = '你是一位生活化的穿搭助手。只输出一段中文纯文本建议，不要 markdown、不要标题、不要列表符号、不要换行、不要问句、不要寒暄。';
+    const lines = [
+      '地点：' + (w.place || '未提供'),
+      '时间：' + (w.date || '今天'),
+      '天气：' + (w.desc || '未知'),
+      '气温：' + fmtNum(w.temp, '°C') + '（体感 ' + fmtNum(w.feels, '°C') + '）',
+      '今日温度区间：' + (w.min != null && w.max != null ? fmtNum(w.min, '°C') + ' ~ ' + fmtNum(w.max, '°C') : '未知'),
+      '昼夜温差：' + fmtNum(w.diff, '°C'),
+      '湿度：' + fmtNum(w.humidity, '%'),
+      '风速：' + fmtNum(w.windK, ' km/h') + (w.windDir ? '（' + w.windDir + '）' : ''),
+      '降水：' + fmtNum(w.precip, 'mm'),
+      '紫外线指数：' + (w.uv != null ? String(w.uv) : '未知'),
+      '能见度：' + fmtNum(w.vis, 'km')
+    ].join('\n');
+
+    const ask = '今天的天气数据如下（请只依据这些数据，不要编造）：\n' + lines + '\n\n' +
+      '请用 60~110 个汉字给出一段「今天怎么穿」的建议，要具体到穿什么（上装/下装/外套/鞋子），' +
+      '并顺带提醒今天最需要注意的一件事（如带伞、防晒、防风、早晚加衣、补水等）。' +
+      '直接给建议，不要复述天气数据。';
+
+    const r = await this.chat(providerId, [
+      { role: 'system', content: sys },
+      { role: 'user', content: ask }
+    ], { maxTokens: 320, temperature: 0.5, timeout: 45000 });
+
+    // 清掉模型偶发夹带的 markdown 符号与多余空白，压成一行
+    let txt = String(r.text || '')
+      .replace(/```[a-z]*/gi, '')
+      .replace(/[#*`>_~]/g, '')
+      .replace(/^\s*[-•·\d]+[.、)]\s*/gm, '')
+      .replace(/\s*\n\s*/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    if (!txt) throw new Error('模型未返回内容');
+    if (txt.length > 260) txt = txt.slice(0, 260).replace(/[，,。.]?$/, '') + '…';
+    return { text: txt, model: r.model };
   }
 };
+
+/** 数值格式化：null/undefined → 「未知」，否则带单位 */
+function fmtNum(v, unit){
+  if (v == null || !isFinite(Number(v))) return '未知';
+  return Math.round(Number(v) * 10) / 10 + unit;
+}
 
 /* ==========================================================================
    6. 新闻热榜

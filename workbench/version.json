@@ -1,6 +1,6 @@
 {
-  "ver": "1.23",
+  "ver": "1.24",
   "build": "2026-10-03",
-  "note": "新增 AI 供应商 OpenRouter（支持余额查询，USD 计价）；余额合计按币种分别统计，卡片币种符号自动适配",
+  "note": "天气「今天怎么穿」新增「AI 解析」：用默认 AI 结合温度/湿度/风力/紫外线生成更贴合的穿搭建议，支持缓存与失败降级",
   "url": "https://zhihaofans.github.io/webapp/workbench/"
 }
