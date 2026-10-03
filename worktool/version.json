@@ -1,7 +1,7 @@
 {
-  "ver": "1.0.0",
+  "ver": "1.1.0",
   "build": "2026-10-03",
   "name": "生活工具箱",
-  "note": "首个版本：分组式侧拉栏框架 + 图片转 WebP 工具 + 本地数据存储。",
-  "url": ""
+  "note": "新增「GitHub 转 jsDelivr」工具；文档层级细化，历史列表样式上移到组件层。",
+  "url": "https://zhihaofans.github.io/webapp/worktool/"
 }

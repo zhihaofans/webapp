@@ -117,6 +117,12 @@
   }
 
   Shell.init = function () {
+    /* 版本号只在 core.js 里维护一处，这里把它填进界面，避免改版本时漏改 HTML */
+    var rv = $('#railVer');
+    if (rv) rv.textContent = 'v' + T.APP_VER;
+    var mv = $('#mnavVer');
+    if (mv) mv.textContent = T.APP_NAME + ' v' + T.APP_VER;
+
     Shell.renderNav();
 
     /* 侧栏底部工具区 */

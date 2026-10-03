@@ -6,7 +6,7 @@
    第三方接口一律不拦截。
    ============================================================ */
 
-var CACHE = 'toolbox-v1.0.0';
+var CACHE = 'toolbox-v1.1.0';
 
 var SHELL = [
   './',
@@ -20,14 +20,17 @@ var SHELL = [
   'assets/css/boot.css',
   'assets/css/features/overview.css',
   'assets/css/features/image2webp.css',
+  'assets/css/features/github2jsdelivr.css',
   'js/loader.js',
   'js/core.js',
   'js/registry.js',
   'js/shell.js',
   'js/router.js',
   'js/settings.js',
+  'js/lib/github2jsdelivr.js',
   'js/tools/overview.js',
   'js/tools/image2webp.js',
+  'js/tools/github2jsdelivr.js',
   'js/app.js',
   'assets/icons/logo.svg',
   'icon-192.png',

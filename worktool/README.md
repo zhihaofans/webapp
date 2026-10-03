@@ -2,7 +2,7 @@
 
 泛生活人群的多功能在线工具箱工作台。**多文件交付、零外部依赖**：所有样式、脚本、图标都是本目录下的独立文件，不引用任何 CDN、字体服务或组件库。
 
-当前版本先把**框架**立起来，并交付第一个可用工具 —— **图片转 WebP**。
+当前状态：**框架 + 两个可用工具** —— 图片转 WebP、GitHub 链接转 jsDelivr。侧拉栏还有 4 个分组、11 个已排期的工具位。
 
 ---
 
@@ -24,6 +24,30 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 ### 方式 B：部署到静态托管
 
 整个目录原样上传即可（GitHub Pages / Vercel / Netlify / 任意对象存储静态站）。没有构建步骤，没有后端，没有环境变量。
+
+#### GitHub Pages 特别注意
+
+**可以，且不需要改一行代码** —— 已按「项目站」（`https://<用户名>.github.io/<仓库名>/` 这种子路径形式）实测通过。下面三条照做就行：
+
+1. **把本目录的内容放到仓库根目录**，不要连 `生活工具箱-v1.1/` 这层文件夹一起提交。
+   否则访问地址会变成 `…github.io/<仓库名>/生活工具箱-v1.1/` —— 能用，但中文路径会被百分号编码成一长串。
+2. **保留根目录的 `.nojekyll`**（本包已带一个空文件）。
+   GitHub Pages 默认会跑一遍 Jekyll 构建，`.nojekyll` 用来关掉它，避免构建环节引入意外。
+3. **仓库 Settings → Pages → Source 选 `Deploy from a branch`，分支 `main`、目录 `/ (root)`**，保存后等一两分钟。
+
+为什么它天然适配：
+
+| 特性 | 为什么在 Pages 子路径下没问题 |
+|---|---|
+| 路由 | 用 **hash 路由**（`#/image2webp`），不依赖服务端重写，不需要 `404.html` 兜底 |
+| 路径 | 全部是**相对路径**，没有一处 `/assets/...` 这种绝对路径 |
+| Service Worker | `register('sw.js')` 是相对注册，作用域自动落在 `/仓库名/` |
+| Manifest | `start_url` 与 `scope` 都写的 `./`，安装到主屏后不会跳错目录 |
+| 文件名 | 资源文件名全是 ASCII，不涉及大小写不匹配（Pages 是 Linux，大小写敏感） |
+
+> 自定义域名（`CNAME`）或用户站（`https://<用户名>.github.io/` 根路径）同样可用，这两种情况下路径更简单，不会有任何差别。
+>
+> `启动本地服务器.command` 是给你本地开发用的，传到 Pages 上不影响运行，只是会被当成一个可下载文件。
 
 ---
 
@@ -48,8 +72,9 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 │   │   ├── boot.css               启动遮罩
 │   │   └── features/
 │   │       ├── overview.css       概览页
-│   │       └── image2webp.css     图片转 WebP
-│   └── icons/                     40 个独立 SVG 图标 + logo.svg（应用标识）
+│   │       ├── image2webp.css     图片转 WebP
+│   │       └── github2jsdelivr.css  GitHub 转 jsDelivr
+│   └── icons/                     43 个独立 SVG 图标 + logo.svg（应用标识）
 │
 └── js/
     ├── loader.js                  渐进加载器：按序注入模块 + 注册 Service Worker
@@ -58,16 +83,20 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
     ├── shell.js                   侧拉栏、顶栏、手机抽屉的渲染与交互
     ├── router.js                  基于 hash 的路由 + 占位页 + 兜底页
     ├── settings.js                数据与设置抽屉（外观 / 备份 / 恢复 / 清空 / 检查更新）
+    ├── lib/
+    │   └── github2jsdelivr.js     GitHub→jsDelivr 纯转换逻辑（无 DOM，可被 node 直接跑）
     ├── tools/
     │   ├── overview.js            概览页（编辑部式分组清单）
-    │   └── image2webp.js          图片转 WebP
+    │   ├── image2webp.js          图片转 WebP
+    │   └── github2jsdelivr.js     GitHub 转 jsDelivr 界面
     └── app.js                     启动：按固定顺序调用上面各层
 ```
 
 **加载顺序**（`loader.js` 里写死，也是依赖顺序）：
 
 ```
-core → registry → shell → router → settings → tools/overview → tools/image2webp → app
+core → registry → shell → router → settings → lib/github2jsdelivr
+     → tools/overview → tools/image2webp → tools/github2jsdelivr → app
 ```
 
 全部是**独立经典脚本**，共享 `window.Toolbox` 命名空间，跨文件按名互访；改哪个模块只动那个文件。
@@ -101,6 +130,30 @@ core → registry → shell → router → settings → tools/overview → tools
 | 隐私 | 全程在浏览器内用 Canvas 完成，**不联网、不上传**，断网可用 |
 
 **关于输出体积**：`toBlob('image/webp', q)` 对照片类素材通常能减 50–90%（实测 5.17 MB PNG → 829 KB，−84%）。截图、纯色图、已压缩过的 JPEG 收益会小一些，个别情况下 WebP 反而更大 —— 所以每条结果都直接给出体积对比，不做乐观断言。
+
+### GitHub 链接转 jsDelivr
+
+| 能力 | 说明 |
+|---|---|
+| 支持的输入 | `github.com/…/blob/…`、`/raw/…`、`/tree/…`、`raw.githubusercontent.com/…`，每行一个，自动去空行与重复 |
+| 输出 | `https://cdn.jsdelivr.net/gh/user/repo@version/path`；`latest` 默认省略 `@version` 段 |
+| 版本校验 | 可开关。开启后调一次 GitHub API：**短 hash 补全为完整 40 位 commit**（jsDelivr 对 commit 永久缓存），tag / 分支校验存在后**保持原样**（tag 比 hash 好维护） |
+| 结果徽标 | 仓库根 / latest / 完整 commit / 短 hash→完整 commit / 标签·分支 / 未校验 / 无法识别，一眼看清每条链接的性质 |
+| 复制 | 单条或全部；三种格式可选：纯链接 / `<script src="…">` / `@import url("…")` |
+| 实时性 | 边打字边出结果，本地计算无延迟；联网校验分段回填，不会卡输入 |
+| 草稿 | 输入框内容实时落盘，关掉页面再打开还在 |
+| 历史 | 记录用过的链接（按输出地址去重，最多 30 条），可一键取回 |
+
+**与参考实现（`github2jsdelivr v1.0`）的关系**：转换逻辑、正则、API 语义、`latest` 处理、短 hash 补全规则全部对齐，28 条用例逐条比对输出一致。在此之上补了几处它没有覆盖的情况：
+
+| 输入 | 参考实现 | 本实现 |
+|---|---|---|
+| `…/blob/main/a.js#L10-L20` | 行号锚点混进文件名 → 链接错误 | 剥离 `#…` 与 `?…` |
+| `…/tree/main/src` | `main` 被当成文件名 → 链接错误 | 识别为分支 + 目录 |
+| `https://www.github.com/…` | 不匹配 | 支持 `www.` |
+| `…/repo.git/blob/…` | 仓库名带 `.git` | 自动去掉 |
+
+**关于联网**：这是全站**唯一**会发起外部请求的功能。开启「联网校验版本」后，仓库名会发给 `api.github.com`（未登录每小时 60 次配额），因此批量超过 20 条时只解析前 20 条并如实标注；命中配额限制会退回未校验状态而不是失败。关闭该开关后，本工具与其他工具一样全程本地计算。
 
 ---
 
@@ -154,13 +207,25 @@ core → registry → shell → router → settings → tools/overview → tools
 
 - **存储位置**：浏览器 `localStorage`，主键 `lifetoolbox.v1`，快照键 `lifetoolbox.v1.bak`（主数据损坏时自动回退）。
 - **不落库**：图片转换记录只保存文件名、体积、尺寸与时间，**图片本身不会被存进浏览器**。
-- **不联网**：没有任何后端请求。图片转换的每一步都在本机完成。
+- **不联网**：没有任何后端请求。图片转换的每一步都在本机完成。唯一例外是「GitHub 转 jsDelivr」的版本校验（可在工具内关闭），它只把仓库名发给 `api.github.com`，不发送任何本机数据。
+- **草稿**：各工具输入框的内容也会实时落盘（`drafts` 字段），用于「关掉再打开还在」。
 - **换设备**：用「数据与设置 → 导出 JSON 备份」迁移；部署到公网后，访客看到的是他自己的空白数据。
 - **清理**：清空转换记录 / 清空全部数据都有二次确认。
 
 ---
 
-## 六、设计语言
+## 六、跑测试
+
+转换逻辑与界面是分开的，所以纯逻辑可以直接用 node 跑，不需要浏览器：
+
+```bash
+node test/github2jsdelivr.test.js            # 22 条离线用例（不打网络）
+node test/github2jsdelivr.test.js --online   # 再追加 3 条真实 GitHub API 用例
+```
+
+界面层没有引入测试框架（保持零依赖），改动后用 `python3 -m http.server` 起服务、在浏览器里过一遍即可；`file://` 与 HTTP 两种打开方式都要各看一次，图标走的是两条不同的代码路径。
+
+## 七、设计语言
 
 克制、高级、有生活感，刻意避开「一屏圆角卡片」的模板感：
 
@@ -177,7 +242,7 @@ core → registry → shell → router → settings → tools/overview → tools
 
 ---
 
-## 七、已知限制
+## 八、已知限制
 
 1. **`file://` 打开时**图标降级为 `<img>` 直引（不再随主题换色），Service Worker 不注册。请用 HTTP 访问。
 2. **WebP 编码能力**取决于浏览器。过老的浏览器会给出明确提示而不是静默失败。Safari 14+、Chrome 32+、Firefox 65+ 均可。
@@ -187,7 +252,18 @@ core → registry → shell → router → settings → tools/overview → tools
 
 ---
 
-## 八、版本
+## 九、版本
+
+### v1.1.0 — 2026-10-03
+
+新增工具与若干工程改进。
+
+- **新增「GitHub 转 jsDelivr」**（开发工具分组）：批量生成 CDN 镜像链接，支持 blob / raw / tree / raw.githubusercontent 四种地址，可选联网校验版本、短 hash 补全、三种复制格式；纯逻辑独立成 `js/lib/github2jsdelivr.js`，无 DOM 依赖，可直接用 node 跑用例。
+- 数据层新增 `links`（链接记录）与 `drafts`（输入草稿）两个区，各自在 `normalizeDB()` 里登记字段。
+- 数据与设置面板新增「链接记录」计数与「清空链接记录」。
+- 历史列表样式（`.hist` / `.hitem`）从 `features/image2webp.css` 上移到 `components.css` —— 已被两个工具共用，放在功能层是错的。
+- 版本号改为只在 `core.js` 维护一处，界面里的 `v1.x` 由 JS 填充，避免改版本时漏改 HTML。
+- `sw.js` 缓存版本号跟进到 `toolbox-v1.1.0`。
 
 ### v1.0.0 — 2026-10-03
 

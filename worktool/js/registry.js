@@ -11,6 +11,7 @@
 
   T.GROUPS = [
     { id: 'image', name: '图像处理', desc: '压缩、转格式、裁剪' },
+    { id: 'dev', name: '开发工具', desc: '链接、镜像、资源' },
     { id: 'text', name: '文本处理', desc: '统计、清洗、对比' },
     { id: 'calc', name: '计算换算', desc: '单位、日期、比例' },
     { id: 'life', name: '日常助手', desc: '记账、打卡、提醒' }
@@ -38,6 +39,14 @@
       sub: '常用比例一键裁切',
       desc: '按 1:1 / 4:3 / 16:9 等常用比例裁切，支持自由旋转与水平镜像。',
       plan: ['常用比例预设', '自由旋转与镜像', '批量套用同一裁剪框']
+    },
+
+    'github2jsdelivr': {
+      id: 'github2jsdelivr', group: 'dev', name: 'GitHub 转 jsDelivr', icon: 'link',
+      status: 'ready',
+      sub: '批量生成 CDN 镜像链接',
+      desc: '把 GitHub 的 blob / raw / tree 链接批量转成 jsDelivr CDN 地址，可校验版本、补全短 hash，一键复制。',
+      tags: ['批量', '支持校验版本', '一键复制']
     },
 
     'text-count': {

@@ -42,6 +42,7 @@
     var db = T.Store.db;
     var bytes = byteSizeOfDB();
     var conv = db.history.length;
+    var links = (db.links || []).length;
     var saved = db.history.reduce(function (a, h) {
       return a + (h.srcBytes > h.outBytes ? (h.srcBytes - h.outBytes) : 0);
     }, 0);
@@ -63,7 +64,8 @@
       '<div class="sect"><h2>数据</h2><i class="hr"></i></div>' +
       '<div class="panel panel--flat" style="margin-bottom:14px">' +
         '<div class="panel__bd" style="display:flex;gap:22px;flex-wrap:wrap">' +
-          '<div class="metric"><b>' + conv + '</b><span>转换记录</span></div>' +
+          '<div class="metric"><b>' + conv + '</b><span>图片记录</span></div>' +
+          '<div class="metric"><b>' + links + '</b><span>链接记录</span></div>' +
           '<div class="metric"><b>' + T.fmtBytes(saved) + '</b><span>累计节省</span></div>' +
           '<div class="metric"><b>' + T.fmtBytes(bytes) + '</b><span>本地占用</span></div>' +
         '</div>' +
@@ -78,7 +80,9 @@
         '<a href="javascript:void(0)" id="btnImport">' + T.ic('restore', '', 0) +
           '<span>导入 JSON 备份</span><em>可选合并或覆盖</em></a>' +
         '<a href="javascript:void(0)" id="btnClearHist">' + T.ic('trash', '', 0) +
-          '<span>清空转换记录</span><em>' + conv + ' 条</em></a>' +
+          '<span>清空图片记录</span><em>' + conv + ' 条</em></a>' +
+        '<a href="javascript:void(0)" id="btnClearLinks">' + T.ic('trash', '', 0) +
+          '<span>清空链接记录</span><em>' + links + ' 条</em></a>' +
         '<a href="javascript:void(0)" id="btnReset" style="color:var(--danger)">' + T.ic('warn', '', 0) +
           '<span>清空全部数据</span><em>设置与记录</em></a>' +
       '</div>' +
@@ -181,11 +185,27 @@
       });
     });
 
+    /* 清空链接记录 */
+    d.body.querySelector('#btnClearLinks').addEventListener('click', function () {
+      if (!(T.Store.db.links || []).length) { T.toast('还没有链接记录'); return; }
+      T.confirm({
+        title: '清空链接记录',
+        text: '将删除本机保存的全部链接转换记录（共 ' + T.Store.db.links.length + ' 条）。',
+        hint: '输入框里的当前内容不受影响，设置项也会保留。',
+        ok: '清空记录', danger: true
+      }).then(function (yes) {
+        if (!yes) return;
+        T.Store.clearLinks();
+        d.close();
+        T.toast('链接记录已清空', { icon: 'check' });
+      });
+    });
+
     /* 清空全部 */
     d.body.querySelector('#btnReset').addEventListener('click', function () {
       T.confirm({
         title: '清空全部数据',
-        text: '设置项、转换记录与最近使用痕迹都会被清除，且无法撤销。',
+        text: '设置项、图片与链接记录、草稿和最近使用痕迹都会被清除，且无法撤销。',
         hint: '建议先导出一次备份。',
         ok: '全部清空', danger: true
       }).then(function (yes) {

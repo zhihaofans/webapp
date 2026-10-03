@@ -1,0 +1,161 @@
+/* ============================================================
+   功能层 · GitHub 链接转 jsDelivr
+   输入用多行文本框（一屏能贴一整批），输出按行对照。
+   ============================================================ */
+
+.g2j{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 306px;
+  grid-template-areas:
+    "in side"
+    "out side";
+  gap:18px 24px;
+  align-items:start;
+}
+.g2j__in{grid-area:in;min-width:0}
+.g2j__out{grid-area:out;min-width:0}
+.g2j__side{
+  grid-area:side;
+  position:sticky;
+  top:calc(var(--topbar-h) + 16px);
+  display:flex;flex-direction:column;gap:16px;
+}
+
+/* ------------------------------------------------------------
+   多行输入
+   ------------------------------------------------------------ */
+.ta{
+  width:100%;
+  min-height:150px;
+  padding:12px 13px;
+  border-radius:var(--r-sm);
+  border:1px solid var(--line-2);
+  background:var(--surface);
+  color:var(--ink);
+  font-family:var(--f-num);
+  font-size:12.5px;
+  line-height:1.85;
+  resize:vertical;
+  transition:border-color .16s var(--ease),box-shadow .16s var(--ease);
+}
+.ta::placeholder{color:var(--ink-4);font-family:var(--f-sans)}
+.ta:hover{border-color:var(--ink-4)}
+.ta:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+@media (max-width:900px){
+  .ta{min-height:132px;font-size:16px}   /* 16px 防 iOS 聚焦放大 */
+}
+
+.g2j__acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:11px}
+.g2j__acts .sp{flex:1}
+.g2j__meta{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font-size:11.5px;color:var(--ink-4);
+}
+.g2j__meta .num{font-family:var(--f-num)}
+
+/* 示例链接：一排安静的胶囊，点一下填进去 */
+.samples{display:flex;flex-wrap:wrap;gap:6px;margin-top:13px;align-items:center}
+.samples__hd{font-size:11px;color:var(--ink-4);margin-right:1px}
+.sample{
+  display:inline-flex;align-items:center;gap:5px;
+  min-height:30px;padding:0 10px;border-radius:99px;
+  border:1px dashed var(--line-2);background:transparent;
+  font-size:11.5px;color:var(--ink-3);
+  transition:border-color .16s var(--ease),background .16s var(--ease),color .16s var(--ease);
+}
+.sample .ic{width:12px;height:12px}
+.sample:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+@media (max-width:900px){.sample{min-height:var(--tap)}}
+
+/* ------------------------------------------------------------
+   结果行
+   ------------------------------------------------------------ */
+.glist2{display:flex;flex-direction:column}
+.grow{
+  padding:13px 2px;
+  border-bottom:1px solid var(--line);
+}
+.grow:first-of-type{border-top:1px solid var(--line)}
+.grow__hd{
+  display:flex;align-items:center;gap:8px;
+  flex-wrap:wrap;margin-bottom:7px;
+}
+.grow__src{
+  flex:1;min-width:0;
+  font-size:11.5px;color:var(--ink-4);
+  font-family:var(--f-num);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.grow__line{
+  display:flex;align-items:center;gap:9px;
+}
+.grow__out{
+  flex:1;min-width:0;
+  font-family:var(--f-num);font-size:12.5px;
+  color:var(--ink);
+  word-break:break-all;
+  line-height:1.7;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:var(--r-sm);
+  padding:8px 11px;
+}
+.grow__out--err{
+  color:var(--danger);background:var(--danger-soft);
+  border-color:color-mix(in srgb,var(--danger) 26%,transparent);
+  font-family:var(--f-sans);
+}
+.grow__acts{display:flex;align-items:center;gap:5px;flex:none}
+.grow__note{
+  display:flex;align-items:flex-start;gap:7px;
+  margin-top:7px;font-size:11px;line-height:1.6;color:var(--ink-4);
+}
+.grow__note .ic{width:12px;height:12px;flex:none;margin-top:2px}
+.grow__note em{font-style:normal;color:var(--amber)}
+
+@media (max-width:900px){
+  .grow__line{flex-direction:column;align-items:stretch;gap:7px}
+  .grow__acts{justify-content:flex-end}
+  .grow__acts .btn{height:34px}
+}
+
+/* ------------------------------------------------------------
+   侧栏：开关行 + 说明
+   ------------------------------------------------------------ */
+/* 开关整行可点：label 包住说明文字，点文字也能切换 */
+.g2j__switch{
+  display:flex;align-items:flex-start;gap:11px;
+  width:100%;
+  padding:13px 0;border-bottom:1px solid var(--line);
+  cursor:pointer;
+}
+.g2j__switch:last-child{border-bottom:0}
+.g2j__switch .sw__tx{flex:1;min-width:0}
+.g2j__switch .sw__track{flex:none;margin-top:1px}
+
+/* 联网提示：全站唯一会发起外部请求的功能，必须说清楚 */
+.netnote{
+  display:flex;align-items:flex-start;gap:9px;
+  padding:11px 13px;border-radius:var(--r-sm);
+  background:var(--amber-soft);
+  border:1px solid color-mix(in srgb,var(--amber) 28%,transparent);
+  font-size:11.5px;line-height:1.65;color:var(--ink-2);
+}
+.netnote .ic{width:15px;height:15px;flex:none;margin-top:1.5px;color:var(--amber)}
+.netnote b{color:var(--amber)}
+
+/* 徽标补充色（复用 .tag） */
+.tag--sky{background:var(--sky-soft);color:var(--sky)}
+.tag--plum{background:var(--plum-soft);color:var(--plum)}
+
+@media (max-width:1080px){
+  .g2j{
+    grid-template-columns:minmax(0,1fr);
+    /* 手机端顺序：输入 → 结果 → 设置。
+       这个工具是「边打字边出结果」，结果必须紧跟输入框；
+       设置和说明属于低频操作，沉到底部更合适。 */
+    grid-template-areas:"in" "out" "side";
+    gap:16px;
+  }
+  .g2j__side{position:static}
+}

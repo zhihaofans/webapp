@@ -9,7 +9,7 @@ window.Toolbox = window.Toolbox || {};
   'use strict';
 
   var APP_NAME = '生活工具箱';
-  var APP_VER = '1.0.0';
+  var APP_VER = '1.1.0';
   var APP_BUILD = '2026-10-03';
   var SCHEMA = 1;
 
@@ -144,10 +144,15 @@ window.Toolbox = window.Toolbox || {};
         maxEdge: 0,           // 最长边上限，0 = 不限制
         suffix: '',           // 输出文件名后缀
         keepNameTip: true,    // 首次使用提示
-        autoDownload: false   // 转换完自动下载
+        autoDownload: false,  // 转换完自动下载
+        g2jResolve: true,     // 链接工具：联网校验版本
+        g2jOmitLatest: true,  // 链接工具：latest 省略版本段
+        g2jCopyMode: 'plain'  // 链接工具：复制格式 plain | html | css
       },
-      recent: [],             // [{ id, tool, at }]
-      history: []             // [{ id, name, at, srcBytes, outBytes, w, h, quality }]
+      recent: [],             // [{ id, tool, at }]                     使用痕迹
+      history: [],            // [{ id, name, at, srcBytes, ... }]      图片转换记录
+      links: [],              // [{ id, from, to, kind, at }]           链接转换记录
+      drafts: {}              // { 工具id: 未提交的输入 }                输入即保存
     };
   }
   T.blankDB = blankDB;
@@ -176,7 +181,31 @@ window.Toolbox = window.Toolbox || {};
     d.settings.suffix = str(s.suffix, '').slice(0, 24);
     d.settings.keepNameTip = bool(s.keepNameTip, true);
     d.settings.autoDownload = bool(s.autoDownload, false);
+    d.settings.g2jResolve = bool(s.g2jResolve, true);
+    d.settings.g2jOmitLatest = bool(s.g2jOmitLatest, true);
+    var cm = str(s.g2jCopyMode, 'plain');
+    d.settings.g2jCopyMode = (cm === 'plain' || cm === 'html' || cm === 'css') ? cm : 'plain';
     d.createdAt = num(raw.createdAt, Date.now());
+
+    /* 草稿：纯文本，限长防止异常输入把配额撑爆 */
+    var dr = (raw.drafts && typeof raw.drafts === 'object') ? raw.drafts : {};
+    d.drafts = {};
+    Object.keys(dr).forEach(function (k) {
+      var v = dr[k];
+      if (typeof v === 'string' && v) d.drafts[k] = v.slice(0, 12000);
+    });
+
+    /* 链接转换记录 */
+    d.links = arr(raw.links).slice(0, 60).map(function (x) {
+      return {
+        id: str(x && x.id, uid('l')),
+        from: str(x && x.from).slice(0, 500),
+        to: str(x && x.to).slice(0, 500),
+        kind: str(x && x.kind),
+        expanded: bool(x && x.expanded, false),
+        at: num(x && x.at, Date.now())
+      };
+    }).filter(function (x) { return !!x.to; });
 
     d.recent = arr(raw.recent).slice(0, 12).map(function (x) {
       return { id: str(x && x.id, uid('r')), tool: str(x && x.tool), at: num(x && x.at, Date.now()) };
@@ -269,6 +298,31 @@ window.Toolbox = window.Toolbox || {};
       saveSoon();
     },
     clearHistory: function () { DB.history = []; saveSoon(); return true; },
+
+    /* 链接转换记录：按 to 去重，新的排前面 */
+    addLinks: function (recs, cap) {
+      var seen = {};
+      var out = [];
+      DB.links.forEach(function (x) { if (x.to && !seen[x.to]) { seen[x.to] = 1; out.push(x); } });
+      (recs || []).slice().reverse().forEach(function (r) {
+        if (!r || !r.to || seen[r.to]) return;
+        seen[r.to] = 1;
+        out.unshift({ id: uid('l'), from: str(r.from, ''), to: r.to, kind: str(r.kind, ''), expanded: !!r.expanded, at: Date.now() });
+      });
+      DB.links = out.slice(0, cap || 30);
+      saveSoon();
+      return DB.links;
+    },
+    clearLinks: function () { DB.links = []; saveSoon(); return true; },
+
+    /* 草稿：输入即保存 */
+    setDraft: function (key, val) {
+      if (!DB.drafts) DB.drafts = {};
+      var v = String(val == null ? '' : val).slice(0, 12000);
+      if (v) DB.drafts[key] = v; else delete DB.drafts[key];
+      saveSoon();
+    },
+    getDraft: function (key) { return (DB.drafts && DB.drafts[key]) || ''; },
     /* 备份 / 恢复 */
     exportJSON: function () {
       return JSON.stringify({
