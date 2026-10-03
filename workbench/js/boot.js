@@ -834,8 +834,19 @@ async function checkUpdate(){
     const d = await res.json();
     if (!d || !d.ver) throw new Error('清单格式异常');
     if (cmpVer(parseVer(APP_VER), parseVer(d.ver)) < 0){
-      toast('ok', '发现新版本 v' + d.ver, (d.note || '点击前往更新'), 4200);
-      setTimeout(() => { if (d.url) window.open(d.url, '_blank'); else location.reload(); }, 900);
+      const target = d.url || '';
+      // 「立即更新」= 在当前站点强制拉取最新 Service Worker 并刷新。
+      // 关键：用户数据都在 localStorage，刷新/清 SW 缓存都不会动它 —— 这就是「不清数据也能更新」。
+      const forceUpdate = () => {
+        if (typeof window.__LIFEHUB_FORCE_UPDATE__ === 'function') window.__LIFEHUB_FORCE_UPDATE__();
+        else location.reload();
+      };
+      // 「前往新地址」= 站点迁移场景（如搬到 GitHub Pages）
+      const gotoNew = () => { if (target) location.href = target; else forceUpdate(); };
+      const actions = [{ text: '立即更新', fn: forceUpdate }];
+      if (target) actions.push({ text: '前往新地址', fn: gotoNew });
+      toast('ok', '发现新版本 v' + d.ver, (d.note || '点「立即更新」拉取最新（数据不会丢）'), 12000, actions);
+      // 不再自动跳转，避免打断用户；由用户点按钮决定。
     } else {
       toast('ok', '已是最新版本 v' + APP_VER, '', 2600);
     }

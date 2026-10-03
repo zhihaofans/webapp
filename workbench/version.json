@@ -1,6 +1,6 @@
 {
-  "ver": "1.20",
+  "ver": "1.22",
   "build": "2026-10-03",
-  "note": "修复：① 合并导入备份时按 kind 去重预置供应商，消除「还有 N 个没填 Key」误报；② 不支持余额查询的自定义供应商不再误跳小米 MiMo 控制台",
+  "note": "修复旧版缓存问题：Service Worker 静态资源改为网络优先（在线永远最新），新增自动更新与「立即更新」按钮，更新全程不触碰本地数据；PWA 场景一并优化",
   "url": "https://zhihaofans.github.io/webapp/workbench/"
 }
