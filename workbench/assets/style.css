@@ -822,6 +822,28 @@ html[data-theme="dark"] .wx{--ink-2:#d5cfc5; --ink-3:#b3aca1; --ink-4:#a09a8f;}
 .bal__ft .tiny{color:var(--ink-4);flex:1;min-width:0}
 .bal__row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:12.5px}
 .bal__row span{color:var(--ink-4)}
+
+/* ── 供应商详情面板的输出区（连接测试 / 查余额 / 拉模型列表）─────────────
+   这里的内容是 innerHTML 拼的字符串，里面的 ic('refresh','spin') 是「裸」行内 SVG。
+   行内 SVG 不写 width/height 时，浏览器按「撑满容器」处理 → 24×24 图标被放大成巨大转圈。
+   之前只在 .bal__amt 上钉了尺寸，漏了这个面板，用户看到的就是「加载中图标尺寸太大」。 */
+.pv__out{
+  margin-top:12px;padding:11px 13px;border-radius:10px;
+  font-size:13px;line-height:1.6;background:var(--surface-3);color:var(--ink-2);
+}
+/* 兜底：输出区里任何图标都锁死尺寸（含测试中的转圈）。
+   必须用 !important 式的强约束：内容由 innerHTML 拼字符串注入，
+   容易被后续更具体的选择器或内联属性覆盖，从而又变成巨型转圈。 */
+.pv__out svg{width:15px !important;height:15px !important;max-width:15px;max-height:15px;flex:none}
+.pv__out > svg{vertical-align:-2px;margin-right:2px}
+.pv__out--load > svg{margin:0}
+/* loading 态：图标 + 文字横向居中 */
+.pv__out--load{display:flex;align-items:center;gap:7px}
+/* 模型列表里的按钮不受上面的 svg 约束影响（按钮内本来就是文字） */
+.pv__out .btn svg{width:14px !important;height:14px !important}
+.pv__out--ok{background:var(--sage-soft)}
+.pv__out--err{background:var(--danger-soft)}
+.pv__out--warn{background:var(--amber-soft)}
 .bal__row b{font-family:var(--f-num);font-weight:600;font-size:13px}
 
 /* ============================ 新闻 ============================ */

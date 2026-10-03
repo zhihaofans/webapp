@@ -915,7 +915,7 @@ function openProviderEditor(id){
     '<button class="btn" id="pvBal">' + ic('wallet') + '查余额</button>' +
     '<button class="btn" id="pvModels">' + ic('list') + '拉取模型列表</button>' +
     (editing ? '<button class="btn btn--danger" id="pvDel">' + ic('trash') + '删除</button>' : '') +
-    '</div><div id="pvOut" style="margin-top:12px"></div></div>');
+    '</div><div id="pvOut"></div></div>');
 
   const d = drawer({
     title: editing ? '编辑供应商' : '添加供应商',
@@ -966,8 +966,18 @@ function openProviderEditor(id){
   });
 
   const out = (html, kindCls) => {
-    $('#pvOut').innerHTML = '<div style="padding:11px 13px;border-radius:10px;font-size:13px;line-height:1.6;background:var(--' +
-      (kindCls || 'surface-3') + ');color:var(--ink-2)">' + html + '</div>';
+    // 统一用 .pv__out 类：内部裸行内 SVG（如转圈的 refresh 图标）由 CSS 锁死尺寸，
+    // 否则会被浏览器按「撑满容器」处理，放大成巨大的转圈。
+    // kindCls 保留以兼容调用点，映射到对应的配色类。
+    var cls = 'pv__out';
+    if (kindCls === 'sage-soft' || kindCls === 'ok') cls += ' pv__out--ok';
+    else if (kindCls === 'danger-soft' || kindCls === 'err') cls += ' pv__out--err';
+    else if (kindCls === 'amber-soft' || kindCls === 'warn') cls += ' pv__out--warn';
+    $('#pvOut').innerHTML = '<div class="' + cls + '">' + html + '</div>';
+  };
+  // 加载态：图标 + 文字横向对齐，图标尺寸由 CSS 约束
+  const outLoad = (txt) => {
+    $('#pvOut').innerHTML = '<div class="pv__out pv__out--load">' + ic('refresh', 'spin') + '<span>' + esc(txt) + '</span></div>';
   };
 
   $('#pvTest').onclick = async () => {
@@ -975,7 +985,7 @@ function openProviderEditor(id){
     if (!c.base){ out('请先填写 API Base URL。'); return; }
     if (!c.key){ out('请先填写 API Key。'); return; }
     $('#pvTest').disabled = true;
-    out(ic('refresh','spin') + ' 正在测试 /models 接口…');
+    outLoad('正在测试 /models 接口…');
     const tmp = { ...c, id: 'tmp' };
     const m = await AI.listModels(tmp);
     const r = await AI.fetchBalance(tmp);
@@ -992,7 +1002,7 @@ function openProviderEditor(id){
   $('#pvBal').onclick = async () => {
     const c = collect();
     if (!c.key){ out('请先填写 API Key。'); return; }
-    out(ic('refresh','spin') + ' 查询余额…');
+    outLoad('查询余额…');
     const r = await AI.fetchBalance({ ...c, id: 'tmp' });
     if (r.ok) out('<b style="color:var(--sage)">余额：¥' + money(r.amount) + '</b> （' + esc(r.currency || 'CNY') + '）' +
       (r.granted || r.topped ? '<br>赠送 ¥' + money(r.granted || 0) + ' · 充值 ¥' + money(r.topped || 0) : '') +
@@ -1002,7 +1012,7 @@ function openProviderEditor(id){
   $('#pvModels').onclick = async () => {
     const c = collect();
     if (!c.key){ out('请先填写 API Key。'); return; }
-    out(ic('refresh','spin') + ' 拉取中…');
+    outLoad('拉取中…');
     const m = await AI.listModels({ ...c, id: 'tmp' });
     if (!m){ out('该服务未提供 /models 接口，或者浏览器无法直连。', 'amber-soft'); return; }
     out('<b>共 ' + m.length + ' 个模型</b><div style="margin-top:9px;max-height:190px;overflow-y:auto">' +

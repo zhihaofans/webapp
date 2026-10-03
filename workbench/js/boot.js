@@ -130,27 +130,56 @@ const Backup = {
       const mo = mergeArr(Store.db.money, p.money); added += mo.added;
       const td = mergeArr(Store.db.todo, p.todo); added += td.added;
       const hb = mergeArr(Store.db.habits, p.habits); added += hb.added;
-      // 供应商合并：预置供应商（deepseek/mimo/moonshot/openrouter 等）按 kind 去重，
-      // 避免换设备/清空后「合并」导入时，本地未配置的默认空壳与备份里已配置的
-      // 同一厂商被叠加，导致「还有 N 个供应商没填 Key」误报。
-      // 规则：只要备份项的 kind 与本地某项相同，就视为同一厂商——
-      //   · 本地是未配置的空壳 → 用备份里已配置的替换
-      //   · 本地已配置 → 保留现有，跳过备份项
-      // kind 为 'custom' 或空的不在此列（按 id 追加，避免误合并用户的自定义项）。
+      // 供应商合并 —— 分两类处理：
+      //
+      // ① 预置厂商（deepseek/mimo/moonshot/openrouter）：按 kind 去重。
+      //    预置项每次安装都用随机 uid() 生成 id，换设备/清空后「合并」导入时，
+      //    本地未配置的空壳与备份里已配置的同一厂商 id 不同 → 会被叠加，
+      //    导致「还有 N 个供应商没填 Key」误报。规则：
+      //      · 本地是未配置的空壳 → 用备份里已配置的替换
+      //      · 本地已配置 → 保留现有，跳过备份项
+      //
+      // ② 自定义供应商（kind === 'custom' 或其它）：同样按「业务指纹」去重。
+      //    自定义项也是随机 uid()，直接按 id 比对永远对不上 → 每次导入都会重复一份。
+      //    指纹取「kind + base + name（归一化后）」：同一个接入地址+同名，视为同一项。
+      //    命中时按「缺 Key 的让位、有 Key 的保留」处理，避免重复也不覆盖用户的密钥。
       const DEDUP_KINDS = ['deepseek', 'mimo', 'moonshot', 'openrouter'];
+      const fp = x => [
+        String(x.kind || 'custom').toLowerCase(),
+        String(x.base || '').trim().replace(/\/+$/, '').toLowerCase(),
+        String(x.name || '').trim().toLowerCase()
+      ].join('|');
       const pv = (() => {
         const out = (Store.db.providers || []).slice();
-        const curByKind = {};
-        out.forEach(x => { if (DEDUP_KINDS.includes(x.kind)) curByKind[x.kind] = x; });
+        const isPre = x => DEDUP_KINDS.includes(x.kind);
+        const curByKind = {}, curByFp = {};
+        out.forEach(x => {
+          if (isPre(x)) curByKind[x.kind] = x;
+          else curByFp[fp(x)] = x;          // 自定义项建指纹索引
+        });
         (p.providers || []).forEach(x => {
-          if (DEDUP_KINDS.includes(x.kind) && curByKind[x.kind]){
+          if (isPre(x) && curByKind[x.kind]){
             const ex = curByKind[x.kind];
             // 本地是未配置的默认空壳 → 用备份里已配置的同一厂商替换，不再重复
             if (!ex.key){ const i = out.indexOf(ex); if (i >= 0) out[i] = x; }
             // 本地已配置 → 保留现有工作账户，跳过备份项（不重复、不覆盖）
-          } else {
-            out.push(x); // 自定义或全新 id → 直接加入
+            return;
           }
+          // 自定义供应商：先按指纹查重
+          const k = fp(x);
+          const dup = !isPre(x) ? curByFp[k] : null;
+          if (dup){
+            // 同一接入点：本地没填 Key 而备份有 → 用备份补齐；否则保留本地
+            if (!dup.key && x.key){
+              const i = out.indexOf(dup);
+              if (i >= 0){ out[i] = { ...dup, ...x }; curByFp[k] = out[i]; }
+            }
+            // 两边都有 Key 或都没有 → 视为同一条，跳过，避免重复
+            return;
+          }
+          // 全新项 → 加入，并登记指纹，防止备份内部自身有重复
+          out.push(x);
+          if (!isPre(x)) curByFp[k] = x;
         });
         return { list: out };
       })();

@@ -21,7 +21,12 @@
 @media (prefers-color-scheme:dark){.boot-loader{background:#17181a;color:#a59c8f}}
 .boot-loader__spin{width:40px;height:40px;border:4px solid rgba(194,96,63,.22);border-top-color:#c2603f;border-radius:50%;animation:blspin .9s linear infinite}
 @keyframes blspin{to{transform:rotate(360deg)}}
-.boot-loader__t{font-size:15px;letter-spacing:.04em}
+.boot-loader__t{font-size:15px;letter-spacing:.04em;display:flex;align-items:baseline;gap:7px}
+.boot-loader__v{
+  font-size:11px;font-style:normal;letter-spacing:.02em;opacity:.55;
+  padding:1px 6px;border-radius:99px;background:rgba(194,96,63,.12);color:#c2603f;
+}
+@media (prefers-color-scheme:dark){.boot-loader__v{background:rgba(224,140,102,.16);color:#e08c66}}
 .boot-loader__p{font-size:12px;opacity:.65}
 .boot-loader--hide{opacity:0;transition:opacity .35s ease}
 </style>
@@ -60,7 +65,7 @@
   <div class="mnav__hd">
     <div class="mnav__brand">
       <span class="mnav__logo">日</span>
-      <span class="mnav__name">日常 · 生活工作台<em id="mNavVer">v1.24</em></span>
+      <span class="mnav__name">日常 · 生活工作台<em id="mNavVer">v1.25</em></span>
     </div>
     <button class="mnav__x" id="mNavX" aria-label="关闭菜单">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -78,7 +83,7 @@
 <input type="file" id="fileIn" accept=".json,application/json" style="display:none">
 <div id="bootLoader" class="boot-loader">
   <div class="boot-loader__spin"></div>
-  <div class="boot-loader__t">生活工作台</div>
+  <div class="boot-loader__t">生活工作台<em class="boot-loader__v">v1.25</em></div>
   <div class="boot-loader__p" id="bootProg">正在加载…</div>
 </div><script src="js/loader.js"></script>
 </body>

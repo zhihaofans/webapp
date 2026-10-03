@@ -19,7 +19,7 @@ const SCHEMA  = 1;
 /* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
    APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
    只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.24';
+const APP_VER    = '1.25';
 const APP_NAME   = '日常 · 生活工作台';
 const APP_BUILD  = '2026-10-03';
 
