@@ -730,9 +730,11 @@ function drawBalGrid(){
           : p.balErr
             ? (/未开放余额查询/.test(p.balErr)
                 ? '<div class="bal__note">' + ic('info') + '<span>' + esc(p.balErr) + '</span></div>' +
-                  '<a class="btn btn--sm btn--block" style="margin-top:8px;text-decoration:none" href="' +
-                    escAttr(p.consoleUrl || 'https://platform.xiaomimimo.com/#/console/usage') +
-                    '" target="_blank" rel="noopener">' + ic('wallet') + '去官方控制台查看</a>'
+                  (p.consoleUrl
+                    ? '<a class="btn btn--sm btn--block" style="margin-top:8px;text-decoration:none" href="' +
+                        escAttr(p.consoleUrl) +
+                        '" target="_blank" rel="noopener">' + ic('wallet') + '去官方控制台查看</a>'
+                    : '')
                 : '<div class="bal__amt is-err">' + esc(p.balErr) + '</div>')
             : '<div class="bal__amt">¥' + esc(money(bal)) + ' <i>' + esc(p.balMeta?.currency || 'CNY') + '</i></div>') +
       (has && bal !== null ?

@@ -130,7 +130,26 @@ const Backup = {
       const mo = mergeArr(Store.db.money, p.money); added += mo.added;
       const td = mergeArr(Store.db.todo, p.todo); added += td.added;
       const hb = mergeArr(Store.db.habits, p.habits); added += hb.added;
-      const pv = mergeArr(Store.db.providers, p.providers);
+      // 供应商合并：已知预置供应商（deepseek/mimo/moonshot）按 kind 去重，
+      // 避免换设备/清空后「合并」导入时，本地未配置的默认空壳与备份里已配置的
+      // 同一厂商被叠加，导致「还有 N 个供应商没填 Key」误报。
+      const PV_KINDS = ['deepseek', 'mimo', 'moonshot'];
+      const pv = (() => {
+        const out = (Store.db.providers || []).slice();
+        const curByKind = {};
+        out.forEach(x => { if (PV_KINDS.includes(x.kind)) curByKind[x.kind] = x; });
+        (p.providers || []).forEach(x => {
+          if (PV_KINDS.includes(x.kind) && curByKind[x.kind]){
+            const ex = curByKind[x.kind];
+            // 本地是未配置的默认空壳 → 用备份里已配置的同一厂商替换，不再重复
+            if (!ex.key){ const i = out.indexOf(ex); if (i >= 0) out[i] = x; }
+            // 本地已配置 → 保留现有工作账户，跳过备份项（不重复、不覆盖）
+          } else {
+            out.push(x); // 自定义或全新 id → 直接加入
+          }
+        });
+        return { list: out };
+      })();
       Store.mutate(db => {
         db.notes = n.list; db.money = mo.list; db.todo = td.list;
         db.habits = hb.list; db.providers = pv.list;

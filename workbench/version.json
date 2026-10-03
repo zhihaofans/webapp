@@ -1,6 +1,6 @@
 {
-  "ver": "1.19",
-  "build": "2026-10-02",
-  "note": "拆分多文件架构 + 渐进加载（加载中）+ 手动检测更新",
-  "url": "https://zhihaofans.github.io/webapp/workbench/
+  "ver": "1.20",
+  "build": "2026-10-03",
+  "note": "修复：① 合并导入备份时按 kind 去重预置供应商，消除「还有 N 个没填 Key」误报；② 不支持余额查询的自定义供应商不再误跳小米 MiMo 控制台",
+  "url": "https://zhihaofans.github.io/webapp/workbench/"
 }
