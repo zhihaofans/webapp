@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="泛生活人群的多功能在线工具箱：图片转 WebP 等日常小工具，纯本地处理，数据存在你自己的浏览器里。">
+<meta name="theme-color" content="#f4f1ea">
+<title>生活工具箱</title>
+
+<link rel="icon" href="assets/icons/logo.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="生活工具箱">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<!-- 样式：按「令牌 → 基础 → 布局 → 组件 → 各功能」分层，拆成独立文件按序加载 -->
+<link rel="stylesheet" href="assets/css/tokens.css">
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/layout.css">
+<link rel="stylesheet" href="assets/css/components.css">
+<link rel="stylesheet" href="assets/css/features/overview.css">
+<link rel="stylesheet" href="assets/css/features/image2webp.css">
+<link rel="stylesheet" href="assets/css/boot.css">
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- ===================== 侧拉栏（桌面端常驻，按分组收纳工具） ===================== -->
+  <nav class="rail" id="rail" aria-label="工具箱导航">
+    <div class="rail__brand">
+      <div class="rail__mark" title="生活工具箱">具<span class="rail__ver" id="railVer">v1.0</span></div>
+      <div class="rail__title">
+        <b>生活工具箱</b>
+        <span>顺手好用的日常小工具</span>
+      </div>
+    </div>
+    <div class="rail__body" id="railBody"></div>
+    <div class="rail__foot" id="railFoot"></div>
+  </nav>
+
+  <!-- ===================== 主区域 ===================== -->
+  <main class="main">
+    <header class="topbar">
+      <button class="topbar__menu" id="btnMenu" type="button" aria-label="打开工具菜单" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <span id="menuLabel">概览</span>
+      </button>
+      <div class="topbar__t">
+        <h1 id="ttl">概览</h1>
+        <div class="topbar__sub" id="sub"></div>
+      </div>
+      <div class="topbar__acts" id="acts"></div>
+    </header>
+    <div class="view" id="view"></div>
+  </main>
+
+</div>
+
+<!-- ===================== 手机端工具抽屉 ===================== -->
+<div class="mscrim" id="mScrim"></div>
+<aside class="mnav" id="mNav" role="dialog" aria-modal="true" aria-label="工具箱菜单">
+  <div class="mnav__hd">
+    <div class="rail__mark">具</div>
+    <div class="rail__title" style="flex:1">
+      <b id="mnavLabel">概览</b>
+      <span>生活工具箱 v1.0</span>
+    </div>
+    <button class="mnav__x" id="mnavX" type="button" aria-label="关闭菜单">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="mnav__body" id="mnavBody"></div>
+  <div class="mnav__ft" id="mnavFoot"></div>
+</aside>
+
+<!-- ===================== 挂载点 ===================== -->
+<div id="layer"></div>
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+<input type="file" id="fileIn" accept=".json,application/json" style="display:none" aria-hidden="true">
+
+<!-- 启动遮罩：脚本逐个注入期间显示进度，全部就绪后淡出 -->
+<div class="boot" id="bootLoader" role="status" aria-live="polite" aria-label="正在加载">
+  <div class="boot__mark">具</div>
+  <div class="boot__name">生活工具箱</div>
+  <div class="boot__bar"><i id="bootBar"></i></div>
+  <div class="boot__note" id="bootProg">正在加载…</div>
+</div>
+
+<script src="js/loader.js"></script>
+</body>
+</html>

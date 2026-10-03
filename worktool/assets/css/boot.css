@@ -1,0 +1,34 @@
+/* ============================================================
+   启动遮罩
+   脚本按顺序注入期间先看到它，全部就绪后淡出。
+   单独成文件，保证 index.html 里没有任何内联样式。
+   ============================================================ */
+.boot{
+  position:fixed;inset:0;z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:#f4f1ea;color:#756f65;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",system-ui,sans-serif;
+  transition:opacity .34s cubic-bezier(.22,.61,.36,1);
+}
+html[data-theme="dark"] .boot{background:#1a1917;color:#948c7f}
+.boot__mark{
+  width:46px;height:46px;border-radius:14px;
+  background:linear-gradient(150deg,#bb5f3d,#9d4a2d);
+  color:#fffdf8;display:grid;place-items:center;
+  font-family:"Songti SC","Noto Serif SC",Georgia,serif;
+  font-size:22px;font-weight:700;
+  box-shadow:0 1px 2px rgba(42,33,22,.05), 0 14px 30px -18px rgba(42,33,22,.4);
+}
+.boot__name{font-size:14.5px;font-weight:600;letter-spacing:.02em}
+.boot__bar{
+  width:150px;height:3px;border-radius:99px;overflow:hidden;
+  background:rgba(120,110,95,.18);
+}
+.boot__bar i{
+  display:block;height:100%;width:0;border-radius:99px;
+  background:#bb5f3d;transition:width .24s cubic-bezier(.22,.61,.36,1);
+}
+.boot__note{font-size:11.5px;letter-spacing:.02em;opacity:.72}
+.boot--hide{opacity:0;pointer-events:none}
+.boot--err{background:#f4f1ea}
+.boot--err .boot__note{color:#a8452f;max-width:30ch;text-align:center;line-height:1.7}

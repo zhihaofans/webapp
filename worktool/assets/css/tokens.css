@@ -1,0 +1,110 @@
+/* ============================================================
+   生活工具箱 · 设计令牌
+   气质：暖纸底 + 赤陶点缀 + 低饱和中性色 —— 克制、耐看、有生活感
+   这一层只放「值」，不放任何选择器逻辑。
+   ============================================================ */
+
+:root{
+  /* —— 纸与墨 —— */
+  --bg:#f4f1ea;
+  --bg-tint:#ece7dd;
+  --surface:#fffdf8;
+  --surface-2:#faf7f0;
+  --surface-3:#f1ece2;
+  --ink:#1c1b19;
+  --ink-2:#484540;
+  --ink-3:#756f65;
+  --ink-4:#a39c8f;
+  --line:#e4ded2;
+  --line-2:#d3cbbe;
+
+  /* —— 点缀色 —— */
+  --accent:#bb5f3d;
+  --accent-deep:#9d4a2d;
+  --accent-ink:#8d4023;
+  --accent-soft:#f8ece6;
+  --sage:#5d7a62;
+  --sage-soft:#e7ede6;
+  --amber:#a8812f;
+  --amber-soft:#f6eeda;
+  --plum:#7a5c78;
+  --plum-soft:#f1e9f0;
+  --sky:#4c7189;
+  --sky-soft:#e4edf2;
+  --danger:#a8452f;
+  --danger-soft:#f8e7e2;
+
+  /* —— 圆角 —— */
+  --r-xs:6px;
+  --r-sm:9px;
+  --r-md:13px;
+  --r-lg:18px;
+  --r-xl:26px;
+
+  /* —— 阴影：生活感来自「轻」，所以都很淡 —— */
+  --sh-1:0 1px 2px rgba(42,33,22,.04), 0 2px 6px -4px rgba(42,33,22,.06);
+  --sh-2:0 2px 6px rgba(42,33,22,.05), 0 14px 30px -18px rgba(42,33,22,.18);
+  --sh-3:0 6px 16px rgba(42,33,22,.07), 0 30px 64px -28px rgba(42,33,22,.28);
+
+  /* —— 字体 —— */
+  --f-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+  --f-serif:"Songti SC","Noto Serif SC","Source Han Serif SC","Noto Serif CJK SC",Georgia,"Times New Roman",serif;
+  --f-num:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+
+  /* —— 尺度 —— */
+  --rail:248px;          /* 展开态侧拉栏 */
+  --rail-mini:68px;      /* 收起态侧拉栏 */
+  --topbar-h:60px;
+  --content-max:1180px;
+  --tap:44px;            /* 触控最小点击区 */
+
+  /* —— 动效 —— */
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
+}
+
+/* color-scheme 是原生控件的主题开关：
+   不设它，range / number / 下拉浮层 / 滚动条会一律按系统浅色绘制，
+   深色模式下就会出现白底白字的输入控件。 */
+html{color-scheme:light}
+html[data-theme="dark"]{color-scheme:dark}
+
+/* 深色：暖中性压暗，而不是纯黑 —— 夜里看依然像「纸」 */
+html[data-theme="dark"]{
+  --bg:#1a1917;
+  --bg-tint:#141311;
+  --surface:#232220;
+  --surface-2:#282725;
+  --surface-3:#302e2b;
+  --ink:#efeae1;
+  --ink-2:#c3bcb0;
+  --ink-3:#948c7f;
+  --ink-4:#6f6960;
+  --line:#35332f;
+  --line-2:#46433b;
+
+  --accent:#e08a63;
+  --accent-deep:#eda078;
+  --accent-ink:#f0a17e;
+  --accent-soft:#33231c;
+  --sage:#8fb093;
+  --sage-soft:#222e23;
+  --amber:#d9ac5c;
+  --amber-soft:#2f2818;
+  --plum:#b492b0;
+  --plum-soft:#2b2329;
+  --sky:#8ab4ca;
+  --sky-soft:#1d282f;
+  --danger:#e08a72;
+  --danger-soft:#33211c;
+
+  --sh-1:0 1px 2px rgba(0,0,0,.34), 0 2px 6px -4px rgba(0,0,0,.44);
+  --sh-2:0 2px 6px rgba(0,0,0,.34), 0 14px 30px -18px rgba(0,0,0,.6);
+  --sh-3:0 6px 16px rgba(0,0,0,.4), 0 30px 64px -28px rgba(0,0,0,.75);
+}
+
+/* 系统偏好跟随：未手动指定 data-theme 时由 JS 写入实际值，
+   这里再兜一层，保证 JS 尚未执行的首帧不会闪错主题。 */
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]){color-scheme:dark}
+}

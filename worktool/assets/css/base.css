@@ -1,0 +1,107 @@
+/* ============================================================
+   基础层：重置、排版、图标基座、滚动条、通用工具类
+   ============================================================ */
+
+*,*::before,*::after{box-sizing:border-box}
+
+html,body{margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--f-sans);
+  font-size:14px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  overflow-x:hidden;
+}
+/* 抽屉打开时锁滚动（由 interactive 层加类） */
+body.is-locked{overflow:hidden}
+
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+img{max-width:100%;display:block}
+svg{display:block}
+h1,h2,h3,h4,p{margin:0}
+ul,ol{margin:0;padding:0;list-style:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* ------------------------------------------------------------
+   图标基座
+   图标是 assets/icons/ 下的独立 SVG 文件，通过 CSS mask 引用：
+   这样它既能随 currentColor 换色、又能跟随主题，且不产生任何
+   外部依赖。
+
+   注意：mask-image 的 URL 由 JS 写在元素的 inline style 上，这里只
+   负责尺寸与重复方式。原因是自定义属性里的相对 URL 会在「使用它的
+   样式表」所在目录解析（base.css 在 assets/css/ 下），路径会错位；
+   而 inline style 按文档地址解析，才是我们想要的。
+   ------------------------------------------------------------ */
+.ic{
+  display:inline-block;
+  width:18px;height:18px;
+  flex:none;
+  background-color:currentColor;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  -webkit-mask-size:contain;mask-size:contain;
+  vertical-align:-3px;          /* 行内图标与文字基线对齐；flex 容器里会被忽略 */
+}
+/* file:// 打开时浏览器会以 CORS 拦截 mask 引用本地 SVG，
+   JS 会自动改用 <img> 直引（见 js/core.js 的 ICON_MODE）。
+   该模式下颜色来自 SVG 内置的深色媒体查询，故不再叠加 currentColor。 */
+.ic--img{
+  background-color:transparent;
+  -webkit-mask:none;mask:none;
+  object-fit:contain;
+  opacity:.78;
+}
+
+/* 尺寸档位：与参考项目一致地「收口」，避免出现失控的大图标 */
+.ic-12{width:12px;height:12px}
+.ic-14{width:14px;height:14px}
+.ic-15{width:15px;height:15px}
+.ic-16{width:16px;height:16px}
+.ic-20{width:20px;height:20px}
+.ic-22{width:22px;height:22px}
+.ic-26{width:26px;height:26px}
+.ic-34{width:34px;height:34px}
+
+/* 图标尺寸兜底：任何直接放进「文字容器」的裸 .ic 都不会撑破布局。
+   注意只匹配直接子元素，避免误伤 .ic-34 这类显式放大的场景。 */
+:where(p,li,label,span,small,strong,em,figcaption) > .ic:not([class*="ic-"]):not(.ic-20):not(.ic-22):not(.ic-26):not(.ic-34){
+  width:15px;height:15px;
+}
+
+/* ------------------------------------------------------------
+   滚动条：细、低对比，不抢戏
+   ------------------------------------------------------------ */
+*{scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:99px;border:4px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--ink-4);background-clip:content-box}
+
+/* ------------------------------------------------------------
+   文字工具类
+   ------------------------------------------------------------ */
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.serif{font-family:var(--f-serif)}
+.muted{color:var(--ink-3)}
+.faint{color:var(--ink-4)}
+.tiny{font-size:11.5px;line-height:1.55}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* 段落级排版：克制的行距与留白，靠留白而非装饰制造层次 */
+.lede{font-size:14.5px;line-height:1.72;color:var(--ink-2);max-width:62ch}
+.note{font-size:11.5px;line-height:1.65;color:var(--ink-4)}
+
+/* 细分隔线 —— 本项目用它替代「到处都是卡片」的模板感 */
+.hr{height:1px;background:var(--line);border:0;margin:0}
+
+/* 粘性吸附时的回弹动画（由 JS 触发） */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}

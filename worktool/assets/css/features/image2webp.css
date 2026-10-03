@@ -1,0 +1,239 @@
+/* ============================================================
+   功能层 · 图片转 WebP
+   ============================================================ */
+
+.i2w{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 306px;
+  grid-template-areas:
+    "drop drop"
+    "main side";
+  gap:18px 24px;
+  align-items:start;
+}
+.i2w__drop{grid-area:drop}
+.i2w__main{grid-area:main;min-width:0}
+.i2w__side{
+  grid-area:side;
+  position:sticky;
+  top:calc(var(--topbar-h) + 16px);
+  display:flex;flex-direction:column;gap:16px;
+}
+
+/* ------------------------------------------------------------
+   投放区：虚线 + 极淡纸感，不用重卡片
+   ------------------------------------------------------------ */
+.drop{
+  position:relative;
+  display:flex;flex-direction:column;align-items:center;gap:13px;
+  padding:40px 22px 38px;
+  border:1.5px dashed var(--line-2);
+  border-radius:var(--r-lg);
+  background:var(--surface);
+  text-align:center;
+  transition:border-color .18s var(--ease),background .18s var(--ease),transform .18s var(--ease);
+}
+.drop.is-over{
+  border-color:var(--accent);
+  background:var(--accent-soft);
+  border-style:solid;
+}
+.drop__ic{
+  width:50px;height:50px;border-radius:15px;
+  background:var(--surface-2);border:1px solid var(--line);
+  display:grid;place-items:center;color:var(--ink-3);
+  transition:background .18s var(--ease),color .18s var(--ease),border-color .18s var(--ease);
+}
+.drop__ic .ic{width:24px;height:24px}
+.drop.is-over .drop__ic{background:var(--surface);border-color:transparent;color:var(--accent-ink)}
+.drop__t{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.drop__s{font-size:12.5px;color:var(--ink-4);line-height:1.65;max-width:44ch}
+.drop__acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:3px}
+.drop__kbd{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:1.5px 6px;border-radius:5px;
+  background:var(--surface-3);border:1px solid var(--line);
+  font-size:10.5px;color:var(--ink-3);font-family:var(--f-num);
+}
+/* 文件输入放在 #drop 之外（避免程序化 click 冒泡成循环），
+   所以隐藏规则要挂在容器上，不能写成 .drop input[type=file] */
+.i2w__drop input[type=file]{display:none}
+@media (max-width:900px){
+  .drop{padding:32px 16px 30px;border-radius:var(--r-md)}
+  .drop__ic{width:44px;height:44px;border-radius:13px}
+  .drop__ic .ic{width:21px;height:21px}
+  .drop__t{font-size:14px}
+  .drop__acts{width:100%;flex-direction:column}
+  .drop__acts .btn{width:100%}
+}
+
+/* ------------------------------------------------------------
+   批次汇总条
+   ------------------------------------------------------------ */
+.sum{
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  padding:14px 16px;margin-bottom:4px;
+  border:1px solid var(--line);border-radius:var(--r-md);
+  background:var(--surface-2);
+}
+.sum__i{min-width:0}
+.sum__i b{
+  font-family:var(--f-num);font-variant-numeric:tabular-nums;
+  font-size:17px;font-weight:600;letter-spacing:-.015em;
+}
+.sum__i span{font-size:11px;color:var(--ink-4);margin-left:5px}
+.sum__sp{flex:1}
+.sum__saved b{color:var(--sage)}
+
+/* ------------------------------------------------------------
+   转换队列
+   ------------------------------------------------------------ */
+.queue{display:flex;flex-direction:column}
+.qhead{
+  display:flex;align-items:center;gap:10px;
+  padding:0 2px 10px;
+}
+.qhead h2{font-size:12px;font-weight:600;color:var(--ink-4);letter-spacing:.16em;white-space:nowrap}
+.qhead .hr{flex:1}
+.qhead__acts{display:flex;gap:6px;flex:none}
+
+.qitem{
+  display:grid;
+  grid-template-columns:50px minmax(0,1fr) auto;
+  gap:13px;align-items:center;
+  padding:13px 2px;
+  border-bottom:1px solid var(--line);
+}
+.qitem:first-of-type{border-top:1px solid var(--line)}
+.qthumb{
+  width:50px;height:50px;border-radius:10px;flex:none;
+  overflow:hidden;background:var(--surface-3);
+  border:1px solid var(--line);
+  display:grid;place-items:center;
+}
+.qthumb img{width:100%;height:100%;object-fit:cover}
+.qthumb .ic{width:19px;height:19px;color:var(--ink-4)}
+.qmain{min-width:0}
+.qname{
+  display:flex;align-items:center;gap:8px;
+  font-size:13.5px;font-weight:600;
+  min-width:0;
+}
+.qname span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.qmeta{
+  display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+  margin-top:5px;font-size:11.5px;color:var(--ink-4);
+  font-family:var(--f-num);font-variant-numeric:tabular-nums;
+}
+.qmeta .ic{width:12px;height:12px;color:var(--ink-4)}
+.qmeta i{font-style:normal;color:var(--line-2)}
+/* 体积对比条：用长度差直观表达「省了多少」 */
+.qbar{
+  display:flex;height:4px;border-radius:99px;overflow:hidden;
+  background:var(--surface-3);margin-top:8px;
+}
+.qbar i{display:block;height:100%;transition:width .4s var(--ease-out)}
+.qbar__a{background:var(--line-2)}
+.qbar__b{background:var(--accent)}
+.qsave{
+  flex:none;font-size:11px;font-weight:600;
+  font-family:var(--f-num);font-variant-numeric:tabular-nums;
+}
+.qsave--up{color:var(--danger)}
+.qsave--down{color:var(--sage)}
+.qact{display:flex;align-items:center;gap:6px;flex:none}
+.qerr{
+  display:flex;align-items:flex-start;gap:7px;
+  margin-top:8px;font-size:11.5px;line-height:1.6;color:var(--danger);
+}
+.qerr .ic{width:14px;height:14px;flex:none;margin-top:2px}
+.qprog{
+  height:4px;border-radius:99px;background:var(--surface-3);overflow:hidden;margin-top:8px;
+}
+.qprog i{display:block;height:100%;background:var(--accent);transition:width .25s var(--ease)}
+
+@media (max-width:900px){
+  .qitem{grid-template-columns:44px minmax(0,1fr);gap:11px;padding:12px 2px}
+  .qthumb{width:44px;height:44px;border-radius:9px}
+  .qact{grid-column:1 / -1;justify-content:flex-end;margin-top:-4px}
+  .qact .btn{height:34px}
+}
+
+/* ------------------------------------------------------------
+   侧栏面板内容
+   ------------------------------------------------------------ */
+.ctl{display:flex;flex-direction:column;gap:17px}
+.ctl__row{display:flex;flex-direction:column;gap:8px}
+.ctl__hd{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+}
+.ctl__hd b{font-size:12px;font-weight:600;color:var(--ink-2)}
+.ctl__hd em{
+  font-style:normal;font-family:var(--f-num);font-variant-numeric:tabular-nums;
+  font-size:12.5px;font-weight:600;color:var(--accent-ink);
+}
+.ctl__hd small{font-size:11px;color:var(--ink-4)}
+.ctl__hint{font-size:11px;color:var(--ink-4);line-height:1.6}
+.ctl__grid{display:flex;flex-wrap:wrap;gap:6px}
+.ctl__chip{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:34px;padding:0 12px;border-radius:99px;
+  border:1px solid var(--line-2);background:var(--surface);
+  font-size:12.5px;color:var(--ink-2);
+  transition:border-color .16s var(--ease),background .16s var(--ease),color .16s var(--ease);
+}
+.ctl__chip:hover{border-color:var(--ink-4);color:var(--ink)}
+.ctl__chip.is-on{
+  background:var(--accent-soft);border-color:var(--accent);
+  color:var(--accent-ink);font-weight:600;
+}
+@media (max-width:900px){.ctl__chip{min-height:var(--tap)}}
+
+/* 历史记录 */
+.hist{display:flex;flex-direction:column}
+.hitem{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 0;border-bottom:1px solid var(--line);
+}
+.hitem:last-child{border-bottom:0}
+.hitem__tx{flex:1;min-width:0}
+.hitem__tx b{
+  display:block;font-size:12.5px;font-weight:500;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.hitem__tx small{
+  display:block;font-size:10.5px;color:var(--ink-4);margin-top:2px;
+  font-family:var(--f-num);font-variant-numeric:tabular-nums;
+}
+
+/* 能力提示（浏览器不支持 WebP 编码时） */
+.capmsg{
+  display:flex;align-items:flex-start;gap:9px;
+  padding:12px 14px;border-radius:var(--r-sm);
+  background:var(--danger-soft);border:1px solid color-mix(in srgb,var(--danger) 30%,transparent);
+  font-size:12.5px;line-height:1.65;color:var(--ink-2);
+}
+.capmsg .ic{width:16px;height:16px;flex:none;margin-top:1px;color:var(--danger)}
+.capmsg b{color:var(--danger)}
+
+/* 轻提示条（信息性） */
+.tip{
+  display:flex;align-items:flex-start;gap:9px;
+  padding:12px 14px;border-radius:var(--r-sm);
+  background:var(--surface-2);border:1px solid var(--line);
+  font-size:12px;line-height:1.65;color:var(--ink-3);
+}
+.tip .ic{width:15px;height:15px;flex:none;margin-top:1.5px;color:var(--ink-4)}
+.tip b{color:var(--ink-2)}
+
+/* ------------------------------------------------------------
+   响应式：单列后重排为 投放 → 设置 → 队列
+   ------------------------------------------------------------ */
+@media (max-width:1080px){
+  .i2w{
+    grid-template-columns:minmax(0,1fr);
+    grid-template-areas:"drop" "side" "main";
+    gap:16px;
+  }
+  .i2w__side{position:static}
+}
