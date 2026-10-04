@@ -3,11 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="description" content="泛生活人群的多功能在线工具箱：图片转 WebP 等日常小工具，纯本地处理，数据存在你自己的浏览器里。">
+<meta name="description" content="泛生活人群的多功能在线工具箱：图片格式转换、GitHub 转 jsDelivr。纯本地处理，数据存在你自己的浏览器里。">
 <meta name="theme-color" content="#f4f1ea">
 <title>生活工具箱</title>
 
-<link rel="icon" href="assets/icons/logo.svg" type="image/svg+xml">
+<!-- favicon 用内联 data URI：同样是矢量、同样零请求，
+     但不再需要一个独立的 .svg 文件（全站因此做到零 SVG 文件） -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23bb5f3d'/%3E%3Cpath d='M22 43h56v31a6 6 0 0 1-6 6H28a6 6 0 0 1-6-6z' fill='%23fffdf8'/%3E%3Cpath d='M38 43v-7a9 9 0 0 1 9-9h6a9 9 0 0 1 9 9v7' fill='none' stroke='%23fffdf8' stroke-width='7.5' stroke-linecap='round'/%3E%3Cpath d='M22 57h56' stroke='%23bb5f3d' stroke-width='4.5'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -26,6 +28,70 @@
 <link rel="stylesheet" href="assets/css/boot.css">
 </head>
 <body>
+
+<!-- ============================================================
+     图标池（SVG sprite）
+     45 个图标内联在这里，页面各处用 <svg class="ic"><use href="#i-名字"/></svg> 取用。
+
+     为什么内联而不是拆成 45 个文件：
+       1) 同文档引用不受 CORS 限制 —— 直接双击 index.html（file://）也能正常显示，
+          不需要「mask 不可用就改用 <img>」那套降级分支；
+       2) 45 个小文件各自 gzip 只有 26% 压缩率（文件太小，字典还没热身就结束），
+          合并后 gzip 能从 11.7 KB 降到 2.1 KB；
+       3) 每个文件的 <svg 外壳与深色媒体查询共约 190 字节是纯重复，这里只写一次。
+
+     颜色不写死：描边/填充用 currentColor，继承自 .ic 的 color，
+     因此选中态、深色模式都会自动跟随，无需在每个图标里写媒体查询。
+
+     ★ 加新图标：在下面加一行 <symbol> 即可，路径直接粘进去，
+       不要写 stroke / fill / stroke-width —— 这些由 .ic 统一控制。
+     ============================================================ -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-backup" viewBox="0 0 24 24"><path d="M12 3.4v9.4M8.4 9.4L12 13l3.6-3.6"/><path d="M4.4 14.6v3.2a2 2 0 002 2h11.2a2 2 0 002-2v-3.2"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24"><circle cx="6.5" cy="5.5" r="2.5"/><circle cx="6.5" cy="18.5" r="2.5"/><circle cx="17.5" cy="9.5" r="2.5"/><path d="M6.5 8v8"/><path d="M17.5 12v.5a3 3 0 0 1-3 3h-5"/></symbol>
+  <symbol id="i-calculator" viewBox="0 0 24 24"><rect x="4.5" y="2.8" width="15" height="18.4" rx="2.2"/><rect x="7.6" y="5.6" width="8.8" height="3.4" rx="1"/><path d="M8.6 13h.01M12 13h.01M15.4 13h.01M8.6 17h.01M12 17h.01M15.4 17h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.8 12.6l4.6 4.6 9.8-10.4"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9.4 5.4l6.6 6.6-6.6 6.6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.2 2"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-compress" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/><path d="M4.4 8.6L9 9M19.6 8.6L15 9M4.4 15.4L9 15M19.6 15.4L15 15"/></symbol>
+  <symbol id="i-convert" viewBox="0 0 24 24"><path d="M4 8.5h13M13.6 5.2L17 8.5l-3.4 3.3"/><path d="M20 15.5H7M10.4 12.2L7 15.5l3.4 3.3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="11.4" height="11.4" rx="2"/><path d="M15.6 8.4V6.2a2 2 0 00-2-2H6.2a2 2 0 00-2 2v7.4a2 2 0 002 2h2.2"/></symbol>
+  <symbol id="i-count" viewBox="0 0 24 24"><path d="M5.5 9l2-5h.6v13"/><path d="M14 12.2a2.6 3.6 0 100 7 2.6 3.6 0 100-7z"/><path d="M16.4 4.4c-1.6.2-2.6 1.3-2.9 2.6"/></symbol>
+  <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6.5 2.5v15h15"/><path d="M2.5 6.5h15v15"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.6v11M7.9 10.6L12 14.7l4.1-4.1"/><path d="M4.6 17.4v1.4a1.7 1.7 0 001.7 1.7h11.4a1.7 1.7 0 001.7-1.7v-1.4"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M13.4 4.6h6v6"/><path d="M19.4 4.6l-8.2 8.2"/><path d="M17.6 14v4.6a1.8 1.8 0 01-1.8 1.8H5.4a1.8 1.8 0 01-1.8-1.8V8.2a1.8 1.8 0 011.8-1.8H10"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.6 12S6 6.2 12 6.2 21.4 12 21.4 12 18 17.8 12 17.8 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.9 11.6a8.1 8.1 0 112.4 5.8"/><path d="M3.6 4.4v5h5"/><path d="M12 8.2V12l3 1.9"/></symbol>
+  <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M7 3.4h10M7 20.6h10"/><path d="M8.4 3.4v3.4L12 10.4l3.6-3.6V3.4"/><path d="M8.4 20.6v-3.4L12 13.6l3.6 3.6v3.4"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.2"/><circle cx="8.6" cy="10" r="1.6"/><path d="M3.6 16.6l4.7-4.2 3.4 3 3.1-2.6 5.6 5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5.2"/><circle cx="12" cy="8" r=".95" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 4c-8 0-13 4.2-13 10a6 6 0 006 6c5.8 0 7-8 7-16z"/><path d="M6.4 19.6C8 15.4 11 12 15.4 9.6"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.2 13.8a3.6 3.6 0 0 0 5.1 0l3-3a3.6 3.6 0 0 0-5.1-5.1l-1.3 1.3"/><path d="M13.8 10.2a3.6 3.6 0 0 0-5.1 0l-3 3a3.6 3.6 0 0 0 5.1 5.1l1.3-1.3"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.2 14.6A8.6 8.6 0 019.4 3.8a8.6 8.6 0 1010.8 10.8z"/></symbol>
+  <symbol id="i-overview" viewBox="0 0 24 24"><path d="M4 5.5h6v6H4zM14 5.5h6v3.5h-6zM14 12.5h6v6h-6zM4 15h6v3.5H4z"/></symbol>
+  <symbol id="i-paste" viewBox="0 0 24 24"><path d="M9 4.6H7.4a2 2 0 00-2 2v11.8a2 2 0 002 2h9.2a2 2 0 002-2V6.6a2 2 0 00-2-2H15"/><rect x="9" y="2.8" width="6" height="3.6" rx="1.3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.2v13.6M5.2 12h13.6"/></symbol>
+  <symbol id="i-restore" viewBox="0 0 24 24"><path d="M20 11.6a8 8 0 11-2.4-5.7"/><path d="M20.4 3.6v4.8h-4.8"/></symbol>
+  <symbol id="i-ruler" viewBox="0 0 24 24"><rect x="2.6" y="8.2" width="18.8" height="7.6" rx="1.7"/><path d="M7 8.2v3.1M11 8.2v4.4M15 8.2v3.1M19 8.2v4.4"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5.4 3.8h9.4l4.4 4.4v10.6a1.8 1.8 0 01-1.8 1.8H5.4a1.8 1.8 0 01-1.8-1.8V5.6a1.8 1.8 0 011.8-1.8z"/><path d="M8 3.8v6h6.6v-6"/><path d="M7.4 19.6v-5.2h9.2v5.2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.4"/><path d="M15.8 15.8l4 4"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M4.5 7.5l2 1.2M17.5 15.3l2 1.2M4.5 16.5l2-1.2M17.5 8.7l2-1.2"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.2l7 2.7v5.4c0 4.3-2.9 7.8-7 9.5-4.1-1.7-7-5.2-7-9.5V5.9z"/><path d="M8.9 12l2.2 2.2 4-4.2"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7.4h9M17 7.4h3M4 16.6h3M11 16.6h9"/><circle cx="15" cy="7.4" r="2.1"/><circle cx="9" cy="16.6" r="2.1"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.4l1.9 5 5 1.9-5 1.9-1.9 5-1.9-5-5-1.9 5-1.9z"/><path d="M18.6 4.2l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.8l2.6 5.5 5.9.8-4.3 4.2 1.1 5.9L12 17.4l-5.3 2.8 1.1-5.9L3.5 10l5.9-.8z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.1"/><path d="M12 2.6v2.3M12 19.1v2.3M4.3 4.3l1.6 1.6M18.1 18.1l1.6 1.6M2.6 12h2.3M19.1 12h2.3M4.3 19.7l1.6-1.6M18.1 5.9l1.6-1.6"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M11.2 3.2H20a.8.8 0 0 1 .8.8v8.8a1.6 1.6 0 0 1-.47 1.13l-7.2 7.2a1.6 1.6 0 0 1-2.26 0l-8.8-8.8a1.6 1.6 0 0 1 0-2.26l7.2-7.2a1.6 1.6 0 0 1 1.13-.47z"/><circle cx="16.2" cy="7.8" r="1.5"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 6.5V5h14v1.5M12 5v14M8.8 19h6.4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.6 6.6h14.8M9.4 6.6V4.9a1.3 1.3 0 011.3-1.3h2.6a1.3 1.3 0 011.3 1.3v1.7"/><path d="M6.6 6.6l.9 12.1a1.7 1.7 0 001.7 1.6h5.6a1.7 1.7 0 001.7-1.6l.9-12.1"/><path d="M10.4 10.4v6M13.6 10.4v6"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 14.6v-11M7.9 7.6L12 3.5l4.1 4.1"/><path d="M4.6 17.4v1.4a1.7 1.7 0 001.7 1.7h11.4a1.7 1.7 0 001.7-1.7v-1.4"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3.5 7.6A2.6 2.6 0 016.1 5h10.8a2.6 2.6 0 012.6 2.6v9.8a2.6 2.6 0 01-2.6 2.6H6.1a2.6 2.6 0 01-2.6-2.6z"/><path d="M3.5 9.6h13.2a1.7 1.7 0 010 3.4H3.5"/><circle cx="16.2" cy="11.3" r=".9" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.8l8.4 15H3.6z"/><path d="M12 9.6v4.6"/><circle cx="12" cy="16.6" r=".95" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.6 6.2a4.2 4.2 0 0 0 5.4 5.4l-8 8a2.6 2.6 0 0 1-3.7-3.7l8-8z"/><path d="M14.6 6.2l2.2-2.2a4.2 4.2 0 0 1 3.2 3.2l-2.2 2.2"/></symbol>
+</svg>
 
 <div class="app" id="app">
 
@@ -46,7 +112,7 @@
   <main class="main">
     <header class="topbar">
       <button class="topbar__menu" id="btnMenu" type="button" aria-label="打开工具菜单" aria-expanded="false">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <svg class="ic ic--bold" aria-hidden="true"><use href="#i-menu"/></svg>
         <span id="menuLabel">概览</span>
       </button>
       <div class="topbar__t">
@@ -70,7 +136,7 @@
       <span id="mnavVer">生活工具箱</span>
     </div>
     <button class="mnav__x" id="mnavX" type="button" aria-label="关闭菜单">
-      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      <svg class="ic ic--bold" aria-hidden="true"><use href="#i-close"/></svg>
     </button>
   </div>
   <div class="mnav__body" id="mnavBody"></div>

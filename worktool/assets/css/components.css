@@ -33,8 +33,11 @@
 
 /* 手机端所有主按钮补足触控高度 */
 @media (max-width:900px){
-  .btn{height:40px}
-  .btn--sm{height:36px}
+  /* 触控目标按 iOS 人机界面指南不小于 44px，小按钮也不例外 */
+  .btn{height:var(--tap)}
+  .btn--sm{height:var(--tap);padding:0 12px}
+  .btn--icon{width:var(--tap)}
+  .btn--icon.btn--sm{width:var(--tap)}
 }
 
 /* ------------------------------------------------------------
@@ -133,6 +136,8 @@
 }
 .tag--accent{background:var(--accent-soft);color:var(--accent-ink)}
 .tag--sage{background:var(--sage-soft);color:var(--sage)}
+.tag--sky{background:var(--sky-soft);color:var(--sky)}
+.tag--plum{background:var(--plum-soft);color:var(--plum)}
 .tag--amber{background:var(--amber-soft);color:var(--amber)}
 .tag--danger{background:var(--danger-soft);color:var(--danger)}
 

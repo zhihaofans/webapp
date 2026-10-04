@@ -1,6 +1,6 @@
-# 生活工具箱 · v1.0.0
+# 生活工具箱 · v1.7.0
 
-泛生活人群的多功能在线工具箱工作台。**多文件交付、零外部依赖**：所有样式、脚本、图标都是本目录下的独立文件，不引用任何 CDN、字体服务或组件库。
+泛生活人群的多功能在线工具箱工作台。**多文件交付、零外部依赖**：样式与脚本都是本目录下的独立文件（CSS 8 个、JS 11 个，按层拆分），44 个界面图标为内联 SVG sprite（见「图标系统」一节），不引用任何 CDN、字体服务或组件库。
 
 当前状态：**两个可用的工具** —— 图片格式转换、GitHub 转 jsDelivr。侧拉栏分 4 组共 10 项（其中 8 项为已排期的占位）；**首页只列已上线的工具**。
 
@@ -13,13 +13,13 @@
 多文件项目应当通过 HTTP 访问，这也是手机端唯一可行的方式。任选一条：
 
 ```bash
-cd 生活工具箱-v1.0
+cd 生活工具箱-v1.7
 python3 -m http.server 8787        # 然后浏览器打开 http://localhost:8787
 ```
 
 macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需 `chmod +x 启动本地服务器.command`），它会自动起服务并打开浏览器。
 
-> **不建议直接双击 `index.html`**。以 `file://` 打开时浏览器会以 CORS 拦截 CSS `mask` 对本地 SVG 的引用，图标会自动降级成 `<img>` 直引 —— 能看、能用，但图标不再跟随主题换色。`file://` 下 Service Worker 也不会注册（离线缓存失效）。
+> **现在也能直接双击 `index.html`。** v1.5.0 把图标换成内联 sprite 后，`file://` 下与 HTTP 完全一致，不再有任何降级路径（此前用 CSS `mask` 引用独立 SVG 会被 CORS 拦截）。唯一差别是 `file://` 下 Service Worker 不注册，因此没有离线缓存，功能不受影响。
 
 ### 方式 B：部署到静态托管
 
@@ -29,8 +29,8 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 
 **可以，且不需要改一行代码** —— 已按「项目站」（`https://<用户名>.github.io/<仓库名>/` 这种子路径形式）实测通过。下面三条照做就行：
 
-1. **把本目录的内容放到仓库根目录**，不要连 `生活工具箱-v1.1/` 这层文件夹一起提交。
-   否则访问地址会变成 `…github.io/<仓库名>/生活工具箱-v1.1/` —— 能用，但中文路径会被百分号编码成一长串。
+1. **把本目录的内容放到仓库根目录**，不要连 `生活工具箱-v1.7/` 这层文件夹一起提交。
+   否则访问地址会变成 `…github.io/<仓库名>/生活工具箱-v1.7/` —— 能用，但中文路径会被百分号编码成一长串。
 2. **保留根目录的 `.nojekyll`**（本包已带一个空文件）。
    GitHub Pages 默认会跑一遍 Jekyll 构建，`.nojekyll` 用来关掉它，避免构建环节引入意外。
 3. **仓库 Settings → Pages → Source 选 `Deploy from a branch`，分支 `main`、目录 `/ (root)`**，保存后等一两分钟。
@@ -54,8 +54,8 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 ## 二、目录结构
 
 ```
-生活工具箱-v1.0/
-├── index.html                     入口：骨架 + 挂载点 + 挂载加载器（无任何内联样式/脚本）
+生活工具箱-v1.7/
+├── index.html                     入口：图标池（44 个 <symbol>）+ 骨架 + 挂载点 + 加载器
 ├── manifest.webmanifest           PWA 清单（可安装到主屏、standalone）
 ├── sw.js                          Service Worker：同源资源「网络优先 + 离线回退」
 ├── version.json                   版本清单，「检查更新」的比对源
@@ -74,11 +74,11 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 │   │       ├── overview.css       概览页
 │   │       ├── imageconvert.css    图片格式转换
 │   │       └── github2jsdelivr.css  GitHub 转 jsDelivr
-│   └── icons/                     43 个独立 SVG 图标 + logo.svg（应用标识）
+│   └── （无 icons 目录 —— 全站零 SVG 文件，见「图标系统」）
 │
 └── js/
     ├── loader.js                  渐进加载器：按序注入模块 + 注册 Service Worker
-    ├── core.js                    工具函数 / 图标 / Store / 主题 / 吐司 / 抽屉 / 下载
+    ├── core.js                    工具函数 / 图标引用 / Store / 主题 / 吐司 / 抽屉 / 下载
     ├── registry.js                工具注册表：分组与工具的单一数据源
     ├── shell.js                   侧拉栏、顶栏、手机抽屉的渲染与交互
     ├── router.js                  基于 hash 的路由 + 占位页 + 兜底页
@@ -90,12 +90,16 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
     │   ├── imageconvert.js         图片格式转换
     │   └── github2jsdelivr.js     GitHub 转 jsDelivr 界面
     └── app.js                     启动：按固定顺序调用上面各层
+
+test/                             纯逻辑用例（node 直接跑，不需要浏览器）
+└── github2jsdelivr.test.js       链接归类、去重与拆行
 ```
 
 **加载顺序**（`loader.js` 里写死，也是依赖顺序）：
 
 ```
-core → registry → shell → router → settings → lib/github2jsdelivr
+core → registry → shell → router → settings
+     → lib/github2jsdelivr
      → tools/overview → tools/imageconvert → tools/github2jsdelivr → app
 ```
 
@@ -204,12 +208,39 @@ core → registry → shell → router → settings → lib/github2jsdelivr
 
 **3. 把文件加进 `js/loader.js` 的 `ASSETS` 数组**（放在 `js/app.js` 之前），并加进 `sw.js` 的 `SHELL` 预缓存清单。
 
-侧拉栏、概览页、路由会自动出现这一项。需要新图标就往 `assets/icons/` 放一个同名 `.svg` 即可。
+侧拉栏、概览页、路由会自动出现这一项。需要新图标就往 `index.html` 的图标池里加一行 `<symbol id="i-名字">`，然后写 `T.ic('名字')` —— 不用新建文件、不用改文件名、不用动缓存清单。
+
+### 图标系统（SVG sprite）
+
+44 个界面图标内联在 `index.html` 顶部的 `<svg style="display:none">` 里，每个是一个 `<symbol>`：
+
+```html
+<symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.2"/>…</symbol>
+```
+
+取用：`T.ic('image')` → `<svg class="ic" aria-hidden="true"><use href="#i-image"/></svg>`
+
+v1.5.0 把原本 45 个独立 `.svg` 文件合并了进来，理由是实打实测出来的：
+
+| | 独立文件（≤ v1.4） | 内联 sprite（v1.5+） |
+|---|---|---|
+| 首次加载传输量 | **11.7 KB**（逐文件 gzip 之和） | **2.9 KB** |
+| 请求数 | 45 个，且每个都要运行时回填进 SW 缓存 | **0** |
+| `file://` 可用性 | 需降级为 `<img>`，且不跟随主题换色 | 与 HTTP **完全一致** |
+| 加一个图标 | 新建 `.svg` + 命名匹配 + 改进 `sw.js` 缓存清单 | 加一行 `<symbol>` |
+
+**小文件是 gzip 最差的场景**：每个文件 340 字节里约 190 字节是重复的 `<svg>` 外壳与深色媒体查询，压缩字典还没热身就结束了，逐文件 gzip 只能压到 26%（15.5 KB → 11.7 KB）；合并后同样的内容能压到 17%（15.5 KB → 2.9 KB）。
+
+**顺带删掉的复杂度**：`<use href="#...">` 是文档内引用，不受 CORS 约束，所以「按协议在 `mask` 与 `<img>` 之间切换」的整个降级分支没了 —— 连带 v1.0 那个「`mask` 相对路径在样式表所在目录下解析、46 个图标全部 404」的坑也一并根除。
+
+**颜色不写死**：`.ic` 上写 `stroke:currentColor`，继承会穿透 `<use>` 的 shadow tree，图标跟着自身 `color` 走 —— 侧栏选中态、深色模式都自动适配，不需要给 45 个图标各写一份媒体查询。
+
+**favicon 也是内联的**：`<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg…">`。写成 data URI 而不是独立文件，是为了让全站真正做到零 SVG 文件；矢量性质与零请求都没有损失。注意 data URI **必须带 `data:image/svg+xml,` 前缀**，漏掉它浏览器会静默不显示图标（这个坑我在改动时真踩了一次，靠实测才发现）。
 
 ### 约定（重要）
 
 - **调用链必须是单向的**。数据层 → 计算层 → 渲染层，渲染函数之间**不允许互相调用**。多个区域需要联动时，收敛到一个 `paint()` / `refreshAll()` 统一入口，由事件处理函数触发它。多个渲染函数互调会形成调用环，直接栈溢出。
-- **图标**用 `T.ic('name', '额外class', 尺寸档位)` 生成；图标文件放在 `assets/icons/name.svg`，用 `fill="none" + stroke` 的线性风格，24×24 viewBox。
+- **图标**用 `T.ic('name', '额外class', 尺寸档位)` 生成，输出 `<svg class="ic"><use href="#i-name"/></svg>`。图标定义在 `index.html` 的图标池里，`<symbol>` 内只写 `viewBox` + 路径；描边、填充、线宽、圆角统一由 `.ic` 给（继承会穿透 `<use>` 的 shadow tree），颜色用 `currentColor` 自动跟随主题。风格为 `fill="none" + stroke` 线性，24×24 viewBox。
 - **所有用户输入进 innerHTML 前必须过 `T.esc()` / `T.escAttr()`**。
 - **新增数据字段必须在 `core.js` 的 `normalizeDB()` 里登记**。`normalize()` 是逐字段重建（不是浅拷贝），漏登记的表现是「存进去了，刷新就没了」。
 - **`.pagefoot` 渲染在 `.view` 内部**，横向留白由 `.view` 提供，不要再加左右 padding。
@@ -236,7 +267,7 @@ node test/github2jsdelivr.test.js            # 22 条离线用例（不打网络
 node test/github2jsdelivr.test.js --online   # 再追加 3 条真实 GitHub API 用例
 ```
 
-界面层没有引入测试框架（保持零依赖），改动后用 `python3 -m http.server` 起服务、在浏览器里过一遍即可；`file://` 与 HTTP 两种打开方式都要各看一次，图标走的是两条不同的代码路径。
+界面层没有引入测试框架（保持零依赖），改动后用 `python3 -m http.server` 起服务、在浏览器里过一遍即可。Service Worker 注册与导航回退在 `file://` 与 HTTP 下行为不同，两种协议各看一次更稳妥。
 
 ## 七、设计语言
 
@@ -257,15 +288,63 @@ node test/github2jsdelivr.test.js --online   # 再追加 3 条真实 GitHub API 
 
 ## 八、已知限制
 
-1. **`file://` 打开时**图标降级为 `<img>` 直引（不再随主题换色），Service Worker 不注册。请用 HTTP 访问。
+1. **`file://` 打开时** Service Worker 不注册，因此没有离线缓存；其余功能与图标显示均与 HTTP 完全一致。（v1.5.0 起不再需要图标降级路径。）
 2. **WebP 编码能力**取决于浏览器。Chrome / Edge / Firefox 可用；**Safari 与所有 iOS 浏览器不可用**（WebKit 限制），会自动改用 JPEG/PNG 兜底并在界面说明，不会静默失败。
 3. 单张图片超过 4000 万像素会先自动等比缩小，避免 Canvas 尺寸超限。
 4. 浏览器存储配额约 5 MB，本项目只存文本记录，正常使用远不会触顶；触顶时会有明确提示。
-5. `assets/icons/` 里有 12 个图标是给后续工具预留的（见 `registry.js` 中 `status: 'soon'` 的条目）。
+5. 图标池里有若干图标是给后续工具预留的，对应 `registry.js` 中 `status: 'soon'` 的条目。
 
 ---
 
 ## 九、版本
+
+### v1.7.0 — 2026-10-04
+
+**移除「Live Photo 提取」工具。** 原因是它在 iOS 上不可能达到预期效果：从相册选取实况照片时，系统只把静态那一帧交给网页，视频轨在浏览器拿到之前就被剥离了 —— 这是 Web 平台的接口缺失（原生 App 有 `PHLivePhotoView`，网页没有对应能力），**任何网页都绕不过去**。v1.6 曾试图用「iOS 引导 + 从视频首帧补图」缓解，但那要求用户先把实况照片手动导出成视频，步骤比直接用系统功能还多，收益不划算，故整体下线。
+
+- 删除 `js/tools/livephoto.js`、`js/lib/livp.js`、`assets/css/features/livephoto.css`，以及只服务于它的 `test/livp.test.js` 与 `test/fixtures.js`，共 5 个文件。
+- 从 `registry.js` 工具表、`loader.js` 加载列表、`sw.js` 预缓存清单、`index.html` 的样式引用与图标 sprite 中一并摘除，**不留悬空引用**。
+- 规模变化：图标 45 → 44 个，CSS 9 → 8 个，JS 13 → 11 个，侧拉栏 11 → 10 项（其中已上线 2 项）。
+- 自研的零依赖 ZIP 读取器（约 7 KB）随之移除 —— 它此前只服务于 `.livp` 拆包。
+- 其余改进**全部保留**：图片格式自选（WebP / JPEG / PNG + 设备能力探测）、图标内联 sprite（零请求）、移动端 44px 触控目标。
+- 顺手把 `.tag--sky` / `.tag--plum` 两个色变体从功能层提升到 `components.css`，与 `accent` / `sage` / `amber` / `danger` 并列 —— 此前 `github2jsdelivr.css` 里的定义与组件层重复。
+
+### v1.6.0 — 2026-10-03
+
+起因是一个真实反馈：**iPhone 上从相册选实况照片，工具只显示静态图**。查下来这不是 bug，是 iOS 的系统限制，于是把「说清楚 + 给出可行路径」两件事都做了。
+
+- **确认了根因**：Web 平台没有读取 Live Photo 的接口。原生 App 用 `PHLivePhotoView` / `kUTTypeLivePhoto`，而浏览器 `<input type="file">` 走系统照片选择器，Apple 明确说明这条路径**只回传静态那一帧**，视频轨在交给网页前已被剥离。照片 App 的「存储到文件」同样会移除视频。**任何网页都绕不过去**，此前界面没有解释，容易被当成工具坏了。
+- **新增 iOS 专属引导栏**（`iosGuideHTML`）：只在该设备渲染，讲清原因并给出三条可行路径 —— ① iOS 18+「存储为视频」；② macOS「导出未修改的原片」拿 HEIC+MOV；③ 直接给 `.livp`。iPadOS 13 起 UA 伪装成 macOS，靠 `maxTouchPoints > 1` 一并识别。
+- **新增「视频首帧补图」**：只有视频轨没有静态图时，用 `<video>` + `<canvas>` 抽首帧生成 JPEG 当静态图。这样走「存储为视频」的 iPhone 用户，依然能拿到「静态图 + 视频」两个文件。派生的图带 `derived` 标记，界面标注「视频首帧」「从视频首帧生成」，且不提供「另存为 JPEG」。
+- 抽帧的工程细节：iOS 上必须 `muted` + `playsInline` 才会解码；首帧常停在未解码状态，要 seek 一小段才真正出画；15 秒超时兜底；超过 200MB 的视频跳过抽帧以免吃满内存。
+- 引入 `effStill()` 作为静态图的**统一取用口**（原生图优先、派生图兜底），下载、统计、徽标、按钮文案全部走它，避免各处各自判断 `g.still` 造成不一致。
+- **回归验证**：`.livp` 拆包、`HEIC + MOV` 配对不受影响 —— 原图仍标原始格式（如 JPEG），仍保留「另存为 JPEG」，也**不会**被误标成「静态图由视频补出」。
+- 顺手修掉两处界面问题：移动端按钮高度由 40/36px 提升到 `--tap`（44px），符合触控目标下限；补上 `.tag--sky` 定义（此前一直引用但从未定义，靠基础 `.tag` 样式兜底）。
+
+### v1.5.0 — 2026-10-03
+
+**45 个图标合并为内联 SVG sprite** —— 首次加载传输量从 11.7 KB 降到 2.9 KB（−75%），图标请求从 45 个降到 0，`index.html` 净增约 2.8 KB gzip。
+
+- 图标池改为 `index.html` 顶部的一组 `<symbol>`，取用方式变成 `<svg class="ic"><use href="#i-名字"/></svg>`。
+- **删掉整套 `file://` 降级分支**：`ICON_MODE` / `ICON_BASE` / `.ic--img` 全部移除，`ic()` 从 15 行缩到 4 行。`<use>` 是文档内引用，不受 CORS 约束，两种协议下渲染结果逐像素一致（实测可见像素占比均为 0.386）。
+- **删掉 45 份重复的深色媒体查询**：改用 `stroke:currentColor`，颜色由 `.ic` 的 `color` 统一驱动。这同时修掉一处旧不一致 —— 此前 `file://` 降级成 `<img>` 后，图标色是硬编码的 `#6f6a60`，无法跟随选中态。
+- 几何属性（`fill` / `stroke-width` / `linecap` / `linejoin`）集中到 `.ic`，靠 SVG 的继承向下传递，`<symbol>` 里只剩 `viewBox` 与路径。
+- 顶栏菜单与抽屉关闭图标改用 `.ic--bold`（`stroke-width:2`）保持原有视觉。
+- **全站零 SVG 文件**：45 个界面图标内联为 sprite；应用标识（favicon）以 **data URI** 内联在 `index.html` 的 `<link rel="icon">` 里 —— 同样是矢量、同样零请求，但不再需要一个独立文件。`manifest.webmanifest` 里原来的 SVG 图标项已移除，PWA 安装图标由 `icon-192` / `icon-512` / `icon-maskable-512` 三个 PNG 提供。
+- 图标随 `index.html` 一起进 Service Worker 缓存，离线完整性比此前更可靠（原先那 45 个图标要靠运行时回填才进缓存）。
+- **全站零 SVG 文件**：favicon 改为内联 data URI，`manifest.webmanifest` 移除 SVG 图标项（PWA 图标由三个 PNG 覆盖），`assets/icons/` 目录整个删除。
+- Live Photo 的测试样本改为 `test/fixtures.js` 按需生成（见第七节），源码包不再含二进制测试媒体。
+
+### v1.4.0 — 2026-10-03
+
+- **新增「Live Photo 提取」**：拆出实况照片的静态图与视频。支持 `.livp` 单文件、`HEIC + MOV` 配对、以及没有视频轨的裸 HEIC 三种形态。
+- **ZIP 解析自己写**（`js/lib/livp.js`，约 7 KB，零依赖）：deflate 交给原生 `DecompressionStream('deflate-raw')`；不引 JSZip（97.6 KB / gzip 28.4 KB）。理由见上文对比。
+- 格式判定用**魔数**而非后缀；带 data descriptor 的 ZIP 也能正确读（尺寸以中央目录为准）。
+- **不做转码**：静态图保持原格式；只有在浏览器真能解码时才出现「另存为 JPEG」。
+- 修掉两个「同类」的静默 bug，都是实测才暴露的：
+  - `paneHTML` 里按钮的 `data-i` 留了 `'IDX'` 占位却没替换 → `parseInt` 得 NaN → 事件处理静默 return，表现为「按钮点了没反应且不报错」。现在索引解析失败会明确提示。
+  - `groupPairs` 没把 `container` 字段带过去 → 所有结果（包括合法 livp）都被标成「无法识别」。
+- 修掉一个 CSS 层的隐性 bug：组件类普遍显式写了 `display`，**类选择器的优先级高于浏览器给 `[hidden]` 的 UA 规则**，导致设了 `hidden` 的「无法预览」遮罩和「另存为 JPEG」按钮照常显示。现已在 `base.css` 里一次性钉死 `[hidden]{display:none!important}`。
 
 ### v1.3.0 — 2026-10-03
 

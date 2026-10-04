@@ -144,9 +144,7 @@
 .netnote .ic{width:15px;height:15px;flex:none;margin-top:1.5px;color:var(--amber)}
 .netnote b{color:var(--amber)}
 
-/* 徽标补充色（复用 .tag） */
-.tag--sky{background:var(--sky-soft);color:var(--sky)}
-.tag--plum{background:var(--plum-soft);color:var(--plum)}
+/* 注：.tag 的各色变体统一放在 components.css（组件层），这里不再重复定义 */
 
 @media (max-width:1080px){
   .g2j{

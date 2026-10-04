@@ -9,7 +9,7 @@ window.Toolbox = window.Toolbox || {};
   'use strict';
 
   var APP_NAME = '生活工具箱';
-  var APP_VER = '1.3.0';
+  var APP_VER = '1.7.0';
   var APP_BUILD = '2026-10-03';
   var SCHEMA = 1;
 
@@ -97,30 +97,17 @@ window.Toolbox = window.Toolbox || {};
 
   /* ----------------------------------------------------------
      2. 图标
-     图标是 assets/icons/*.svg 独立文件。
-        · HTTP 访问：用 CSS mask 引用，随 currentColor 换色、跟随主题
-        · file:// 访问：浏览器以 CORS 拦截 mask 引用本地文件，
-                      自动降级为 <img> 直引（颜色来自 SVG 内置的深色媒体查询）
-     ---------------------------------------------------------- */
-  var ICON_MODE = (location.protocol === 'file:') ? 'img' : 'mask';
-  T.ICON_MODE = ICON_MODE;
-  T.ICON_BASE = 'assets/icons/';
+     图标池内联在 index.html 顶部（见那里的「图标池」注释），
+     这里只负责拼出引用它的 <svg>。
 
+     从前这里要按协议在 mask 与 <img> 之间切换（file:// 下 mask 会被
+     CORS 拦），而且 mask-image 的相对路径还得绕开「在样式表所在目录
+     解析」的坑。改成同文档 sprite 后，这两个问题连同分支一起消失了：
+     <use> 是文档内引用，不受 CORS 约束，两种协议下行为完全一致。
+     ---------------------------------------------------------- */
   function ic(name, cls, size) {
     var c = 'ic' + (cls ? ' ' + cls : '') + (size ? ' ic-' + size : '');
-    var file = T.ICON_BASE + name + '.svg';
-    if (ICON_MODE === 'img') {
-      return '<img class="' + c + ' ic--img" src="' + file + '" alt="" aria-hidden="true">';
-    }
-    /* 这里必须把 mask-image 直接写在元素的 inline style 上，不能走 CSS 变量：
-       自定义属性里的相对 URL 是「在使用它的那条 CSS 规则所在的样式表」里解析的，
-       base.css 在 assets/css/ 下，写 assets/icons/x.svg 会被解析成
-       assets/css/assets/icons/x.svg 而 404。
-       inline style 没有所属样式表，相对 URL 按文档地址解析 —— 结果才正确。
-       另外：style 属性用双引号定界，URL 必须用单引号（或无引号），
-       否则双引号会把属性提前截断，算出空的 mask。 */
-    var u = "url('" + file + "')";
-    return '<i class="' + c + '" style="-webkit-mask-image:' + u + ';mask-image:' + u + '" aria-hidden="true"></i>';
+    return '<svg class="' + c + '" aria-hidden="true"><use href="#i-' + name + '"/></svg>';
   }
   T.ic = ic;
 

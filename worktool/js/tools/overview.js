@@ -107,7 +107,7 @@
         '<div id="ovGroups">' + groupsHTML() + '</div>' +
         '<div class="pagefoot">' +
           T.APP_NAME + ' v' + T.APP_VER + ' · 构建于 ' + T.APP_BUILD + '<br>' +
-          '零依赖静态工作台：所有样式、脚本与图标均为本地独立文件，不引用任何外部组件库。' +
+          '零依赖静态工作台：样式与脚本均为本地独立文件，图标为内联 SVG sprite，不引用任何外部组件库。' +
         '</div>';
 
       /* 数据变化时只重画统计与清单，不碰其它区域 */

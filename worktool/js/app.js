@@ -31,7 +31,7 @@
       if (document.visibilityState === 'hidden') flush();
     });
 
-    console.log('[生活工具箱] v' + T.APP_VER + ' 已启动 · 图标模式 ' + T.ICON_MODE);
+    console.log('[生活工具箱] v' + T.APP_VER + ' 已启动');
   }
 
   window.__TOOLBOX_BOOT__ = boot;
