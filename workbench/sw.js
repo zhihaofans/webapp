@@ -14,7 +14,7 @@
  * 注意：本文件里的版本号 CACHE 变化会触发浏览器 SW 字节比对 → 自动走新 SW 安装流程。
  *       所以每次发布只要保证 sw.js 内容有变（哪怕只改版本号），更新就能被触发。
  */
-const CACHE = 'lifehub-v1.26.1';
+const CACHE = 'lifehub-v1.26.2';
 const SHELL = [
   './',
   './index.html',
@@ -35,7 +35,7 @@ const SHELL = [
 ];
 // 每次发布改这里（跟 CACHE 同步），用于告诉浏览器「外壳换新版了」，
 // 并在 install 阶段主动刷新一次预缓存，避免预缓存里留着旧文件。
-const SHELL_VER = '1.26.1';
+const SHELL_VER = '1.26.2';
 /* 注意：js/vendor/zxing-1d.min.js（74KB 扫码库）故意 **不** 放进 SHELL。
    它是按需加载的 —— 放进来会让每个用户首访都下载 74KB，哪怕从不扫码。
    不带进预缓存也不影响离线：下面的 fetch 处理器会把任何成功拉取过的同源静态

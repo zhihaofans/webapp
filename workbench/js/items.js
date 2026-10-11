@@ -433,6 +433,27 @@ function openItemEditor(id, preset, opts){
      必须包成函数并在每次重画字段区之后重新调用：
      #itmBcLook、#itmBcScan 都在 #itmFields 内部，切分类时整块 outerHTML 替换会把
      旧按钮连同事件一起丢掉 —— 不重绑就会出现「切过分类之后扫码/查信息按钮点了没反应」。 */
+  /* 查询结果面板 —— 统一渲染，含来源标注与参考图（让用户在回填前先核对是不是这个东西） */
+  function paintLook(html){
+    const el = $('#itmLookOut', d.body);
+    if (!el) return;
+    el.innerHTML = html;
+    // 结果面板在长表单靠下的位置，写完之后滚进视野，免得用户以为「点了没反应」
+    try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e){}
+  }
+  function lookNotice(kind, title, desc, extra){
+    const ik = kind === 'err' ? 'warn' : kind === 'warn' ? 'warn' : 'check';
+    return '<div class="itm__look itm__look--' + kind + '">' + ic(ik) +
+      '<div><b>' + esc(title) + '</b>' + (desc ? '<span>' + desc + '</span>' : '') + '</div>' +
+      (extra || '') + '</div>';
+  }
+  function lookResultCard(title, bodyHTML, imgUrl, tailHTML){
+    return '<div class="itm__look itm__look--ok">' + ic('check') +
+      '<div><b>' + esc(title) + '</b>' + bodyHTML + '</div>' +
+      (imgUrl ? '<img class="itm__lookimg" src="' + escAttr(imgUrl) + '" alt="" loading="lazy">' : '') +
+      (tailHTML || '') + '</div>';
+  }
+
   function bindFieldBtns(){
     const bcBtn = $('#itmBcLook', d.body);
     if (bcBtn) bcBtn.onclick = async () => {
@@ -441,13 +462,28 @@ function openItemEditor(id, preset, opts){
       bcBtn.disabled = true;
       const old = bcBtn.innerHTML;
       bcBtn.innerHTML = ic('refresh', 'spin') + '查询中…';
+      paintLook('<div class="itm__look">' + ic('refresh', 'spin') +
+        '<div><b>正在查商品库…</b><span>4 个公开商品库 + UPCitemdb 并行查询</span></div></div>');
       try {
         const r = await lookupBarcode(code);
-        if (!r){ toast('warn', '没查到', '这个条码不在公开商品库里，手动填一下吧。', 4000); return; }
+        if (!r){
+          paintLook(lookNotice('warn', '这个条码在 5 个公开库里都没有',
+            esc(gs1Hint(code)) + '试试「按名称搜」，或者直接手填。',
+            '<button type="button" class="btn btn--sm" id="itmLookByName">' + ic('list') + '按名称搜</button>'));
+          const b = $('#itmLookByName', d.body);
+          if (b) b.onclick = () => doSearch(($('#itmName', d.body)?.value || '').trim());
+          return;
+        }
         fillForm(d.body, r);
-        toast('ok', '已查到「' + (r.name || code) + '」', '数据来自 ' + r.from + '，请核对后保存。', 5000);
+        paintLook(lookResultCard(
+          '已查到：' + (r.name || code),
+          '<span>' + esc([r.brand, r.note, r.cat ? itemCat(r.cat).name : ''].filter(Boolean).join(' · ')) + '</span>' +
+          '<em>来源 ' + esc(r.from) + (r.cached ? ' · 本地缓存' : '') + '</em>',
+          r.imageUrl
+        ));
+        toast('ok', '已查到「' + (r.name || code) + '」', '数据来自 ' + r.from + '，请核对后保存。', 4000);
       } catch (e){
-        toast('warn', '查询失败', e.message + '，可以手动填写。', 4500);
+        paintLook(lookNotice('err', '查询失败', esc(e.message || '未知错误') + '。可以直接手填。'));
       } finally { bcBtn.disabled = false; bcBtn.innerHTML = old; }
     };
 
@@ -458,6 +494,63 @@ function openItemEditor(id, preset, opts){
         if (el && code){ el.value = code; }
       });
     };
+
+    // 按名称搜 —— 条码查不到时的主要出路
+    const nl = $('#itmNameLook', d.body);
+    if (nl) nl.onclick = () => doSearch(($('#itmName', d.body)?.value || '').trim());
+  }
+
+  /** 名称搜索：拉候选列表让用户自己挑（中文同名商品太多，机器选不如人眼选） */
+  async function doSearch(q){
+    if (!q || q.length < 2){
+      paintLook(lookNotice('warn', '先在上面的「名称」里填个词', '比如「农夫山泉」「洗发水」。'));
+      return;
+    }
+    paintLook('<div class="itm__look">' + ic('refresh', 'spin') +
+      '<div><b>正在搜「' + esc(q) + '」…</b><span>Open Food Facts 商品搜索</span></div></div>');
+    try {
+      const list = await searchProductsByName(q, 8);
+      if (!list.length){
+        paintLook(lookNotice('warn', '没搜到「' + q + '」',
+          '换个更通用的词试试（去掉口味 / 规格，只留品牌 + 品类）。'));
+        return;
+      }
+      paintLook(
+        '<div class="itm__lookcard"><div class="itm__lookhd">' + ic('list') +
+        '<b>搜到 ' + list.length + ' 个候选，点一条填入</b></div>' +
+        '<div class="itm__looklist">' + list.map(p =>
+          '<button type="button" class="itm__lookitem" data-look="' + escAttr(JSON.stringify(p)) + '">' +
+            (p.imageUrl ? '<img src="' + escAttr(p.imageUrl) + '" alt="" loading="lazy">' : '<span class="itm__lookph">' + ic('box') + '</span>') +
+            '<span class="itm__looktx"><b>' + esc(p.name) + '</b>' +
+              '<em>' + esc([p.brand, p.note, p.barcode].filter(Boolean).join(' · ')) + '</em></span>' +
+          '</button>').join('') + '</div>' +
+        '<p class="hint">数据来自 Open Food Facts 社区。名称一致不代表完全同一个商品，请核对规格。</p></div>');
+      $$('#itmLookOut [data-look]', d.body).forEach(b => b.onclick = () => {
+        let p = null;
+        try { p = JSON.parse(b.dataset.look); } catch (e){ return; }
+        fillForm(d.body, p);
+        // 选中的候选如果带了分类，顺带把字段区也切过去
+        if (p.cat){
+          cat = itemCat(p.cat).id;
+          const fields = d.body.querySelector('#itmFields');
+          if (fields){
+            fields.outerHTML = itmFieldsWrap(cat, readForm(d.body));
+            $$('.itm__catpick button', d.body).forEach(x => x.classList.toggle('is-on', x.dataset.c === cat));
+            paintCatHint(d.body, cat);
+          }
+          bindPhoto(d.body, () => photo, v => { photo = v; });
+          bindFieldBtns();
+        }
+        paintLook(lookResultCard('已填入：' + p.name,
+          '<span>' + esc([p.brand, p.note].filter(Boolean).join(' · ')) + '</span><em>来源 ' + esc(p.from) + '</em>',
+          p.imageUrl));
+        toast('ok', '已填入「' + p.name + '」', '核对后保存即可。', 3000);
+      });
+    } catch (e){
+      paintLook(lookNotice(e.busy ? 'warn' : 'err',
+        e.busy ? '搜索服务暂时不可用' : '搜索失败',
+        esc(e.message || '未知错误') + ' 可以先手动填写。'));
+    }
   }
   bindFieldBtns();
 
@@ -569,6 +662,7 @@ function itmFormHTML(base, cat, photo){
       '</div>' +
 
       '<div id="itmFields">' + itmFieldsHTML(cat, base) + '</div>' +
+      '<div id="itmLookOut"></div>' +
 
       '<div class="itm__aiblock">' +
         '<button class="btn btn--block" id="itmAiFill">' + ic('spark') + 'AI 识别照片，自动填写</button>' +
@@ -639,9 +733,11 @@ function itmFieldsHTML(catId, v){
         '<input id="itmBarcode" type="text" inputmode="numeric" maxlength="32" placeholder="扫码或手动输入数字" value="' + escAttr(v.barcode || '') + '"></label>' +
         '<div class="row row--tight" style="margin-top:-4px">' +
           '<button type="button" class="btn btn--sm" id="itmBcScan">' + ic('scan') + '扫码</button>' +
-          '<button type="button" class="btn btn--sm btn--ghost" id="itmBcLook">' + ic('search') + '查商品信息</button>' +
+          '<button type="button" class="btn btn--sm btn--ghost" id="itmBcLook">' + ic('search') + '查条码</button>' +
+          '<button type="button" class="btn btn--sm btn--ghost" id="itmNameLook">' + ic('list') + '按名称搜</button>' +
         '</div>' +
-        '<p class="hint">条码查询走 Open Food Facts 公开库（食品 / 饮料 / 个护收录较多，电子产品基本查不到，那种就手动填）。</p>');
+        '<p class="hint">同时查 4 个公开商品库（食品饮料 / 美妆个护 / 日用杂货 / 宠物食品）+ UPCitemdb。' +
+        '都查不到时点「按名称搜」——中文商品在公开库里往往按名称能搜到、按条码却搜不到（该搜索接口限流较严，失败时稍等再试）。</p>');
     } else if (k === 'note'){
       out.push('<label class="fld"><span>备注</span>' +
         '<textarea id="itmNote" rows="2" maxlength="300" placeholder="存放位置、用法、发票在哪…">' + esc(v.note || '') + '</textarea></label>');
@@ -711,57 +807,259 @@ function bindPhoto(scope, getPhoto, setPhoto){
 /* ------------------------------ 条码商品查询 ------------------------------ */
 
 /**
- * 商品公开库。两个都是 Open*Facts 同一套基础设施：
- *   · 免费、无需 API Key、带 CORS（access-control-allow-origin: *）
- *   · 数据由社区维护，食品饮料覆盖最好，中文条码也有不少
- * 电子产品、奢侈品基本查不到 —— 这是数据源的客观限制，不是实现问题，
- * 所以查不到时直接引导手填，不做无意义的多次重试。
+ * 商品库清单 —— 只收录「浏览器能直接调用」的源，三条硬门槛缺一不可：
+ *   ① 免费   ② 无需注册/密钥   ③ 带 CORS（access-control-allow-origin）
+ *
+ * 为什么做不到「随便挑一家国内库」：阿里云市场商品条码查询、APIZero（数据球）这类
+ * 服务都要 AppCode/AppKey 且**只在服务端调用**，浏览器发出去会被 CORS 拦掉；
+ * 想用就必须自己搭一个后端代理。本项目是纯前端应用（数据都在本机、零后端），
+ * 所以只能在这些免注册 + 开放 CORS 的公开库里做文章。
+ *
+ * Open*Facts 是同一套基础设施的四个姊妹库，各自收录不同品类，**必须一起查**：
+ * 只查 food 时，扫一个日用品会返回
+ *   {"status":0,"status_verbose":"product found with a different product type: household"}
+ * 也就是说「这个条码存在，只是不在我这个库里」。四个库并行查才能真正拿到结果。
  */
-const BARCODE_LIBS = [
-  { id: 'food',   name: 'Open Food Facts',   host: 'https://world.openfoodfacts.org' },
-  { id: 'beauty', name: 'Open Beauty Facts', host: 'https://world.openbeautyfacts.org' }
+const BARCODE_SOURCES = [
+  { id: 'food',   name: 'Open Food Facts',     host: 'https://world.openfoodfacts.org',     tag: '食品饮料' },
+  { id: 'beauty', name: 'Open Beauty Facts',   host: 'https://world.openbeautyfacts.org',   tag: '美妆个护' },
+  { id: 'prod',   name: 'Open Products Facts', host: 'https://world.openproductsfacts.org', tag: '日用杂货' },
+  { id: 'pet',    name: 'Open Pet Food Facts', host: 'https://world.openpetfoodfacts.org',  tag: '宠物食品' }
 ];
+/* 想在这些库里取到的字段。quantity 是规格，image_front_small_url 用来让用户
+   在回填前先看一眼「是不是这个东西」，能显著减少认错。 */
+const OFF_FIELDS = 'code,product_name,product_name_zh,generic_name,generic_name_zh,brands,quantity,categories,image_front_small_url,image_url,stores';
+
+/* UPCitemdb 作为「锦上添花」的第五个源：覆盖海外非食品商品较好，但
+   ① 免费档每天约 100 次、② 服务偶发不可达。所以给它更短的超时（4.5s），
+   失败一律静默跳过，绝不拖慢另外四个库的结果。 */
+const UPC_SOURCE = { id: 'upc', name: 'UPCitemdb', host: 'https://api.upcitemdb.com/prod/trial' };
+
+/** 本地条码缓存键（命中可秒回，且离线也能用） */
+const BC_CACHE_PREFIX = 'lifehub.v1.bc.';
+const BC_CACHE_DAYS = 180;
+
+/**
+ * 条码前缀 = GS1 分配给各国的厂商代码段，可以据此判断产地。
+ * 查不到时给用户一句「这是什么地方的条码」，比只说「没查到」有信息量，
+ * 也能解释为什么查不到（中国大陆 690-699 的公开收录本来就少）。
+ */
+function gs1Region(code){
+  const c = String(code || '');
+  if (/^69[0-9]/.test(c)) return { name: '中国大陆', note: '公开商品库对国内商品收录较少' };
+  if (/^(00|01|02|03|04|05|06|07|08|09|10|11|12|13)/.test(c)) return { name: '美国 / 加拿大', note: '' };
+  if (/^(30|31|32|33|34|35|36|37)/.test(c)) return { name: '法国 / 欧洲', note: '' };
+  if (/^(45|49)/.test(c)) return { name: '日本', note: '' };
+  if (/^(88|880)/.test(c)) return { name: '韩国', note: '' };
+  if (/^471/.test(c)) return { name: '中国台湾', note: '' };
+  if (/^(489|958)/.test(c)) return { name: '中国香港', note: '' };
+  if (/^54/.test(c)) return { name: '比利时 / 卢森堡', note: '' };
+  if (/^(50|509)/.test(c)) return { name: '英国', note: '' };
+  if (/^40[0-9]/.test(c)) return { name: '德国', note: '' };
+  return null;
+}
+/** 查不到时的一句话解释 */
+function gs1Hint(code){
+  const r = gs1Region(code);
+  if (!r) return '这个条码不在公开库里。';
+  return '这是一段「' + r.name + '」的条码。' + (r.note ? r.note + '。' : '');
+}
 
 /** 用库返回的分类文本猜一个我们的分类 id */
 function guessCatFromText(txt){
   const s = String(txt || '').toLowerCase();
   if (/cosmetic|skincare|shampoo|makeup|beauty|sunscreen|toothpaste|soap|deodorant|perfume|化妆品|护肤|洗发|牙膏|香皂/.test(s)) return 'cosmetic';
   if (/medicine|pharma|drug|supplement|vitamin|tablet|pills|药品|保健|维生素/.test(s)) return 'medicine';
+  if (/pet\s?food|dog|cat|宠物|猫粮|狗粮/.test(s)) return 'daily';
   if (/beverage|drink|food|snack|dairy|cereal|sauce|noodle|coffee|tea|juice|water|milk|食品|饮料|零食|乳|茶|咖啡|水/.test(s)) return 'food';
-  if (/household|detergent|cleaner|paper|日用品|清洁|纸巾/.test(s)) return 'daily';
+  // 日用品：洗护清洁、纸品、家居。「Hygiene / Hand wash / Laundry」这类英文标签
+  // 在 Open Products Facts 里很常见，不带上就全落到「其他」去了。
+  if (/household|hygiene|detergent|cleaner|cleaning|laundry|dishwash|hand ?wash|body ?wash|toilet|tissue|napkin|diaper|paper|日用品|清洁|洗护|纸巾|洗衣/.test(s)) return 'daily';
   if (/electronic|battery|cable|charger|phone|电脑|电子|充电|数据线/.test(s)) return 'device';
   return '';
 }
 
+/** 把一个 OFF 库的返回整理成统一结构；没查到返回 null */
+function pickOffProduct(d, src, code){
+  if (!d || d.status !== 1 || !d.product) return null;
+  const p = d.product;
+  const name = String(p.product_name_zh || p.product_name || p.generic_name_zh || p.generic_name || '').trim();
+  const brand = String(p.brands || '').split(',')[0].trim();
+  if (!name && !brand) return null;
+  const cats = [p.categories, p.product_name, p.product_name_zh, p.generic_name].filter(Boolean).join(' ');
+  // 完整度打分：名字最重要，其次品牌，再次规格/分类/图片/店铺。
+  // 用它从多个库的命中里挑「信息最全的那一条」，而不是「先返回的那一条」。
+  let score = 0;
+  if (name) score += 3;
+  if (brand) score += 2;
+  if (p.quantity) score += 1;
+  if (p.categories) score += 1;
+  if (p.image_front_small_url || p.image_url) score += 1;
+  if (p.stores) score += 1;
+  return {
+    id: src.id, from: src.name, sourceTag: src.tag, score,
+    name, brand, barcode: String(d.code || code),
+    cat: guessCatFromText(cats) || '',
+    qty: null, unit: '',
+    note: p.quantity ? '规格：' + String(p.quantity).slice(0, 40) : '',
+    imageUrl: p.image_front_small_url || p.image_url || '',
+    stores: String(p.stores || '').split(',')[0].trim()
+  };
+}
+
+/** 查单个 OFF 系库 */
+async function fetchOneOff(src, code){
+  const url = src.host + '/api/v2/product/' + encodeURIComponent(code) + '.json?fields=' + OFF_FIELDS;
+  const d = await jjson(url, {}, 11000);
+  return pickOffProduct(d, src, code);
+}
+
+/** 查 UPCitemdb（最佳努力：短超时，失败静默） */
+async function fetchUpc(code){
+  const d = await jjson(UPC_SOURCE.host + '/lookup?upc=' + encodeURIComponent(code), {}, 4500);
+  const it = d && (d.items || [])[0];
+  if (!it) return null;
+  const name = String(it.title || '').trim();
+  if (!name) return null;
+  return {
+    id: 'upc', from: UPC_SOURCE.name, sourceTag: '海外商品', score: 0,
+    name, brand: String(it.brand || '').trim(), barcode: code,
+    cat: guessCatFromText([it.category, it.title].filter(Boolean).join(' ')) || '',
+    qty: null, unit: '',
+    note: [it.model && '型号 ' + it.model, it.color && '颜色 ' + it.color].filter(Boolean).join(' · ').slice(0, 60),
+    imageUrl: (it.images && it.images[0]) || '', stores: ''
+  };
+}
+
+/** 读本地缓存 */
+function bcCacheGet(code){
+  try {
+    const raw = localStorage.getItem(BC_CACHE_PREFIX + code);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || !o.at || Date.now() - o.at > BC_CACHE_DAYS * 86400000) return null;
+    return o.data || null;
+  } catch (e){ return null; }
+}
+/** 写本地缓存（写失败无所谓，只是下次还要联网） */
+function bcCacheSet(code, data){
+  try { localStorage.setItem(BC_CACHE_PREFIX + code, JSON.stringify({ at: Date.now(), data })); } catch (e){}
+}
+
 /**
- * 按条码查商品信息。查到返回结构化对象，查不到返回 null（不抛错）。
- * 依次试两个库，命中即返回；网络异常也继续试下一个，全失败才返回 null。
+ * 按条码查商品信息。
+ *
+ * 流程：本地缓存 → 四个 Open*Facts 库 + UPCitemdb **并行** → 按完整度挑最优。
+ * 并行是关键：逐个串行的话，扫一个日用品要等「food 查空 → beauty 查空 → prod 命中」
+ * 三次往返；并行后总耗时只等于最慢的那一个。
+ *
+ * 返回 null 表示所有库都没有（调用方据此引导「按名称搜索」或手填）。
  */
 async function lookupBarcode(code){
   code = String(code || '').replace(/[^0-9A-Za-z]/g, '');
   if (!code) return null;
-  for (const lib of BARCODE_LIBS){
+
+  const cached = bcCacheGet(code);
+  if (cached) return { ...cached, cached: true };
+
+  const jobs = BARCODE_SOURCES.map(s =>
+    fetchOneOff(s, code).then(r => r).catch(() => null));
+  // UPCitemdb 不 await 在主流程里 —— 用同一个 allSettled 收集，但只有它失败/超时时
+  // allSettled 会等满它的 4.5s 超时。所以把它单独挂上，先出结果先算。
+  const upcJob = fetchUpc(code).catch(() => null);
+
+  const settled = await Promise.allSettled(jobs);
+  const hits = settled.map(r => (r.status === 'fulfilled' ? r.value : null)).filter(Boolean);
+
+  // 主库全空时再多等一会儿 UPC（有价值），主库有结果就不等它了
+  if (!hits.length){
     try {
-      const url = lib.host + '/api/v2/product/' + encodeURIComponent(code) +
-        '.json?fields=product_name,product_name_zh,brands,quantity,categories,image_front_small_url';
-      const d = await jjson(url, {}, 12000);
-      if (d && d.status === 1 && d.product){
-        const p = d.product;
-        const name = String(p.product_name_zh || p.product_name || '').trim();
-        if (!name && !p.brands) continue;
-        const cats = [p.categories, p.product_name, p.product_name_zh].filter(Boolean).join(' ');
-        return {
-          name, brand: String(p.brands || '').split(',')[0].trim(),
-          barcode: code,
-          qty: null, unit: '',
-          cat: guessCatFromText(cats) || 'food',
-          note: p.quantity ? '规格：' + String(p.quantity).slice(0, 40) : '',
-          from: lib.name, imageUrl: p.image_front_small_url || ''
-        };
-      }
-    } catch (e){ /* 这个库挂了或没收录，试下一个 */ }
+      const u = await Promise.race([upcJob, new Promise(res => setTimeout(() => res(null), 1500))]);
+      if (u) hits.push(u);
+    } catch (e){}
   }
-  return null;
+
+  if (!hits.length) return null;
+
+  hits.sort((a, b) => b.score - a.score);
+  const best = hits[0];
+  const others = hits.slice(1).map(h => h.from);
+  const out = {
+    name: best.name, brand: best.brand, barcode: best.barcode,
+    cat: best.cat, qty: best.qty, unit: best.unit,
+    note: best.note, imageUrl: best.imageUrl,
+    from: best.from + (others.length ? '（另 ' + others.length + ' 个库也有收录）' : ''),
+    sources: [best.from].concat(others)
+  };
+  bcCacheSet(code, out);
+  return out;
+}
+
+/**
+ * 按名称搜商品（条码查不到时的兜底）。
+ *
+ * 端点选择（都是实测结论，别随手改）：
+ *   · search.openfoodfacts.org（新版 search-a-licious）**不发 CORS 头** → 浏览器直接拿不到
+ *   · /api/v2/search 间歇性 503（HTML 错误页，同样没有 CORS 头）
+ *   · /cgi/search.pl 能用，且成功响应带 access-control-allow-origin: *
+ * 所以只能用最后一个 —— 但它**限流很严**：连发几次就会 503。
+ * 503 的错误页不带 CORS 头，浏览器只会报「Failed to fetch」，根本读不到状态码，
+ * 因此这里做了三件事：客户端节流、失败退避重试一次、把网络错误翻译成「服务繁忙」，
+ * 免得用户以为是自己网络坏了。
+ *
+ * 返回候选数组，让用户自己挑 —— 中文同名商品太多，机器选不如人眼选。
+ */
+let _lastSearchAt = 0;
+const SEARCH_MIN_GAP = 4000;   // OFF 公共搜索接口限流很紧，客户端先自己踩一脚刹车
+function searchBusyMsg(){
+  return '商品搜索服务暂时限流了（Open Food Facts 的公共搜索接口限制较严）。' +
+         '等一会儿再试，或者直接在下面手动填写。';
+}
+async function searchProductsByName(q, limit){
+  q = String(q || '').trim();
+  if (q.length < 2) return [];
+  const n = limit || 8;
+  const fields = 'code,product_name,product_name_zh,brands,quantity,categories,image_front_small_url';
+  const base = BARCODE_SOURCES[0].host;
+  const url = base + '/cgi/search.pl?search_terms=' + encodeURIComponent(q) +
+    '&search_simple=1&action=process&json=1&page_size=' + n + '&fields=' + fields;
+
+  const now = Date.now();
+  if (now - _lastSearchAt < SEARCH_MIN_GAP){
+    const err = new Error('刚搜过一次，稍等几秒再试（公共搜索接口限流）。');
+    err.busy = true; throw err;
+  }
+  _lastSearchAt = now;
+
+  const isNetErr = (e) => /Failed to fetch|NetworkError|load failed|AbortError/i.test(String(e && e.message || ''));
+  let d = null;
+  try {
+    d = await jjson(url, {}, 12000);
+  } catch (e){
+    if (!isNetErr(e)) throw e;
+    // 等 1.2 秒退避重试一次，能救回一部分瞬时限流
+    await new Promise(r => setTimeout(r, 1200));
+    try { d = await jjson(url, {}, 12000); }
+    catch (e2){
+      const err = new Error(isNetErr(e2) ? searchBusyMsg() : (e2.message || '搜索失败'));
+      err.busy = true; throw err;
+    }
+  }
+  const list = (d && d.products) || [];
+  const seen = {};
+  return list.map(p => {
+    const name = String(p.product_name_zh || p.product_name || '').trim();
+    const code = String(p.code || '').replace(/[^0-9A-Za-z]/g, '');
+    if (!name || !code || seen[code]) return null;
+    seen[code] = 1;
+    return {
+      name, brand: String(p.brands || '').split(',')[0].trim(), barcode: code,
+      cat: guessCatFromText([p.categories, name].filter(Boolean).join(' ')) || '',
+      note: p.quantity ? '规格：' + String(p.quantity).slice(0, 40) : '',
+      imageUrl: p.image_front_small_url || '',
+      from: 'Open Food Facts 搜索'
+    };
+  }).filter(Boolean);
 }
 
 /* ------------------------------ 扫码 ------------------------------ */
@@ -903,7 +1201,8 @@ function openScanSheet(onDone){
       toast('ok', '查到「' + r.name + '」', '来自 ' + r.from + '，核对后保存。', 5000);
     } else {
       openItemEditor(null, { barcode: code, src: 'scan' });
-      toast('warn', '公开库里没有这个条码', '已把条码填好，其余信息手动补一下。', 5000);
+      toast('warn', '公开库里没有这个条码',
+        '已把条码填好。在编辑器里可以点「按名称搜」找找看，或直接手填。', 6000);
     }
   }
 
