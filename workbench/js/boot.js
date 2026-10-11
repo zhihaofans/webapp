@@ -374,6 +374,7 @@ const Backup = {
             db.todo = db.todo.filter(t => !(Store._demoIds?.todo || []).includes(t.id));
             db.habits = db.habits.filter(h => !(Store._demoIds?.habits || []).includes(h.id));
             db.drinks = db.drinks.filter(x => !(Store._demoIds?.drinks || []).includes(x.id));
+            db.items  = (db.items || []).filter(x => !(Store._demoIds?.items || []).includes(x.id));
             db.demo = false;
           });
           d.close(); go(location.hash.replace('#/','') || 'weather');
@@ -387,7 +388,7 @@ const Backup = {
           setTimeout(() => {
             try { localStorage.removeItem(LS_MAIN); localStorage.removeItem(LS_BAK); localStorage.removeItem('lifehub.v1.preImport'); localStorage.removeItem('lifehub.v1.lastHint'); } catch(e){}
             Store.db = blankDB();
-            Store._demoIds = { money: [], todo: [], habits: [] };
+            Store._demoIds = { money: [], todo: [], habits: [], drinks: [], items: [] };
             Store.save();
             d.close(); go('weather');
             toast('ok', '已清空', '备份文件已下载到浏览器默认目录。', 6000);
@@ -580,7 +581,8 @@ const VIEWS = [
   { id:'money',   name:'收支',   icon:'barchart',sub:'记账与消费结构', render:() => renderMoney() },
   { id:'todo',    name:'待办',   icon:'list',   sub:'要做的事与截止日期', render:() => renderTodo() },
   { id:'habits',  name:'习惯',   icon:'jar',    sub:'每天坚持的一点小事', render:() => renderHabits() },
-  { id:'drinks',  name:'饮品',   icon:'cup',    sub:'咖啡因 · 糖 · 热量', render:() => renderDrinks() }
+  { id:'drinks',  name:'饮品',   icon:'cup',    sub:'咖啡因 · 糖 · 热量', render:() => renderDrinks() },
+  { id:'items',   name:'物品',   icon:'box',    sub:'个人物品与保质期', render:() => renderItems() }
 ];
 let CUR = '';
 
@@ -710,18 +712,20 @@ function boot(){
       Store.db.todo = demo.todo;
       Store.db.habits = demo.habits;
       Store.db.drinks = demo.drinks;
+      Store.db.items = demo.items;
       Store._demoIds = {
         money: demo.money.map(x => x.id),
         todo: demo.todo.map(x => x.id),
         habits: demo.habits.map(x => x.id),
-        drinks: demo.drinks.map(x => x.id)
+        drinks: demo.drinks.map(x => x.id),
+        items: demo.items.map(x => x.id)
       };
       Store.save();
     } else {
-      Store._demoIds = { money: [], todo: [], habits: [], drinks: [] };
+      Store._demoIds = { money: [], todo: [], habits: [], drinks: [], items: [] };
     }
   } else {
-    Store._demoIds = { money: [], todo: [], habits: [], drinks: [] };
+    Store._demoIds = { money: [], todo: [], habits: [], drinks: [], items: [] };
   }
 
   // 数据损坏 / 恢复提示（读取加载阶段的快照，避免被后续 save 覆盖）

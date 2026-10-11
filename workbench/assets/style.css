@@ -1310,3 +1310,284 @@ table.tb td.num{text-align:right}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+/* ==========================================================================
+   物品管理器（v1.26）
+   --------------------------------------------------------------------------
+   图标一律显式给尺寸。这个项目里所有图标都是「无 width/height 的行内 SVG」，
+   漏一条约束就会被浏览器按「撑满容器」处理，24×24 放大成 200px+ 的巨型图形
+   （v1.10 / v1.11 / v1.25 各踩过一次）。下面每个含图标的规则都写死了尺寸。
+   ========================================================================== */
+
+/* ---------- 工具条 ---------- */
+.itm__bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.itm__bar .btn svg{width:15px;height:15px;flex:none}
+.itm__search{
+  display:flex;align-items:center;gap:7px;flex:1;min-width:190px;
+  padding:0 12px;height:38px;border-radius:var(--r-sm);
+  background:var(--surface-2);border:1px solid var(--line);
+  transition:border-color .16s var(--ease);
+}
+.itm__search:focus-within{border-color:var(--accent)}
+.itm__search svg{width:15px;height:15px;flex:none;color:var(--ink-4)}
+.itm__search input{
+  flex:1;min-width:0;border:0;background:transparent;outline:none;
+  font-size:14px;color:var(--ink-1);font-family:inherit;
+}
+.itm__search input::-webkit-search-cancel-button{-webkit-appearance:none}
+
+/* ---------- 统计卡 ----------
+   列数必须显式钉住：全局的 .g-4 在 ≤860px 会塌成单列（那条规则的用意是
+   「内容卡片一列排开更好读」），可这 4 张只是「数字 + 标签」的小卡，
+   塌成单列等于连占四行、白吃掉半个首屏。这里按自己的节奏走：桌面 4 列、
+   窄屏 2×2。 */
+.itm__stats{margin-bottom:16px;grid-template-columns:repeat(4,minmax(0,1fr))}
+.itm__stat{
+  padding:13px 15px;display:flex;flex-direction:column;gap:5px;
+}
+.itm__stat span{font-size:12px;color:var(--ink-4)}
+.itm__stat b{font-family:var(--f-serif);font-size:25px;font-weight:400;letter-spacing:-.02em;display:flex;align-items:baseline;gap:3px}
+.itm__stat b i{font-family:var(--f-sans);font-size:11.5px;font-style:normal;color:var(--ink-4)}
+.itm__stat.is-warn b{color:var(--amber)}
+.itm__stat.is-over b{color:var(--danger)}
+
+/* ---------- 需要留意 ---------- */
+.itm__warn{margin-bottom:16px;border-left:3px solid var(--amber)}
+.itm__warn .card__hd h3 svg{width:15px;height:15px;flex:none;color:var(--amber)}
+.itm__warnlist{display:flex;flex-direction:column;gap:2px}
+.itm__wrow{
+  display:flex;align-items:center;gap:10px;padding:9px 2px;
+  border-bottom:1px solid var(--line);
+}
+.itm__wrow:last-child{border-bottom:0}
+.itm__wrow.is-over{background:linear-gradient(90deg,var(--danger-soft),transparent 62%)}
+.itm__wtx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.itm__wtx b{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.itm__wtx span{font-size:11.5px;color:var(--ink-4)}
+.itm__wrow .btn{flex:none}
+.itm__wrow .btn svg{width:13px;height:13px;flex:none}
+
+/* ---------- 分类 chips ---------- */
+.itm__cats{
+  display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;
+}
+.itm__cats::-webkit-scrollbar{display:none}
+.itm__chip{
+  flex:none;display:flex;align-items:center;gap:6px;
+  padding:0 13px;height:38px;border-radius:99px;cursor:pointer;
+  background:var(--surface-2);border:1px solid var(--line);
+  font-size:13px;color:var(--ink-2);font-family:inherit;
+  transition:all .16s var(--ease);white-space:nowrap;
+}
+.itm__chip:hover{border-color:var(--accent)}
+.itm__chip.is-on{background:var(--accent);border-color:var(--accent);color:#fff}
+.itm__chip svg{width:15px;height:15px;flex:none}
+.itm__chip em{
+  font-style:normal;font-size:11px;padding:1px 6px;border-radius:99px;
+  background:var(--surface-3);color:var(--ink-3);
+}
+.itm__chip.is-on em{background:rgba(255,255,255,.26);color:#fff}
+
+/* ---------- 筛选 / 排序 ---------- */
+.itm__filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.itm__filters .seg{flex-wrap:wrap}
+.itm__sort{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-3)}
+.itm__sort select{
+  height:34px;padding:0 10px;border-radius:9px;font-size:13px;font-family:inherit;
+  background:var(--surface-2);border:1px solid var(--line);color:var(--ink-1);
+}
+
+/* ---------- 物品网格 ---------- */
+.itm__grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(216px,1fr));gap:12px}
+.itm__card{
+  position:relative;cursor:pointer;overflow:hidden;
+  padding:13px;border-radius:var(--r-md);
+  background:var(--surface);border:1px solid var(--line);
+  transition:all .18s var(--ease);
+  display:flex;flex-direction:column;gap:10px;
+}
+.itm__card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.06)}
+.itm__card.is-dead{opacity:.58}
+
+.itm__cdtop{display:flex;align-items:flex-start;gap:11px}
+.itm__cdhd{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.itm__nm{
+  font-size:14px;font-weight:600;color:var(--ink-1);line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.itm__brand{
+  font-size:11.5px;color:var(--ink-4);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* 缩略图 / 分类图标 */
+.itm__ph{
+  flex:none;border-radius:11px;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface-3);
+}
+.itm__ph img{width:100%;height:100%;object-fit:cover;display:block}
+/* 图标必须钉尺寸：裸行内 SVG 会被撑满整个缩略图方块 */
+.itm__ph svg{width:21px;height:21px;flex:none;color:var(--ink-3)}
+.itm__ph--sky{background:var(--sky-soft);color:var(--sky)}
+.itm__ph--sky svg{color:var(--sky)}
+.itm__ph--plum{background:var(--plum-soft)}.itm__ph--plum svg{color:var(--plum)}
+.itm__ph--amber{background:var(--amber-soft)}.itm__ph--amber svg{color:var(--amber)}
+.itm__ph--sage{background:var(--sage-soft)}.itm__ph--sage svg{color:var(--sage)}
+.itm__ph--data{background:var(--surface-3)}
+
+.itm__cdmeta{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.itm__pill{
+  font-size:11px;padding:2px 8px;border-radius:99px;font-weight:600;
+  background:var(--surface-3);color:var(--ink-3);
+}
+.itm__pill--sky{background:var(--sky-soft);color:var(--sky)}
+.itm__pill--plum{background:var(--plum-soft);color:var(--plum)}
+.itm__pill--amber{background:var(--amber-soft);color:var(--amber)}
+.itm__pill--sage{background:var(--sage-soft);color:var(--sage)}
+.itm__qty{font-size:11.5px;color:var(--ink-3)}
+.itm__price{font-size:12px;color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums;margin-left:auto}
+
+.itm__cdft{
+  display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
+  padding:6px 9px;border-radius:8px;background:var(--surface-2);color:var(--ink-3);
+}
+.itm__cdft svg{width:13px;height:13px;flex:none}
+.itm__cdft--none{font-weight:400;color:var(--ink-4)}
+.itm__cdft--dead{background:var(--surface-3);color:var(--ink-3);font-weight:400}
+.itm__exp--over{background:var(--danger-soft);color:var(--danger)}
+.itm__exp--soon{background:var(--amber-soft);color:var(--amber)}
+.itm__exp--warn{background:var(--amber-soft);color:var(--amber);opacity:.85}
+.itm__exp--ok{background:var(--sage-soft);color:var(--sage)}
+
+.itm__srctag{
+  position:absolute;top:0;right:0;
+  font-size:10px;font-weight:600;letter-spacing:.02em;
+  padding:3px 8px;border-bottom-left-radius:8px;
+  background:var(--accent-soft);color:var(--accent-ink);
+}
+
+/* ---------- 编辑器：照片区 ---------- */
+.itm__phrow{display:flex;gap:13px;align-items:flex-start}
+.itm__phbox{
+  flex:none;width:96px;height:96px;border-radius:14px;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface-2);border:1px dashed var(--line);
+}
+.itm__phbox img{width:100%;height:100%;object-fit:cover;display:block}
+.itm__phbox svg{width:30px;height:30px;flex:none;color:var(--ink-4)}
+.itm__phbtns{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px;align-items:flex-start}
+.itm__phbtns .btn svg{width:14px;height:14px;flex:none}
+
+/* ---------- 编辑器：分类选择 ---------- */
+.itm__catpick{display:flex;gap:7px;flex-wrap:wrap}
+.itm__catpick button{
+  display:flex;align-items:center;gap:6px;
+  padding:0 13px;height:40px;border-radius:10px;cursor:pointer;
+  background:var(--surface-2);border:1px solid var(--line);
+  font-size:13px;color:var(--ink-2);font-family:inherit;
+  transition:all .16s var(--ease);
+}
+.itm__catpick button:hover{border-color:var(--accent)}
+.itm__catpick button.is-on{background:var(--accent);border-color:var(--accent);color:#fff}
+.itm__catpick button svg{width:16px;height:16px;flex:none}
+
+/* ---------- 编辑器：AI 区 ---------- */
+.itm__aiblock{margin-top:6px;display:flex;flex-direction:column;gap:7px}
+.itm__aiblock .btn svg{width:15px;height:15px;flex:none}
+.itm__ainote{
+  display:flex;align-items:flex-start;gap:8px;margin-top:11px;
+  padding:10px 13px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.55;
+  background:var(--accent-soft);border:1px solid var(--accent);border-left-width:3px;
+}
+.itm__ainote svg{width:15px;height:15px;flex:none;margin-top:2px;color:var(--accent)}
+.itm__ainote > div{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.itm__ainote b{font-size:12.5px;font-weight:600}
+.itm__ainote span{color:var(--ink-3)}
+.itm__ainote--err{background:var(--surface-2);border-color:var(--line);border-left-color:var(--danger)}
+.itm__ainote--err svg{color:var(--danger)}
+
+/* ---------- 扫码：相机 ---------- */
+.itm__camwrap{
+  position:relative;width:100%;aspect-ratio:4/3;max-height:290px;
+  border-radius:var(--r-md);overflow:hidden;background:#0d0e10;
+  display:flex;align-items:center;justify-content:center;
+}
+.itm__camwrap video{width:100%;height:100%;object-fit:cover;display:block}
+.itm__camfra{
+  position:absolute;inset:22% 12%;border-radius:12px;pointer-events:none;
+  border:2px solid rgba(255,255,255,.85);
+  box-shadow:0 0 0 999px rgba(0,0,0,.34);
+}
+.itm__camst{
+  position:absolute;bottom:11px;left:50%;transform:translateX(-50%);
+  font-size:12px;color:#fff;background:rgba(0,0,0,.55);
+  padding:5px 12px;border-radius:99px;white-space:nowrap;max-width:92%;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.itm__camwrap--off{
+  flex-direction:column;gap:9px;background:var(--surface-2);border:1px dashed var(--line);
+  color:var(--ink-3);text-align:center;padding:24px 20px;
+}
+.itm__camwrap--off svg{width:34px;height:34px;flex:none;color:var(--ink-4)}
+.itm__camwrap--off p{margin:0;font-size:13.5px;font-weight:600}
+.itm__camwrap--off small{font-size:12px;color:var(--ink-4);line-height:1.6;max-width:280px}
+.itm__camwrap--off p, .itm__camwrap--off small{position:static;background:none;color:inherit}
+
+/* ---------- 详情 ---------- */
+.itm__bigph{
+  width:100%;max-height:230px;object-fit:cover;display:block;
+  border-radius:var(--r-md);margin-bottom:13px;
+}
+.itm__stateRow{display:flex;gap:7px;margin-bottom:14px}
+.itm__stbtn{
+  flex:1;height:40px;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;
+  background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);
+  transition:all .16s var(--ease);
+}
+.itm__stbtn:hover{border-color:var(--accent)}
+.itm__stbtn.is-on{background:var(--accent);border-color:var(--accent);color:#fff}
+.itm__dl{margin:0;display:flex;flex-direction:column;gap:0}
+.itm__dl > div{
+  display:flex;gap:12px;padding:9px 2px;border-bottom:1px solid var(--line);
+  font-size:13px;
+}
+.itm__dl > div:last-child{border-bottom:0}
+.itm__dl dt{flex:none;width:82px;color:var(--ink-4)}
+.itm__dl dd{margin:0;flex:1;min-width:0;color:var(--ink-1);word-break:break-word}
+.req{
+  font-style:normal;font-size:10.5px;font-weight:600;color:var(--accent);
+  padding:1px 5px;border-radius:99px;background:var(--accent-soft);margin-left:2px;
+}
+
+/* ---------- 移动端 ---------- */
+@media (max-width: 1024px){
+  .itm__stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+}
+@media (max-width: 768px){
+  .itm__stats{gap:10px}
+  .itm__stat{padding:11px 13px}
+  .itm__stat b{font-size:22px}
+  .itm__grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .itm__card{padding:11px;gap:8px}
+  .itm__nm{font-size:13px}
+  /* 手机上「按钮最小点击区 ≥44px」是硬要求，工具条按钮顶到 42 也要认得出来 */
+  .itm__bar .btn{min-height:42px}
+  .itm__chip{height:42px}
+  .itm__catpick button{height:44px}
+  .itm__stbtn{height:44px}
+  .itm__search{height:42px}
+  .itm__search input{font-size:16px}   /* 低于 16px iOS 会自动放大整页 */
+  .itm__sort select{height:40px}
+  .itm__phrow{flex-direction:column}
+  .itm__phbox{width:100%;height:150px}
+  .itm__phbtns{align-items:stretch;width:100%}
+  .itm__wrow{flex-wrap:wrap}
+  .itm__wrow .btn{min-height:38px}
+  .itm__pill{font-size:10.5px}
+  .itm__price{margin-left:0}
+}
+@media (max-width: 380px){
+  .itm__grid{grid-template-columns:1fr}
+}

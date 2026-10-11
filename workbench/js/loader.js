@@ -2,7 +2,7 @@
   // 多文件渐进加载：先显示「加载中」，再按顺序注入脚本，每完成一个更新进度
   var ASSETS = [
     'js/core.js', 'js/weather.js', 'js/ai_news.js',
-    'js/views.js', 'js/workbench.js', 'js/boot.js'
+    'js/views.js', 'js/workbench.js', 'js/items.js', 'js/boot.js'
   ];
   var total = ASSETS.length, done = 0;
   var prog = document.getElementById('bootProg');

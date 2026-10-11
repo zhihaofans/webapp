@@ -19,7 +19,7 @@ const SCHEMA  = 1;
 /* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
    APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
    只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.25';
+const APP_VER    = '1.26';
 const APP_NAME   = '日常 · 生活工作台';
 const APP_BUILD  = '2026-10-03';
 
@@ -180,7 +180,11 @@ const ICONS = {
   shield:'<path d="M12 3.2l7.5 3v5.4c0 4.6-3.1 8.4-7.5 9.7-4.4-1.3-7.5-5.1-7.5-9.7V6.2z"/><path d="M9 12l2.2 2.2 4.3-4.4"/>',
   drag:'<path d="M8 7h.01M8 12h.01M8 17h.01M16 7h.01M16 12h.01M16 17h.01" stroke-width="2.6"/>',
   star:'<path d="M12 3.4l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.9l6.1-.9z"/>',
-  cal:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.4"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><rect x="7.4" y="12.4" width="3" height="3" rx=".7" fill="currentColor" stroke="none"/><rect x="13.6" y="12.4" width="3" height="3" rx=".7" fill="currentColor" stroke="none"/>'
+  cal:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.4"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><rect x="7.4" y="12.4" width="3" height="3" rx=".7" fill="currentColor" stroke="none"/><rect x="13.6" y="12.4" width="3" height="3" rx=".7" fill="currentColor" stroke="none"/>',
+  box:'<path d="M4 8.2l8-4 8 4v8.4l-8 4-8-4z"/><path d="M4 8.2l8 4 8-4M12 12.2v8.4"/>',
+  cam:'<path d="M4 8.6h3.2l1.4-2.2h6.8l1.4 2.2H20a1.4 1.4 0 0 1 1.4 1.4v8.4a1.4 1.4 0 0 1-1.4 1.4H4a1.4 1.4 0 0 1-1.4-1.4V10a1.4 1.4 0 0 1 1.4-1.4z"/><circle cx="12" cy="14.6" r="3.4"/>',
+  scan:'<path d="M3.5 8V5.6a2.1 2.1 0 0 1 2.1-2.1H8M16 3.5h2.4a2.1 2.1 0 0 1 2.1 2.1V8M20.5 16v2.4a2.1 2.1 0 0 1-2.1 2.1H16M8 20.5H5.6a2.1 2.1 0 0 1-2.1-2.1V16"/><path d="M7 12h10"/>',
+  tag:'<path d="M11.6 3.5H20.5v8.9l-8.4 8.4a1.8 1.8 0 0 1-2.6 0l-6.3-6.3a1.8 1.8 0 0 1 0-2.6z"/><circle cx="16.6" cy="7.4" r="1.5"/>'
 };
 /** 渲染图标 */
 function ic(name, extra = ''){
@@ -218,8 +222,44 @@ const DEFAULT_SETTINGS = {
 function blankDB(){
   return { schema: SCHEMA, createdAt: Date.now(), demo: true,
            settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
-           providers: seedProviders(), notes: [], money: [], todo: [], habits: [], drinks: [] };
+           providers: seedProviders(), notes: [], money: [], todo: [], habits: [], drinks: [], items: [] };
 }
+
+/* ==========================================================================
+   物品分类 —— 不同类型关心的字段不一样，所以按类定义「要显示哪些属性」。
+   --------------------------------------------------------------------------
+   为什么不做成「所有字段都显示」：化妆品根本不需要「生产日期」（要看开封后
+   保质期），电子设备也不关心「数量」。全量铺开会让表单变长一倍，用户还得
+   自己跳过一半不相关的输入框。这里每类给一份字段白名单 + 专属的到期标签。
+   ========================================================================== */
+const ITEM_CATS = [
+  { id: 'device',   name: '电子设备', icon: 'gear',   color: 'sky',
+    expLabel: '保修到期',   madeLabel: '购入日期',   madeKey: 'buyAt',
+    fields: ['buyAt', 'expAt', 'price', 'channel', 'barcode', 'note'] },
+  { id: 'cosmetic', name: '化妆品',   icon: 'spark',  color: 'plum',
+    expLabel: '到期日期',   madeLabel: '开封日期',   madeKey: 'madeAt',
+    fields: ['madeAt', 'expAt', 'price', 'channel', 'barcode', 'note'] },
+  { id: 'food',     name: '食品',     icon: 'cup',    color: 'amber',
+    expLabel: '保质期至',   madeLabel: '生产日期',   madeKey: 'madeAt',
+    fields: ['madeAt', 'expAt', 'qty', 'price', 'channel', 'barcode', 'note'] },
+  { id: 'medicine', name: '药品',     icon: 'shield', color: 'sage',
+    expLabel: '有效期至',   madeLabel: '生产日期',   madeKey: 'madeAt',
+    fields: ['madeAt', 'expAt', 'qty', 'price', 'channel', 'barcode', 'note'] },
+  { id: 'daily',    name: '日用品',   icon: 'jar',    color: 'data',
+    expLabel: '到期日期',   madeLabel: '生产日期',   madeKey: 'madeAt',
+    fields: ['madeAt', 'expAt', 'qty', 'price', 'channel', 'barcode', 'note'] },
+  { id: 'other',    name: '其他',     icon: 'file',   color: 'data',
+    expLabel: '到期日期',   madeLabel: '购入日期',   madeKey: 'buyAt',
+    fields: ['buyAt', 'expAt', 'qty', 'price', 'channel', 'barcode', 'note'] }
+];
+/** 按 id 取分类元信息，未知分类兜底到「其他」 */
+function itemCat(id){ return ITEM_CATS.find(c => c.id === id) || ITEM_CATS[ITEM_CATS.length - 1]; }
+/** 物品状态取值 */
+const ITEM_STATES = [
+  { id: 'in',   name: '在用' },
+  { id: 'out',  name: '已用完' },
+  { id: 'gone', name: '已丢弃' }
+];
 
 /**
  * 供应商配置迁移 —— 修正历史上写错的第三方地址与已停产的模型名。
@@ -353,6 +393,31 @@ function seedDemo(){
       { id: uid(), name: '美式咖啡', v: 355, s: 0,  c: 150, k: 5,   at: demoAt(0, 3) },
       { id: uid(), name: '拿铁',     v: 355, s: 15, c: 75,  k: 190, at: demoAt(1, 3) },
       { id: uid(), name: '珍珠奶茶', v: 500, s: 35, c: 30,  k: 350, at: demoAt(2, 3) }
+    ],
+    items: [
+      // 5 条示例：覆盖 4 个分类，其中 1 条已过期、1 条 3 天后到期，
+      // 让「临期 / 过期」这两种状态首次打开就能看见（否则用户以为功能没做）
+      { id: uid(), name: '维生素 C 泡腾片', cat: 'medicine', brand: '力度伸', qty: 1, unit: '盒',
+        madeAt: dayKey(addDays(new Date(), -320)), expAt: dayKey(addDays(new Date(), 45)),
+        barcode: '6921168509256', channel: '京东健康', price: 68, note: '早晚各一片',
+        photo: '', state: 'in', src: 'manual', at: t - 20 * D },
+      { id: uid(), name: '纯牛奶 250ml', cat: 'food', brand: '伊利', qty: 6, unit: '盒',
+        madeAt: dayKey(addDays(new Date(), -20)), expAt: dayKey(addDays(new Date(), 3)),
+        barcode: '6907992500025', channel: '永辉超市', price: 32.9, note: '冰箱冷藏',
+        photo: '', state: 'in', src: 'scan', at: t - 6 * D },
+      { id: uid(), name: '保湿面霜 50g', cat: 'cosmetic', brand: '珂润', qty: 1, unit: '瓶',
+        madeAt: dayKey(addDays(new Date(), -400)), expAt: dayKey(addDays(new Date(), 120)),
+        barcode: '4901301234567', channel: '天猫国际', price: 219, note: '开封后 12 个月内用完',
+        photo: '', state: 'in', src: 'ai', at: t - 30 * D },
+      { id: uid(), name: '手机充电器 65W', cat: 'device', brand: 'Anker', qty: 1, unit: '个',
+        buyAt: dayKey(addDays(new Date(), -180)), expAt: dayKey(addDays(new Date(), 550)),
+        barcode: '', channel: '京东', price: 149, note: '保修两年，发票在邮箱',
+        photo: '', state: 'in', src: 'manual', at: t - 60 * D },
+      // 已过期示例：故意放在列表里，让「已过期」筛选/置顶立刻有内容
+      { id: uid(), name: '酸奶 200g', cat: 'food', brand: '光明', qty: 2, unit: '杯',
+        madeAt: dayKey(addDays(new Date(), -15)), expAt: dayKey(addDays(new Date(), -4)),
+        barcode: '6923644200199', channel: '盒马', price: 12.8, note: '已过期，准备扔',
+        photo: '', state: 'in', src: 'manual', at: t - 8 * D }
     ]
   };
   /** 演示时间戳：在「今天已经过去的那段时间」里均匀铺开。
@@ -495,6 +560,48 @@ const Store = {
       at: Number(x?.at) || Date.now(),
       src: arr(x?.src).filter(t => t === 'official' || t === 'ai').slice(0, 4)
     })).filter(x => x.name);
+
+    /* 物品（v1.26）：逐字段重建。
+       date 类字段统一只接受「真实存在」的 YYYY-MM-DD —— 只做正则是不够的：
+       '2026-13-45' 也符合 \d{4}-\d{2}-\d{2}，但 new Date(2026,12,45) 会被浏览器
+       静默进位成 2027-02-14，最后存进来一个用户从没填过的日期。所以必须反查一次：
+       构造出来的年月日要和原串完全一致，否则判为非法清空。
+       日期参与「临期/过期」计算，混进脏值会让排序和筛选整体错位。
+       photo 是 base64 缩略图（data URL），限制单张长度，防止一条记录把配额吃满。
+       再次提醒：normalize 是逐字段重建，新字段忘了登记 = 记录刷新就丢。 */
+    const D = v => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return '';
+      const [y, m, d] = v.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      return (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) ? v : '';
+    };
+    // 先按「原始名字」过滤，再补默认名。
+    // 反过来写（先 name: x.name || '未命名物品' 再 filter）会让空名记录变成
+    // 「未命名物品」而通过 filter，最后留下一堆无意义的空条目。
+    out.items = arr(raw.items).filter(x => String(x?.name || '').trim()).slice(0, 2000).map(x => {
+      const cat = ITEM_CATS.some(c => c.id === x?.cat) ? x.cat : 'other';
+      const st = ITEM_STATES.some(s => s.id === x?.state) ? x.state : 'in';
+      const src = ['manual', 'scan', 'ai'].includes(x?.src) ? x.src : 'manual';
+      // 注意：不能写 clamp(Number(q) ?? 1, …) —— Number(undefined) 是 NaN，
+      // 而 NaN ?? 1 仍是 NaN（?? 只兜 null/undefined），clamp 里 Math.max(a,NaN)
+      // 会把结果污染成 NaN，最后存进 localStorage 是 null。必须显式判 isFinite。
+      const q = Number(x?.qty), pr = Number(x?.price);
+      return {
+        id: String(x?.id || uid()),
+        name: String(x.name || '').trim().slice(0, 60),
+        cat, brand: String(x?.brand || '').slice(0, 40),
+        qty: isFinite(q) ? clamp(q, 0, 100000) : 1,
+        unit: String(x?.unit || '件').slice(0, 8),
+        buyAt: D(x?.buyAt), madeAt: D(x?.madeAt), expAt: D(x?.expAt),
+        barcode: String(x?.barcode || '').replace(/[^0-9A-Za-z]/g, '').slice(0, 32),
+        channel: String(x?.channel || '').slice(0, 40),
+        price: isFinite(pr) ? clamp(pr, 0, 100000000) : 0,
+        note: String(x?.note || '').slice(0, 300),
+        photo: (typeof x?.photo === 'string' && /^data:image\//.test(x.photo) && x.photo.length <= 400000)
+          ? x.photo : '',
+        state: st, src, at: Number(x?.at) || Date.now()
+      };
+    }).filter(x => x.name);
     return out;
   },
 
@@ -600,7 +707,7 @@ const Store = {
   count(){
     const d = this.db; if (!d) return 0;
     return (d.notes?.length || 0) + (d.money?.length || 0) + (d.todo?.length || 0) +
-           (d.habits?.length || 0) + (d.drinks?.length || 0);
+           (d.habits?.length || 0) + (d.drinks?.length || 0) + (d.items?.length || 0);
   },
 
   /** 检查是否该提醒备份 */

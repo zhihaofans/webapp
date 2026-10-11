@@ -410,6 +410,45 @@ const AI = {
     if (!txt) throw new Error('模型未返回内容');
     if (txt.length > 260) txt = txt.slice(0, 260).replace(/[，,。.]?$/, '') + '…';
     return { text: txt, model: r.model };
+  },
+
+  /**
+   * 带图片的多模态请求（v1.26 物品管理器用）。
+   *
+   *  按 OpenAI 兼容格式把 user content 拼成数组：[{type:'text'}, {type:'image_url'}]。
+   *  这是 OpenAI / OpenRouter / Moonshot / 多数国产兼容接口的通用写法。
+   *
+   *  注意：不是所有模型都能看图。DeepSeek 的 deepseek-chat 就不支持，会返回
+   *  400/invalid content。调用方（items.js）负责把错误翻译成人话并引导换模型；
+   *  这里只做「原样转发 + 把常见报错包装得可读一点」。
+   */
+  async vision(providerId, { sys, ask, image, maxTokens = 800, temperature = 0.2, timeout = 60000 } = {}){
+    if (!image) throw new Error('没有图片数据');
+    const m = /^data:(image\/[a-z0-9.+-]+);base64,/i.exec(String(image));
+    const mime = m ? m[1] : 'image/jpeg';
+    const b64 = String(image).replace(/^data:[^;]+;base64,/i, '');
+    if (!b64) throw new Error('图片数据为空');
+    try {
+      return await this.chat(providerId, [
+        { role: 'system', content: sys },
+        { role: 'user', content: [
+          { type: 'text', text: ask },
+          { type: 'image_url', image_url: { url: 'data:' + mime + ';base64,' + b64 } }
+        ] }
+      ], { maxTokens, temperature, timeout });
+    } catch (e){
+      // 把「模型不支持看图」这类报错翻译成人话（其余交给 friendly() 统一成可读文案）
+      const msg = String(e.message || '');
+      if (/image|vision|multimodal|content.*type|unsupported/i.test(msg) && (e.status === 400 || e.status === 422)){
+        throw new Error('当前模型不支持看图（' + msg.slice(0, 80) + '）。请到「设置 → 默认 AI」换一个支持视觉的模型，例如 OpenRouter 上的 gpt-4o-mini / gemini-flash。');
+      }
+      // HTTP 层错误（401/500/超时等）统一走 friendly()，
+      // 否则用户只会看到接口原样返回的「boom」这种没法处理的字串。
+      if (e.status || e.name === 'AbortError' || /Failed to fetch|NetworkError|load failed/i.test(msg)){
+        throw new Error(this.friendly(e));
+      }
+      throw e;
+    }
   }
 };
 
