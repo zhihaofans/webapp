@@ -766,12 +766,86 @@ async function lookupBarcode(code){
 
 /* ------------------------------ 扫码 ------------------------------ */
 
-/** 原生条码识别是否可用（Chrome/Edge on Android & 桌面支持；Safari 目前不支持） */
+/** 原生条码识别是否可用（Chrome/Edge on Android & 桌面支持；Safari 至今不支持） */
 function hasBarcodeDetector(){
   return typeof window.BarcodeDetector === 'function';
 }
 /** 想要支持的条码格式（商品条码为主，附带 code128 兼容内部码） */
 const WANT_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf', 'codabar'];
+
+/* 内置解码库（ZXing 精简版，74KB）—— 按需加载，只有真正要扫码时才拉取。
+   为什么不用 CDN：外链不可达（被墙/库下线/离线）就等于扫码功能直接废掉，
+   而且会把用户的取景画面交给第三方域。本项目一贯零外链，这里也保持一致。 */
+const ZX_PATH = 'js/vendor/zxing-1d.min.js';
+let _zxPromise = null;
+function loadZXing(){
+  if (window.__ITM_ZXING__) return Promise.resolve(window.__ITM_ZXING__);
+  if (_zxPromise) return _zxPromise;
+  _zxPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = ZX_PATH;
+    s.async = true;
+    s.onload = () => window.__ITM_ZXING__
+      ? resolve(window.__ITM_ZXING__)
+      : reject(new Error('内置扫码库加载异常'));
+    s.onerror = () => { _zxPromise = null; reject(new Error('内置扫码库加载失败，请检查网络后重试')); };
+    document.head.appendChild(s);
+  });
+  return _zxPromise;
+}
+
+/**
+ * 统一的解码引擎。
+ *   优先用浏览器原生 BarcodeDetector（零下载、最快）；
+ *   没有就加载内置 ZXing（覆盖 Safari / iOS —— 这些浏览器没有原生能力）。
+ */
+async function scanEngine(){
+  if (hasBarcodeDetector()){
+    try {
+      const formats = await window.BarcodeDetector.getSupportedFormats().catch(() => []);
+      const want = WANT_FORMATS.filter(f => !formats.length || formats.includes(f));
+      return { kind: 'native', det: new window.BarcodeDetector(want.length ? { formats: want } : undefined) };
+    } catch (e){ /* 原生不可用，落到内置库 */ }
+  }
+  return { kind: 'zxing', zx: await loadZXing() };
+}
+
+/** 把视频当前帧画进画布（可只取中间一块，速度更快） */
+function grabFrame(video, cv, cx, maxW, roi){
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return null;
+  let sx = 0, sy = 0, sw = vw, sh = vh;
+  if (roi){
+    sw = Math.round(vw * roi[0]); sh = Math.round(vh * roi[1]);
+    sx = Math.round((vw - sw) / 2); sy = Math.round((vh - sh) / 2);
+  }
+  const w = Math.min(maxW, sw);
+  const h = Math.max(1, Math.round(sh * w / sw));
+  if (cv.width !== w) cv.width = w;
+  if (cv.height !== h) cv.height = h;
+  cx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
+  return cx.getImageData(0, 0, w, h);
+}
+
+/** 图片 data URL → ImageData（用于静态图解码） */
+function dataUrlToImageData(dataUrl){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+        // 注意：getImageData 是「上下文」的方法，不是画布元素的。
+        // 写成 cv.getImageData(...) 会抛 TypeError: cv.getImageData is not a function。
+        const cx = cv.getContext('2d', { willReadFrequently: true });
+        cx.drawImage(img, 0, 0);
+        resolve(cx.getImageData(0, 0, cv.width, cv.height));
+      } catch (e){ reject(e); }
+    };
+    img.onerror = () => reject(new Error('无法读取这张图片'));
+    img.src = dataUrl;
+  });
+}
 
 /**
  * 打开扫码面板。
@@ -780,48 +854,44 @@ const WANT_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'
  */
 function openScanSheet(onDone){
   const inline = typeof onDone === 'function';
-  let stream = null, timer = null, finished = false;
+  let stream = null, timer = null, finished = false, tick = 0, engine = null;
 
   const d = drawer({
     title: '扫码录入',
-    sub: hasBarcodeDetector() ? '对准条形码，识别到会自动填入' : '此浏览器不支持实时扫码，可用拍照或手动输入',
+    sub: '对准条形码，识别到会自动填入',
     body:
-      (hasBarcodeDetector()
-        ? '<div class="itm__camwrap">' +
-            '<video id="itmCam" playsinline muted></video>' +
-            '<div class="itm__camfra"></div>' +
-            '<div class="itm__camst" id="itmCamSt">正在启动相机…</div>' +
-          '</div>'
-        : '<div class="itm__camwrap itm__camwrap--off">' + ic('scan') +
-            '<p>当前浏览器没有提供原生条码识别能力</p>' +
-            '<small>Safari（含 iOS）尚未支持。可以用下面的「拍照读码」让 AI 念出条码数字，或直接手动输入。</small>' +
-          '</div>') +
+      '<div class="itm__camwrap" id="itmCamWrap">' +
+        '<video id="itmCam" playsinline muted></video>' +
+        '<div class="itm__camfra"></div>' +
+        '<div class="itm__camst" id="itmCamSt">正在准备相机与识别引擎…</div>' +
+      '</div>' +
 
       '<div class="sect"><h4>其他方式</h4>' +
         '<div class="stack--sm">' +
-          '<button class="btn btn--block" id="itmScanPhoto">' + ic('cam') + '拍照读码（AI 认数字）</button>' +
+          '<button class="btn btn--block" id="itmScanPhoto">' + ic('cam') + '拍一张条码照片</button>' +
           '<button class="btn btn--block" id="itmScanManual">' + ic('edit') + '手动输入条码</button>' +
         '</div>' +
         '<div id="itmScanOut"></div>' +
       '</div>' +
-      '<p class="hint">条码只用来在本机查公开商品库，不会上传到任何地方（走 AI 读码时会把照片发给模型）。</p>',
+      '<p class="hint" id="itmScanHint">识别在本机完成，取景画面与照片都不会上传（除非识别不出、你手动点「让 AI 看图」）。</p>',
     foot: '<button class="btn" id="itmScanClose">关闭</button>'
   });
 
   const out = $('#itmScanOut', d.body);
   const st = $('#itmCamSt', d.body);
+  const wrap = $('#itmCamWrap', d.body);
+  const setSt = t => { if (st) st.textContent = t; };
 
   /** 拿到条码后的统一出口 */
   async function accept(code){
     if (finished) return;
     code = String(code || '').replace(/[^0-9A-Za-z]/g, '');
-    if (!code){ toast('warn', '没识别到条码', '换个角度或光线再试。'); return; }
+    if (code.length < 6){ return; }        // 明显不是商品条码，忽略
     finished = true;
     cleanup();
     try { navigator.vibrate && navigator.vibrate(30); } catch (e){}
     if (inline){ onDone(code); d.close(); toast('ok', '已填入条码 ' + code, '', 2600); return; }
 
-    // 从工具栏进来：查库 → 打开编辑器（查不到也打开，只是不带信息）
     out.innerHTML = '<div class="itm__ainote">' + ic('refresh', 'spin') +
       '<div><b>正在查商品库…</b><span>条码 ' + esc(code) + '</span></div></div>';
     let r = null;
@@ -845,75 +915,121 @@ function openScanSheet(onDone){
     const v = $('#itmCam', d.body);
     if (v) { try { v.srcObject = null; } catch (e){} }
   }
-
   d.onClose = cleanup;
   $('#itmScanClose', d.foot).onclick = () => d.close();
 
-  /* ---- 实时扫码 ---- */
-  if (hasBarcodeDetector()){
-    (async () => {
-      const video = $('#itmCam', d.body);
-      if (!video) return;
-      try {
-        const formats = await window.BarcodeDetector.getSupportedFormats().catch(() => []);
-        const want = WANT_FORMATS.filter(f => !formats.length || formats.includes(f));
-        const det = new window.BarcodeDetector(want.length ? { formats: want } : undefined);
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false
-        });
-        video.srcObject = stream;
-        await video.play();
-        if (st) st.textContent = '对准条形码，保持稳定';
-        // 每 180ms 解码一次：比 requestAnimationFrame 省电，识别速度也够用
-        timer = setInterval(async () => {
-          if (finished) return;
-          try {
-            const codes = await det.detect(video);
-            if (codes && codes.length && codes[0].rawValue) accept(codes[0].rawValue);
-          } catch (e){ /* 单帧失败忽略 */ }
-        }, 180);
-      } catch (e){
-        if (st) st.textContent = '相机打不开：' + (e && e.message ? e.message : '未知原因');
-        if (out) out.innerHTML = '<div class="itm__ainote itm__ainote--err">' + ic('warn') +
-          '<div><b>无法使用相机</b><span>' + esc(e && e.message || '') +
-          ' —— 可能是没授权、被其它应用占用，或当前不是 https。用下面的方式也能录入。</span></div></div>';
-      }
-    })();
-  }
+  /* ---------------- 启动：引擎 + 相机 ---------------- */
+  (async () => {
+    try {
+      engine = await scanEngine();
+    } catch (e){
+      setSt('识别引擎不可用');
+      out.innerHTML = '<div class="itm__ainote itm__ainote--err">' + ic('warn') +
+        '<div><b>识别库加载失败</b><span>' + esc(e.message) + '。用下面的方式也能录入。</span></div></div>';
+      return;
+    }
+    if (finished) return;
 
-  /* ---- 拍照读码：先试原生 detect(图片)，不行再让 AI 念数字 ---- */
+    const video = $('#itmCam', d.body);
+    if (!video) return;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+    } catch (e){
+      setSt('相机打不开');
+      // 用独立的类：--off 是「引擎不支持」的整块占位，这里是「相机拿不到」，
+      // 两者文案和样式都不同，混用会让人以为是不支持扫码。
+      if (wrap) wrap.classList.add('itm__camwrap--nocam');
+      out.innerHTML = '<div class="itm__ainote itm__ainote--err">' + ic('warn') +
+        '<div><b>无法使用相机</b><span>' + esc(e && e.message || '') +
+        ' —— 可能是没有授权、被其它应用占用，或当前页面不是 https。用下面的方式也能录入。</span></div></div>';
+      return;
+    }
+    if (finished) return;
+
+    const engName = engine.kind === 'native' ? '系统原生识别' : '内置识别库';
+    setSt('对准条形码 · ' + engName);
+
+    // 视频帧解码：约 200ms 一次。角度只在每第 3 帧时才做多角度重试 ——
+    // 手持取景绝大多数时候是水平的，每帧都转 3 个角度纯属浪费电。
+    const cv = document.createElement('canvas');
+    const cx = cv.getContext('2d', { willReadFrequently: true });
+
+    timer = setInterval(async () => {
+      if (finished) return;
+      tick++;
+      try {
+        if (engine.kind === 'native'){
+          const codes = await engine.det.detect(video);
+          if (codes && codes.length && codes[0].rawValue) accept(codes[0].rawValue);
+          return;
+        }
+        // 内置库：中央 92% × 66% 区域足够，且能少画很多像素
+        const id = grabFrame(video, cv, cx, 720, [0.92, 0.66]);
+        if (!id) return;
+        const angles = (tick % 3 === 0) ? [0, 14, -14] : [0];
+        const r = engine.zx.decode(id, angles);
+        if (r && r.text) accept(r.text);
+      } catch (e){ /* 单帧失败忽略 */ }
+    }, 200);
+  })();
+
+  /* ---------------- 拍一张条码照片 ---------------- */
   $('#itmScanPhoto', d.body).onclick = async () => {
     const img = await pickImage();
     if (!img) return;
-    out.innerHTML = '<div class="itm__ainote">' + ic('refresh', 'spin') + '<div><b>正在读取条码…</b><span>先本地解码，不行再交给 AI</span></div></div>';
+    out.innerHTML = '<div class="itm__ainote">' + ic('refresh', 'spin') +
+      '<div><b>正在读取条码…</b><span>本机识别，不消耗 AI 额度</span></div></div>';
+    cleanup();   // 静态识别期间先停掉取景循环，省电
 
-    // ① 本地解码（Chrome 系有 BarcodeDetector 时可用，不用消耗 API 额度）
-    if (hasBarcodeDetector()){
-      try {
-        const bmp = await createImageBitmap(await (await fetch(img.data)).blob());
-        const formats = await window.BarcodeDetector.getSupportedFormats().catch(() => []);
-        const want = WANT_FORMATS.filter(f => !formats.length || formats.includes(f));
-        const det = new window.BarcodeDetector(want.length ? { formats: want } : undefined);
-        const codes = await det.detect(bmp);
-        try { bmp.close && bmp.close(); } catch (e){}
-        if (codes && codes.length && codes[0].rawValue){ accept(codes[0].rawValue); return; }
-      } catch (e){ /* 落到 AI 分支 */ }
-    }
+    const showErr = (msg) => {
+      out.innerHTML = '<div class="itm__ainote itm__ainote--err">' + ic('warn') +
+        '<div><b>没读出条码</b><span>' + esc(msg) + '</span></div>' +
+        '<button class="btn btn--sm" id="itmScanAskAI">' + ic('spark') + '让 AI 看图</button></div>';
+      const b = $('#itmScanAskAI', out);
+      if (b) b.onclick = async () => {
+        b.disabled = true; b.innerHTML = ic('refresh', 'spin') + '识别中…';
+        try {
+          const code = await aiReadBarcode(img.data);
+          if (code){ accept(code); return; }
+          b.disabled = false; b.innerHTML = ic('spark') + '让 AI 看图';
+          toast('warn', 'AI 也没读出来', '把条码拍清楚一点再试，或手动输入。', 4500);
+        } catch (e){
+          b.disabled = false; b.innerHTML = ic('spark') + '让 AI 看图';
+          toast('warn', 'AI 读码失败', e.message || '未知错误', 5000);
+        }
+      };
+    };
 
-    // ② AI 读码
     try {
-      const code = await aiReadBarcode(img.data);
-      if (code){ accept(code); return; }
-      out.innerHTML = '<div class="itm__ainote itm__ainote--err">' + ic('warn') +
-        '<div><b>没读出条码</b><span>把条形码拍清楚一点（占画面大部分、对焦清晰、避开反光）再试，或手动输入。</span></div></div>';
+      // ① 原生引擎：直接丢给系统
+      if (hasBarcodeDetector()){
+        try {
+          const bmp = await createImageBitmap(await (await fetch(img.data)).blob());
+          const formats = await window.BarcodeDetector.getSupportedFormats().catch(() => []);
+          const want = WANT_FORMATS.filter(f => !formats.length || formats.includes(f));
+          const det = new window.BarcodeDetector(want.length ? { formats: want } : undefined);
+          const codes = await det.detect(bmp);
+          try { bmp.close && bmp.close(); } catch (e){}
+          if (codes && codes.length && codes[0].rawValue){ accept(codes[0].rawValue); return; }
+        } catch (e){ /* 落到内置库 */ }
+      }
+      // ② 内置库：多角度重试（照片里的条码很可能是斜的）
+      if (!engine || engine.kind !== 'zxing'){ engine = { kind: 'zxing', zx: await loadZXing() }; }
+      const id = await dataUrlToImageData(img.data);
+      const r = engine.zx.decode(id);
+      if (r && r.text){ accept(r.text); return; }
+      showErr('这张照片里没找到清晰的条形码。试试让条码占满画面、对焦清楚、避开反光，或者手动输入。');
     } catch (e){
-      out.innerHTML = '<div class="itm__ainote itm__ainote--err">' + ic('warn') +
-        '<div><b>读码失败</b><span>' + esc(e.message || '未知错误') + '</span></div></div>';
+      showErr((e.message || '未知错误') + '。也可以手动输入。');
     }
   };
 
-  /* ---- 手动输入 ---- */
+  /* ---------------- 手动输入 ---------------- */
   $('#itmScanManual', d.body).onclick = () => {
     out.innerHTML =
       '<div class="row row--tight" style="margin-top:10px">' +

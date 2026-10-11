@@ -1591,3 +1591,8 @@ table.tb td.num{text-align:right}
 @media (max-width: 380px){
   .itm__grid{grid-template-columns:1fr}
 }
+
+/* 相机打不开：保留取景框尺寸，居中显示原因（与「引擎不支持」的整块占位区分开） */
+.itm__camwrap--nocam video{opacity:.25}
+.itm__camwrap--nocam .itm__camfra{display:none}
+.itm__camwrap--nocam .itm__camst{background:rgba(168,69,47,.85);color:#fff}

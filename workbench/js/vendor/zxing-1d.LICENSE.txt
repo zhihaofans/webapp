@@ -1,0 +1,18 @@
+zxing-1d.min.js
+===============
+
+内置的 1D 商品条码解码器，由 ZXing 精简打包而来。
+
+来源项目：ZXing ("Zebra Crossing") —— https://github.com/zxing/zxing
+JS 移植：@zxing/library —— https://github.com/zxing-js/library
+许可证：Apache License 2.0 —— https://www.apache.org/licenses/LICENSE-2.0
+
+改动说明：
+  仅保留 EAN-13 / EAN-8 / UPC-A / UPC-E / Code128 / Code39 / ITF / Codabar
+  六类一维码解码器，移除 QR / PDF417 / DataMatrix / Aztec / MaxiCode / RSS
+  等二维与复合码相关模块，并使用 esbuild 做 ES2018 目标的最小化打包；
+  另在其上封装了多角度（0/±15/±30/90°）重试的 decode() 入口。
+
+  完整包（umd/index.min.js）约 356 KB → 本文件约 74 KB（gzip 约 18 KB）。
+
+复现方式见 README「物品管理器 · 扫码库」一节。
