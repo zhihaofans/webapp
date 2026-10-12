@@ -16,12 +16,29 @@ const LS_MAIN = 'lifehub.v1';
 const LS_BAK  = 'lifehub.v1.bak';
 const SCHEMA  = 1;
 
-/* 应用版本 —— 改代码时同步 +0.1，方便一眼看出线上跑的是哪一版。
-   APP_VER 是「发布版本」，SCHEMA 是「数据架构版本」，两者独立：
-   只改样式/文案时 APP_VER 变、SCHEMA 不变，老数据不会被误判为过期。 */
-const APP_VER    = '1.26.3';
+/* 版本信息 —— 唯一数据源是 version.json，本文件以及其它任何文件都不再写版本号。
+ *
+ * 为什么这么改：以前版本号散在四个地方靠手工同步 ——
+ *   core.js 的 APP_VER、version.json 的 ver、sw.js 的缓存名、index.html 的首页徽标；
+ * 构建日期又是另一份（core.js 的 APP_BUILD 与 version.json 的 build）。
+ * 结果从 v1.21 到 v1.26.2 连续 8 次发版都只改了 APP_VER、漏了构建日期，
+ * 界面上「构建日期」一直停在 2026-10-03，让人以为版本没更新。
+ *
+ * 现在只有 version.json 一处需要改（用 tools/bump.sh 一条命令搞定）：
+ *   loader.js 会在调用 boot() 之前把它读进下面这个对象，
+ *   而所有渲染都发生在 boot 之后，所以运行时读到的永远是真值。
+ *
+ * APP_META.ver   = 发布版本     （改功能/样式时递增）
+ * SCHEMA         = 数据架构版本 （只在 localStorage 存储结构变化时递增，两者独立：
+ *                                只改样式/文案时 ver 变、SCHEMA 不变，老数据不会被误判为过期）
+ * APP_META.build = 构建日期     （格式 YYYY-MM-DD）
+ *
+ * 初值给 '—' 而不是空串：万一 version.json 没能读到（离线首次访问），
+ * 界面上显示 '—' 比一片空白清楚。 */
+const APP_META = Object.assign({ ver: '—', build: '—', note: '', url: '' },
+                               window.__LIFEHUB_META__ || {});
+window.__LIFEHUB_META__ = APP_META;   // loader.js 拿到 version.json 后往这个对象里填
 const APP_NAME   = '日常 · 生活工作台';
-const APP_BUILD  = '2026-10-03';
 
 /** HTML 转义 —— 所有用户输入渲染前必过 */
 function esc(v){
@@ -53,6 +70,29 @@ function dayKey(d = new Date()){
 function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function fromKey(k){ const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); }
 
+/* ── 两套日期格式，各管各的，别混 ──────────────────────────────────
+ *
+ *  数据层 dayKey()  →  '2026-10-12'（ISO 风格，带连字符）
+ *      存 localStorage、比大小、喂给 <input type="date"> 都用它。
+ *      不能换成斜杠：HTML 的 date 控件只认 ISO，字符串排序也依赖它。
+ *
+ *  展示层 fmtDate() →  '2026/10/12'（斜杠，月日补零）
+ *      **凡是给人看的绝对日期，一律用它**。这是全项目的统一约定：
+ *      构建日期、创建于、物品的购买/生产/到期日、收支表、待办截止日……
+ *
+ *  另有「相对日期」不在此列，也不该被替换：今天/昨天/明天（fmtDay）、
+ *  3 分钟前（fmtAgo）—— 它们是相对描述，不是日期格式。
+ */
+function fmtDate(v){
+  if (v === null || v === undefined || v === '') return '';
+  // 字符串优先走正则：'2026-10-12' 交给 new Date() 会按 UTC 解析，东八区会差一天
+  const m = String(v).match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (m) return m[1] + '/' + pad2(m[2]) + '/' + pad2(m[3]);
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return String(v);
+  return d.getFullYear() + '/' + pad2(d.getMonth() + 1) + '/' + pad2(d.getDate());
+}
+
 const WEEK = ['周日','周一','周二','周三','周四','周五','周六'];
 function fmtDay(d){
   const t = new Date();
@@ -61,7 +101,7 @@ function fmtDay(d){
   if (diff === -1) return '昨天';
   if (diff === 1) return '明天';
   if (diff === -2) return '前天';
-  return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+  return fmtDate(d);   // 远期日期同样走统一格式，不再用「10月12日」这种第三种写法
 }
 function fmtAgo(ts){
   const s = (Date.now() - ts) / 1000;

@@ -236,7 +236,8 @@ function renderMoney(){
         '<b style="color:' + (mode === 'expense' ? 'var(--ink)' : 'var(--sage)') + '">¥' + money(sum(monthList)) + '</b>' +
         '<em>共 ' + monthList.length + ' 笔</em></div>' +
       '<div class="stat"><span>今日支出</span><b>¥' + money(sum(todayList.filter(m => m.type === 'expense').length ? todayList : exp.filter(m => m.date === today))) + '</b>' +
-        '<em>' + esc(today) + '</em></div>' +
+        // today 是数据层的 ISO 值（dayKey），展示要过 fmtDate
+        '<em>' + esc(fmtDate(today)) + '</em></div>' +
       '<div class="stat"><span>结余（全部）</span><b style="color:' + (bal >= 0 ? 'var(--sage)' : 'var(--danger)') + '">¥' + money(bal) + '</b>' +
         '<em>收入 ¥' + money(sum(inc)) + ' − 支出 ¥' + money(sum(exp)) + '</em></div>' +
       '<div class="stat"><span>累计笔数</span><b>' + ms.length + '</b><em>全部记录</em></div>' +
@@ -313,7 +314,7 @@ function renderMoney(){
     const sorted = list.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
     $('#mTb').innerHTML = sorted.map(m =>
       '<tr data-id="' + escAttr(m.id) + '">' +
-        '<td><span class="num tiny">' + esc(fmtDay(fromKey(m.date))) + '</span><br><span class="tiny muted num">' + esc(m.date.slice(5)) + '</span></td>' +
+        '<td><span class="num tiny">' + esc(fmtDay(fromKey(m.date))) + '</span><br><span class="tiny muted num">' + esc(fmtDate(m.date).slice(5)) + '</span></td>' +
         '<td><span class="tag" style="background:' + catColor(m.cat) + '1f;color:' + catColor(m.cat) + ';border-color:transparent">' + esc(m.cat) + '</span></td>' +
         '<td style="color:var(--ink-2);font-size:13px">' + esc(m.note || '—') + '</td>' +
         '<td class="num" style="text-align:right;font-weight:600;color:' + (m.type === 'expense' ? 'var(--ink)' : 'var(--sage)') + '">' +

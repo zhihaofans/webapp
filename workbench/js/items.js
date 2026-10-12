@@ -344,9 +344,10 @@ function openItemDetail(id){
   push('分类', c.name);
   push('品牌', it.brand);
   push('数量', qtyText(it));
-  rows.push([fieldLabel(c, 'buyAt'), it.buyAt || '—']);
-  if (c.madeKey === 'madeAt') push('生产日期', it.madeAt);
-  rows.push([c.expLabel, it.expAt || '—']);
+  // 展示一律走 fmtDate（2026/03/05）；it.buyAt 等字段本身存的是 ISO（2026-03-05）
+  rows.push([fieldLabel(c, 'buyAt'), it.buyAt ? fmtDate(it.buyAt) : '—']);
+  if (c.madeKey === 'madeAt') push('生产日期', it.madeAt ? fmtDate(it.madeAt) : '');
+  rows.push([c.expLabel, it.expAt ? fmtDate(it.expAt) : '—']);
   if (it.expAt) rows.push(['到期状态', e.text]);
   push('条形码', it.barcode);
   push('购买渠道', it.channel);

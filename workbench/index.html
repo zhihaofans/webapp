@@ -65,7 +65,7 @@
   <div class="mnav__hd">
     <div class="mnav__brand">
       <span class="mnav__logo">日</span>
-      <span class="mnav__name">日常 · 生活工作台<em id="mNavVer">v1.26.3</em></span>
+      <span class="mnav__name">日常 · 生活工作台<em id="mNavVer">v…</em></span>
     </div>
     <button class="mnav__x" id="mNavX" aria-label="关闭菜单">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -83,7 +83,9 @@
 <input type="file" id="fileIn" accept=".json,application/json" style="display:none">
 <div id="bootLoader" class="boot-loader">
   <div class="boot-loader__spin"></div>
-  <div class="boot-loader__t">生活工作台<em class="boot-loader__v">v1.26.3</em></div>
+  <!-- 版本号由 js/loader.js 从 version.json 读入后填入；这里的 v… 只是加载中的占位。
+       index.html 不再写死版本号，避免发版时漏改。 -->
+  <div class="boot-loader__t">生活工作台<em class="boot-loader__v">v…</em></div>
   <div class="boot-loader__p" id="bootProg">正在加载…</div>
 </div><script src="js/loader.js"></script>
 </body>

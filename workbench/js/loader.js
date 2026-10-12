@@ -1,4 +1,38 @@
 (function(){
+  /* ---------------------------------------------------------------
+     版本信息：version.json 是**唯一**数据源
+     ---------------------------------------------------------------
+     全项目只有 version.json 写着版本号和构建时间，其它文件（core.js、
+     index.html、sw.js）都不再各留一份 —— 以前四处手工同步，从 v1.21 到
+     v1.26.2 连续 8 次发版都漏改了构建日期。改版本请用 tools/bump.sh。
+
+     这里与下面的脚本加载**并行**发起，互不阻塞：
+       · 一拿到就先刷新启动页 / 菜单上的静态徽标（不必等 boot）
+       · 同时填进 window.__LIFEHUB_META__，供 core.js 的 APP_META 使用
+       · finish() 里会等它落地再调 boot()，保证运行时读到的都是真值
+     拿不到（离线首访等）就保持页面上原有的 'v…' 占位，不报错、不阻塞启动。 */
+  var metaReady = fetch('version.json', { cache: 'no-store' })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(m){
+      if (!m || !m.ver) return;
+      var box = window.__LIFEHUB_META__;
+      if (box && typeof box === 'object'){
+        for (var k in m){ if (Object.prototype.hasOwnProperty.call(m, k)) box[k] = m[k]; }
+      } else {
+        window.__LIFEHUB_META__ = m;
+      }
+      paintVer('v' + m.ver);
+    })
+    .catch(function(){ /* 拿不到就算了，界面保持占位 */ });
+
+  /** 把版本号写到两处静态徽标（首页顶栏 + 启动加载页） */
+  function paintVer(text){
+    var a = document.getElementById('mNavVer');
+    if (a) a.textContent = text;
+    var b = document.querySelector('.boot-loader__v');
+    if (b) b.textContent = text;
+  }
+
   // 多文件渐进加载：先显示「加载中」，再按顺序注入脚本，每完成一个更新进度
   var ASSETS = [
     'js/core.js', 'js/weather.js', 'js/ai_news.js',
@@ -15,16 +49,23 @@
     s.onerror = function(){ done++; setProg(); loadOne(i + 1); };
     document.head.appendChild(s);
   }
+  function bootNow(){
+    try { window.__LIFEHUB_BOOT__(); }
+    catch (e){
+      console.error('boot error', e);
+      var l = document.getElementById('bootLoader');
+      if (l){ l.style.display = 'flex'; l.classList.remove('boot-loader--hide');
+        var t = document.getElementById('bootProg'); if (t) t.textContent = '启动失败：' + (e && e.message ? e.message : e); }
+    }
+  }
   function finish(){
     var l = document.getElementById('bootLoader');
     if (l){ l.classList.add('boot-loader--hide'); setTimeout(function(){ l.style.display = 'none'; }, 400); }
     if (typeof window.__LIFEHUB_BOOT__ === 'function'){
-      try { window.__LIFEHUB_BOOT__(); }
-      catch (e){
-        console.error('boot error', e);
-        if (l){ l.style.display = 'flex'; l.classList.remove('boot-loader--hide');
-          var t = document.getElementById('bootProg'); if (t) t.textContent = '启动失败：' + (e && e.message ? e.message : e); }
-      }
+      // 等版本信息就绪再启动。它和脚本加载是并行的，正常情况下早到了，
+      // 这里几乎不花时间；但它必须早于 boot —— 因为所有界面渲染都在 boot 之后，
+      // 那时 APP_META.ver / APP_META.build 得是真值。
+      metaReady.then(bootNow, bootNow);
     } else {
       console.error('boot 未就绪：window.__LIFEHUB_BOOT__ 不存在');
     }

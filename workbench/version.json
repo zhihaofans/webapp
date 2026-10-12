@@ -1,6 +1,6 @@
 {
   "ver": "1.26.3",
-  "build": "2026-10-12",
-  "note": "首页天气卡精简：五日预报改紧凑三行、日出日落转 24 小时制、顶部换行点重排，卡片高度约降 40%；并移除与「选择位置」抽屉重复的「常看的城市」卡片",
+  "build": "2026/10/12",
+  "note": "版本号与构建日期统一到 version.json 单一数据源（新增 tools/bump.sh）：core.js / index.html / sw.js 不再各存一份，杜绝发版漏改",
   "url": "https://zhihaofans.github.io/webapp/workbench/"
 }

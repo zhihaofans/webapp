@@ -500,13 +500,13 @@ function openSettings(){
           '<div class="rail__logo" style="margin:0;width:44px;height:44px;font-size:19px;border-radius:12px">日</div>' +
           '<div><b style="font-size:14.5px">' + esc(APP_NAME) + '</b>' +
           '<div class="tiny muted">多文件模块化 · 无外部依赖 · 本地存储</div></div>' +
-          '<span class="tag tag--accent" style="margin-left:auto;flex:none">v' + esc(APP_VER) + '</span>' +
+          '<span class="tag tag--accent" style="margin-left:auto;flex:none">v' + esc(APP_META.ver) + '</span>' +
         '</div>' +
         '<div class="kv" style="margin-top:12px">' +
-          '<div><span>应用版本</span><b>v' + esc(APP_VER) + '</b></div>' +
-          '<div><span>构建日期</span><b>' + esc(APP_BUILD) + '</b></div>' +
+          '<div><span>应用版本</span><b>v' + esc(APP_META.ver) + '</b></div>' +
+          '<div><span>构建日期</span><b>' + esc(APP_META.build) + '</b></div>' +
           '<div><span>数据架构</span><b>v' + esc(SCHEMA) + '</b></div>' +
-          '<div><span>创建于</span><b>' + esc(new Date(Store.db.createdAt).toLocaleDateString('zh-CN')) + '</b></div>' +
+          '<div><span>创建于</span><b>' + esc(fmtDate(Store.db.createdAt)) + '</b></div>' +
           '<div><span>记录条数</span><b>' + Store.count() + ' 条</b></div>' +
           '<div><span>占用空间</span><b>' + Store.usage().kb.toFixed(1) + ' KB</b></div>' +
         '</div>' +
@@ -590,8 +590,8 @@ function buildNav(){
   // logo 右下角挂一个版本徽标：PC 侧边栏和手机底部栏都能看到，一眼知道跑的是哪一版
   const logo = $('#rail .rail__logo');
   if (logo){
-    logo.innerHTML = '日<span class="rail__ver">v' + APP_VER + '</span>';
-    logo.title = APP_NAME + ' · 版本 v' + APP_VER;
+    logo.innerHTML = '日<span class="rail__ver">v' + APP_META.ver + '</span>';
+    logo.title = APP_NAME + ' · 版本 v' + APP_META.ver;
   }
   $('#railNav').innerHTML = VIEWS.map(v =>
     '<button class="navbtn" data-v="' + v.id + '" title="' + esc(v.name) + '">' + ic(v.icon) + '<span>' + esc(v.name) + '</span></button>').join('');
@@ -612,7 +612,7 @@ function buildNav(){
       '<button class="mtool" data-mact="backup" title="备份与导出">' + ic('shield') + '<span>备份</span></button>' +
       '<button class="mtool" data-mact="settings" title="设置">' + ic('gear') + '<span>设置</span></button>';
   }
-  const mv = $('#mNavVer'); if (mv) mv.textContent = 'v' + APP_VER;
+  const mv = $('#mNavVer'); if (mv) mv.textContent = 'v' + APP_META.ver;
   if ($('#menuLabel')) $('#menuLabel').textContent = (VIEWS.find(v => v.id === CUR) || VIEWS[0]).name;
 
   $('#railFoot').innerHTML =
@@ -665,7 +665,7 @@ function go(id){
   $$('[data-mv]').forEach(b => b.classList.toggle('is-on', b.dataset.mv === id));
   const mlb = $('#menuLabel'); if (mlb) mlb.textContent = v.name;
   $('#ttl').innerHTML = esc(v.name) + '<em>' + esc(greeting()) + '</em>';
-  $('#sub').innerHTML = esc(v.sub) + '<span class="topbar__ver" title="' + escAttr(APP_NAME) + ' · 构建于 ' + escAttr(APP_BUILD) + '">v' + esc(APP_VER) + '</span>';
+  $('#sub').innerHTML = esc(v.sub) + '<span class="topbar__ver" title="' + escAttr(APP_NAME) + ' · 构建于 ' + escAttr(APP_META.build) + '">v' + esc(APP_META.ver) + '</span>';
   WxCanvas.stop();
   location.hash = '#/' + id;
   v.render();
@@ -793,6 +793,11 @@ function boot(){
   });
   window.addEventListener('beforeunload', () => Store.save());
 
+  // 切回前台时静默看一眼有没有新版本（替代「新 SW 接管自动刷新」那条路径）
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') watchNewVersion();
+  });
+
   // 首次进入引导
   const started = localStorage.getItem('lifehub.v1.started');
   const id = location.hash.replace('#/', '') || (localStorage.getItem('lifehub.v1.home') || 'weather');
@@ -862,6 +867,33 @@ function cmpVer(a, b){
   }
   return 0;
 }
+/**
+ * 静默检查线上有没有新版本（页面切回前台时触发）。
+ *
+ * 为什么需要它：sw.js 的缓存名从 v1.26.3 起固定为 'lifehub-shell'，不再随发版
+ * 变化 —— 于是「新 SW 接管 → 自动刷新」这条兜底路径不会再触发了。
+ * 这里直接比对 version.json：本机读到的 ver 与线上不同，就说明服务端已发布新版。
+ *
+ * 为什么不自动刷新：用户可能刚切出去接了个电话，回来直接 reload 会丢掉正在填的
+ * 内容。所以只提示 + 给一个「立即刷新」按钮，由用户决定何时刷。
+ * 用户数据都在 localStorage，刷新不会丢。
+ */
+let _seenVer = '';
+function watchNewVersion(){
+  const mine = APP_META.ver;
+  if (!mine || mine === '—') return;              // 本机版本都没读到，不比较
+  fetch('version.json', { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : null)
+    .then(m => {
+      if (!m || !m.ver || m.ver === mine) return;
+      if (_seenVer === m.ver) return;              // 同一版本只提示一次，不反复打扰
+      _seenVer = m.ver;
+      toast('ok', '发现新版本 v' + m.ver, '当前运行 v' + mine + '，刷新即可更新（数据不会丢）', 14000,
+        [{ text: '立即刷新', fn: () => location.reload() }]);
+    })
+    .catch(() => {});
+}
+
 async function checkUpdate(){
   const btn = document.getElementById('stUpdate');
   if (btn){ btn.disabled = true; btn.textContent = '检测中…'; }
@@ -870,7 +902,7 @@ async function checkUpdate(){
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const d = await res.json();
     if (!d || !d.ver) throw new Error('清单格式异常');
-    if (cmpVer(parseVer(APP_VER), parseVer(d.ver)) < 0){
+    if (cmpVer(parseVer(APP_META.ver), parseVer(d.ver)) < 0){
       const target = d.url || '';
       // 「立即更新」= 在当前站点强制拉取最新 Service Worker 并刷新。
       // 关键：用户数据都在 localStorage，刷新/清 SW 缓存都不会动它 —— 这就是「不清数据也能更新」。
@@ -885,7 +917,7 @@ async function checkUpdate(){
       toast('ok', '发现新版本 v' + d.ver, (d.note || '点「立即更新」拉取最新（数据不会丢）'), 12000, actions);
       // 不再自动跳转，避免打断用户；由用户点按钮决定。
     } else {
-      toast('ok', '已是最新版本 v' + APP_VER, '', 2600);
+      toast('ok', '已是最新版本 v' + APP_META.ver, '', 2600);
     }
   } catch (e){
     toast('warn', '无法检测更新', (e && e.message) ? e.message : '请联网后打开在线版', 3600);
