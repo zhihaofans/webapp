@@ -194,7 +194,8 @@ async function renderWeather(){
       '<p class="muted tiny" style="margin-top:18px">正在获取 ' + esc(city.name) + ' 的天气…</p>' +
     '</div></div>' +
     '<div id="holidayHost" style="margin-top:18px"></div>' +
-    '<div class="grid g-3" style="margin-top:18px" id="wxExtra"></div>';
+    // 只剩两张卡（气温走势 / 今天怎么穿），原来是 g-3
+    '<div class="grid g-2" style="margin-top:18px" id="wxExtra"></div>';
 
   // 放假倒计时卡片：不依赖天气，立即渲染（即使天气拉取失败也照常显示）
   renderHolidayCountdown();
@@ -230,6 +231,28 @@ async function renderWeather(){
   renderWeatherExtra(d);
 }
 
+/**
+ * "06:10 AM" / "2026-10-12T06:22" → "06:10"
+ *
+ * 日出日落原始值是 12 小时制（wttr.in）或 ISO（open-meteo），
+ * 「06:10 AM / 06:04 PM」在手机上单个指标格里要换行成三行，
+ * 把整块指标区从 76px 撑到 165px。转成 24 小时制后一行放得下，
+ * 也更合国内习惯。认不出的格式原样返回，不做破坏性处理。
+ */
+function hm24(s){
+  const t = String(s || '').trim();
+  if (!t) return '';
+  const iso = t.match(/T(\d{2}):(\d{2})/);            // open-meteo: 2026-10-12T06:22
+  if (iso) return iso[1] + ':' + iso[2];
+  const m = t.match(/^(\d{1,2}):(\d{2})\s*([AP]M)?$/i); // wttr.in: 06:10 AM
+  if (!m) return t;
+  let h = Number(m[1]);
+  const ap = (m[3] || '').toUpperCase();
+  if (ap === 'PM' && h < 12) h += 12;
+  if (ap === 'AM' && h === 12) h = 0;
+  return (h < 10 ? '0' + h : String(h)) + ':' + m[2];
+}
+
 function drawWeatherMain(d){
   const m = wxMeta(d.code, isDayNow(d), d.desc);
   // 统一走一层中文兜底：老缓存里可能还存着英文 desc（数据层已修，但缓存 15 分钟内不会重取）
@@ -245,22 +268,24 @@ function drawWeatherMain(d){
     '<div class="wx" style="background:linear-gradient(170deg,' + m.tone.bg + ',' + 'var(--surface)' + ' 78%)">' +
       '<canvas class="wx__canvas" id="wxCv"></canvas>' +
       '<div class="wx__inner">' +
+        // 顶部拆成三个独立 flex 项：城市 / 标签组 / 元信息行。
+        // 原来「城市行 + 元信息行」包在同一个 div 里，该 div 的宽度被较长的元信息行
+        // 撑到 ~252px，再并上右侧标签组就超出手机可用宽度 → 整块换行，顶部白占 107px。
+        // 拆开后手机上「城市 + 标签」同排、元信息行另起一行，顶部降到 ~54px。
         '<div class="wx__top">' +
-          '<div>' +
-            '<div class="wx__place">' + ic('loc') + '<span>' + esc(String(d.place || Store.db.settings.city.name).split(/\s*·\s*/)[0]) + '</span>' +
-              (dRegion ? '<span class="muted tiny" style="font-weight:400">· ' + esc(dRegion) + '</span>' : '') +
-              '<button id="wxPick" title="切换城市" aria-label="切换城市">' + ic('chev') + '</button>' +
-            '</div>' +
-            '<div class="tiny muted" style="margin-top:3px;padding-left:22px">' +
-              esc(fmtDay(new Date())) + ' ' + esc(WEEK[new Date().getDay()]) + ' · ' +
-              (stale ? '数据可能已过期' : '更新于 ' + esc(fmtTime(d.at || Date.now()))) +
-              ' · 来源 ' + esc(d.src || '') +
-            '</div>' +
+          '<div class="wx__place">' + ic('loc') + '<span>' + esc(String(d.place || Store.db.settings.city.name).split(/\s*·\s*/)[0]) + '</span>' +
+            (dRegion ? '<span class="muted tiny" style="font-weight:400">· ' + esc(dRegion) + '</span>' : '') +
+            '<button id="wxPick" title="切换城市" aria-label="切换城市">' + ic('chev') + '</button>' +
           '</div>' +
-          '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+          '<div class="wx__tags">' +
             (dDesc ? '<span class="tag' + (/雨|雪|雷/.test(dDesc) ? ' tag--sky' : /晴/.test(dDesc) ? ' tag--amber' : '') + '">' + esc(dDesc) + '</span>' : '') +
             (today.max != null ? '<span class="tag">' + esc(Math.round(today.min)) + '° ~ ' + esc(Math.round(today.max)) + '°</span>' : '') +
             '<button class="btn btn--sm btn--icon" id="wxRefresh" title="刷新天气">' + ic('refresh') + '</button>' +
+          '</div>' +
+          '<div class="wx__sub">' +
+            esc(fmtDay(new Date())) + ' ' + esc(WEEK[new Date().getDay()]) + ' · ' +
+            (stale ? '数据可能已过期' : '更新于 ' + esc(fmtTime(d.at || Date.now()))) +
+            ' · 来源 ' + esc(d.src || '') +
           '</div>' +
         '</div>' +
 
@@ -278,7 +303,9 @@ function drawWeatherMain(d){
             stat('气压', (d.pressure != null ? Math.round(d.pressure) + ' hPa' : '—')) +
             stat('能见度', (d.vis != null ? Number(d.vis).toFixed(1) + ' km' : '—')) +
             stat('紫外线', (d.uv != null ? 'UV ' + d.uv : '—')) +
-            stat('日出/日落', (d.sunrise || '—') + ' / ' + (d.sunset || '—')) +
+            // 用 "/" 直连不空格：手机 3 列布局下单格仅 ~103px，
+            // "06:10 / 18:04" 恰好越界换成两行，把整块指标区从 75px 撑到 113px。
+            stat('日出/日落', (hm24(d.sunrise) || '—') + '/' + (hm24(d.sunset) || '—')) +
           '</div>' +
         '</div>' +
 
@@ -291,21 +318,26 @@ function drawWeatherMain(d){
             wxIconSmall(hm.key) + '<b>' + esc(Math.round(h.t)) + '°</b></div>';
         }).join('') + '</div>' : '') +
 
+        // 未来几天：紧凑行（原来是 5 张卡片，手机上是 3 列 2 行、独占 255px，
+        // 是主卡里最高的一块）。改成「一行一天」，日期 / 图标 / 天气 / 温度全保留，
+        // 信息不减但高度砍掉一半以上。桌面同样受益。
         (d.days?.length > 1 ?
-        '<div class="wx__days">' + d.days.slice(0, 5).map((x, i) => {
+        '<div class="wx__days">' + d.days.slice(0, 3).map((x, i) => {
           const xDesc = wxText(x.code, x.desc);
           const dm = wxMeta(x.code, true, x.desc);
           const dt = i === 0 ? '今天' : WEEK[new Date(x.date).getDay()];
-          return '<div class="wx__day" title="' + escAttr(xDesc) + '">' +
-            '<span>' + esc(dt) + '</span>' + wxIconSmall(dm.key) +
-            '<b>' + esc(Math.round(x.max)) + '° <i style="color:var(--ink-4);font-style:normal">' + esc(Math.round(x.min)) + '°</i></b>' +
-            (xDesc ? '<i style="display:block;margin-top:2px">' + esc(xDesc.slice(0, 6)) + '</i>' : '') +
+          return '<div class="wx__drow" title="' + escAttr(dt + ' ' + (xDesc || '')) + '">' +
+            '<span class="wx__dday">' + esc(dt) + '</span>' +
+            '<span class="wx__dic">' + wxIconSmall(dm.key) + '</span>' +
+            '<span class="wx__ddesc">' + esc(xDesc || '—') + '</span>' +
+            '<b class="wx__dtemp">' + esc(Math.round(x.max)) + '°<i>' + esc(Math.round(x.min)) + '°</i></b>' +
             '</div>';
         }).join('') + '</div>' : '') +
 
+        // 注：此处原本还有一行「出行建议」（Weather.advice），但主卡下方的
+        // 「今天怎么穿」卡片展示的就是同一段文字 —— 同一句建议在一屏里出现两次，
+        // 既占高度又没信息增量，故移除。要改文案请改 wxExtra 那张卡。
         commuteBlock(d) +
-
-        '<div class="wx__advice">' + ic('spark') + ' ' + esc(Weather.advice(d)) + '</div>' +
       '</div>' +
     '</div>';
 
@@ -483,7 +515,7 @@ function isDayNow(d){
   return n >= hm(d.sunrise) && n <= hm(d.sunset);
 }
 
-/** 天气页的附加卡片：三日趋势 + 出行建议 + 城市 */
+/** 天气页的附加卡片：气温走势 + 今天怎么穿 */
 function renderWeatherExtra(d){
   const box = $('#wxExtra');
   if (!box) return;
@@ -496,8 +528,6 @@ function renderWeatherExtra(d){
     const dm = wxMeta(x.code, true, x.desc);
     return { i, x, h, bh, dm };
   });
-  const st = Store.db.settings;
-  const hist = (st.cityHistory || []).filter(c => c.name !== st.city.name).slice(0, 6);
 
   box.innerHTML =
     '<div class="card"><div class="card__hd"><h3>' + ic('barchart') + '气温走势</h3></div>' +
@@ -521,31 +551,12 @@ function renderWeatherExtra(d){
       '<div id="wxDressAiOut"></div>' +
       (d.hours?.length ? '<div class="hr"></div><div class="tiny muted">未来几小时：' +
         d.hours.slice(0, 5).map(h => pad2(h.h) + ':00 ' + Math.round(h.t) + '°').join(' · ') + '</div>' : '') +
-      '</div></div>' +
-
-    '<div class="card"><div class="card__hd"><h3>' + ic('loc') + '常看的城市</h3>' +
-      '<button class="btn btn--sm btn--ghost" id="wxAddCity">' + ic('plus') + '添加</button></div>' +
-      '<div class="card__bd">' +
-      '<div class="quickcities">' +
-        '<button data-c="' + escAttr(JSON.stringify(st.city)) + '" style="background:var(--accent);border-color:var(--accent);color:#fff">' + esc(st.city.name) + '（当前）</button>' +
-        hist.map(c => '<button data-c="' + escAttr(JSON.stringify(c)) + '">' + esc(c.name) + (c.region ? '<span style="opacity:.6"> · ' + esc(String(c.region).split(' · ')[0]) + '</span>' : '') + '</button>').join('') +
-      '</div>' +
-      '<p class="hint">点一下即可切换。数据来源 wttr.in / open-meteo，均为免费公开接口，无需登录。</p>' +
       '</div></div>';
 
-  $$('.quickcities button[data-c]', box).forEach(b => {
-    b.onclick = () => {
-      try {
-        const c = JSON.parse(b.dataset.c);
-        st.city = { ...c, manual: true, source: 'history' };
-        Store.save();
-        toast('ok', '已切换到 ' + c.name);
-        location.hash = '#/weather';
-        renderWeather();
-      } catch (e){}
-    };
-  });
-  $('#wxAddCity').onclick = () => openCityPicker();
+  // 注：这里原来还有一张「常看的城市」卡片（最近用过的城市快捷切换）。
+  // 它和主卡城市名旁边箭头打开的「选择位置」抽屉里的「常用城市」是**同一份
+  // cityHistory 数据**、同样的切换行为，属于重复入口，v1.26.3 移除。
+  // 要切换城市：点主卡城市名右侧的箭头即可。
   const dressAi = $('#wxDressAi');
   if (dressAi) dressAi.onclick = () => runDressAI(d);
 }
