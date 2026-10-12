@@ -753,14 +753,29 @@ Bal.render = () => renderBalance();
 /** 币种符号（目前只区分 USD / 人民币，其余按人民币展示并附代码） */
 function currSym(cur){ return cur === 'USD' ? '$' : '¥'; }
 
+/**
+ * 供应商余额的币种。取值优先级：
+ *   ① 最近一次查询返回的 currency（最准）
+ *   ② 档案里存的默认值 cur（migrateProviders 按 kind 补的，OpenRouter = USD）
+ *   ③ 兜底 CNY
+ *
+ * 为什么不能只看 ①：余额数字 bal 是持久化的，而 ① 以前只在内存里（查询完才有）。
+ * 刷新页面后 bal 还在、币种没了 → 美元余额被画成 ¥，得再查一次才对 —— 就是这个 bug。
+ * v1.26.3 起 ② 也持久化了，刷新后也能正确显示。
+ */
+function currOf(p){
+  if (!p) return 'CNY';
+  return (p.balMeta && p.balMeta.currency) || p.cur || 'CNY';
+}
+
 function renderBalance(){
   const box = $('#view');
   const ps = AI.all;
   const withKey = ps.filter(p => p.key);
   // 余额合计：按币种分别累计（不同币种不能直接相加）
   const okList = withKey.filter(p => p.bal !== null && p.balErr === '');
-  const sumCny = okList.filter(p => (p.balMeta?.currency || 'CNY') !== 'USD').reduce((s, p) => s + (p.bal || 0), 0);
-  const sumUsd = okList.filter(p => (p.balMeta?.currency || 'CNY') === 'USD').reduce((s, p) => s + (p.bal || 0), 0);
+  const sumCny = okList.filter(p => currOf(p) !== 'USD').reduce((s, p) => s + (p.bal || 0), 0);
+  const sumUsd = okList.filter(p => currOf(p) === 'USD').reduce((s, p) => s + (p.bal || 0), 0);
   const totalText = (sumCny || sumUsd)
     ? (sumCny ? '¥' + money(sumCny) : '') + (sumCny && sumUsd ? ' + ' : '') + (sumUsd ? '$' + money(sumUsd) : '')
     : '¥0.00';
@@ -850,12 +865,12 @@ function drawBalGrid(){
                         '" target="_blank" rel="noopener">' + ic('wallet') + '去官方控制台查看</a>'
                     : '')
                 : '<div class="bal__amt is-err">' + esc(p.balErr) + '</div>')
-            : '<div class="bal__amt">' + currSym(p.balMeta?.currency) + esc(money(bal)) + ' <i>' + esc(p.balMeta?.currency || 'CNY') + '</i></div>') +
+            : '<div class="bal__amt">' + currSym(currOf(p)) + esc(money(bal)) + ' <i>' + esc(currOf(p)) + '</i></div>') +
       (has && bal !== null ?
         '<div class="bal__bar"><i style="width:' + pct + '%"></i></div>' +
         (p.balMeta?.granted || p.balMeta?.topped ?
-          '<div class="bal__row"><span>' + (p.balMeta?.currency === 'USD' ? '总额 / 已用' : '赠送') + '</span><b>' + currSym(p.balMeta?.currency) + esc(money(p.balMeta.granted || 0)) + '</b></div>' +
-          '<div class="bal__row"><span>' + (p.balMeta?.currency === 'USD' ? '已用' : '充值') + '</span><b>' + currSym(p.balMeta?.currency) + esc(money(p.balMeta.topped || 0)) + '</b></div>'
+          '<div class="bal__row"><span>' + (currOf(p) === 'USD' ? '总额 / 已用' : '赠送') + '</span><b>' + currSym(currOf(p)) + esc(money(p.balMeta.granted || 0)) + '</b></div>' +
+          '<div class="bal__row"><span>' + (currOf(p) === 'USD' ? '已用' : '充值') + '</span><b>' + currSym(currOf(p)) + esc(money(p.balMeta.topped || 0)) + '</b></div>'
           : '')
         : '') +
       '<div class="bal__ft">' +
@@ -877,7 +892,8 @@ function drawBalGrid(){
     finally { Bal.working = []; }
     if (!r){ drawBalGrid(); toast('err', p.name + ' 查询异常', '请求意外中断，请重试。', 5000); return; }
     Store.db.providers = Store.db.providers.map(x => x.id === p.id
-      ? { ...x, bal: r.ok ? r.amount : null, balAt: r.ok ? Date.now() : x.balAt, balErr: r.ok ? '' : r.err, balMeta: r.ok ? r : null } : x);
+      ? { ...x, bal: r.ok ? r.amount : null, balAt: r.ok ? Date.now() : x.balAt, balErr: r.ok ? '' : r.err,
+          balMeta: r.ok ? r : null, cur: (r.ok && r.currency) ? r.currency : x.cur } : x);
     Store.save(); drawBalGrid();
     if (r.ok) toast('ok', p.name + ' 余额 ¥' + money(r.amount));
     else toast('err', p.name + ' 查询失败', r.err, 6500);

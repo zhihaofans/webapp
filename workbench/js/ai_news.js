@@ -226,6 +226,8 @@ const AI = {
         Store.db.providers = Store.db.providers.map(x => x.id === p.id
           ? { ...x, bal: r.ok ? r.amount : null, balAt: r.ok ? Date.now() : x.balAt,
               balErr: r.ok ? '' : r.err, balMeta: r.ok ? r : null,
+              // 顺手把币种也写进档案：它要持久化，刷新页面后才能显示对（OpenRouter 是 USD）
+              cur: (r.ok && r.currency) ? r.currency : x.cur,
               consoleUrl: r.ok ? '' : (r.consoleUrl || '') }
           : x);
       }));

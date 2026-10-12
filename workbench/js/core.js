@@ -372,10 +372,19 @@ function migrateProviders(list){
   if (!hasOpenRouter){
     list = list.concat([{
       id: uid(), name: 'OpenRouter', kind: 'openrouter', key: '', base: 'https://openrouter.ai/api/v1',
-      color: '#6a4fd8', letter: 'O', bal: null, balAt: 0, balErr: '',
+      color: '#6a4fd8', letter: 'O', bal: null, balAt: 0, balErr: '', cur: 'USD',
       consoleUrl: '', models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'google/gemini-flash-1.5', 'deepseek/deepseek-chat']
     }]);
   }
+
+  // 余额币种：预置供应商的计价币种是固定的已知事实，存进档案作为默认值。
+  //
+  // 为什么必须存：余额**数字**（bal）会被持久化，但币种以前只活在「最近一次查询结果」
+  // （balMeta）里，而 balMeta 没进 normalize —— 刷新页面就丢。
+  // 结果就是「有金额、没币种」，渲染回落成默认 CNY，OpenRouter 的美元余额被显示成 ¥，
+  // 得再查一次才恢复正常。老用户档案里没有 cur，这里按 kind 补上。
+  const CUR_BY_KIND = { openrouter: 'USD' };
+  list = list.map(p => ({ ...p, cur: p.cur || CUR_BY_KIND[p.kind] || 'CNY' }));
 
   return list;
 }
@@ -384,14 +393,14 @@ function migrateProviders(list){
 function seedProviders(){
   return [
     { id: uid(), name: 'DeepSeek', kind: 'deepseek', key: '', base: 'https://api.deepseek.com',
-      color: '#4d6bfe', letter: 'D', bal: null, balAt: 0, balErr: '', models: ['deepseek-chat', 'deepseek-reasoner'] },
+      color: '#4d6bfe', letter: 'D', bal: null, balAt: 0, balErr: '', cur: 'CNY', models: ['deepseek-chat', 'deepseek-reasoner'] },
     { id: uid(), name: 'Xiaomi MiMo', kind: 'mimo', key: '', base: 'https://api.xiaomimimo.com/v1',
-      color: '#ff6900', letter: 'M', bal: null, balAt: 0, balErr: '',
+      color: '#ff6900', letter: 'M', bal: null, balAt: 0, balErr: '', cur: 'CNY',
       models: ['mimo-v2.6-pro', 'mimo-v2.6-flash', 'mimo-v2.6-pro-ultraspeed'] },
     { id: uid(), name: 'Moonshot', kind: 'moonshot', key: '', base: 'https://api.moonshot.cn/v1',
-      color: '#12b7a8', letter: 'K', bal: null, balAt: 0, balErr: '', models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.5'] },
+      color: '#12b7a8', letter: 'K', bal: null, balAt: 0, balErr: '', cur: 'CNY', models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.5'] },
     { id: uid(), name: 'OpenRouter', kind: 'openrouter', key: '', base: 'https://openrouter.ai/api/v1',
-      color: '#6a4fd8', letter: 'O', bal: null, balAt: 0, balErr: '',
+      color: '#6a4fd8', letter: 'O', bal: null, balAt: 0, balErr: '', cur: 'USD',
       models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'google/gemini-flash-1.5', 'deepseek/deepseek-chat'] }
   ];
 }
@@ -554,6 +563,17 @@ const Store = {
         bal: p?.bal === null || p?.bal === undefined ? null : Number(p.bal),
         balAt: Number(p?.balAt) || 0,
         balErr: String(p?.balErr || ''),
+        // 计价币种（档案里的默认值，migrateProviders 保证有）
+        cur: String(p?.cur || '').slice(0, 8),
+        // 最近一次查询返回的元信息。
+        // 以前漏登记了 → 刷新页面即丢，币种跟着回落成默认 CNY（OpenRouter 显示成 ¥ 的根因）。
+        // 只留渲染真正用到的字段，不把整个响应对象塞进 localStorage。
+        balMeta: (p?.balMeta && typeof p.balMeta === 'object') ? {
+          currency: String(p.balMeta.currency || '').slice(0, 8),
+          granted: Number(p.balMeta.granted) || 0,
+          topped: Number(p.balMeta.topped) || 0,
+          ep: String(p.balMeta.ep || '').slice(0, 80)
+        } : null,
         consoleUrl: safeUrl(p?.consoleUrl) || '',
         models: Array.isArray(p?.models) ? p.models.filter(m => typeof m === 'string').slice(0, 20) : []
       }));

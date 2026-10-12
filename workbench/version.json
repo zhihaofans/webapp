@@ -1,6 +1,6 @@
 {
-  "ver": "1.26.3",
+  "ver": "1.26.4",
   "build": "2026/10/12",
-  "note": "版本号与构建日期统一到 version.json 单一数据源（新增 tools/bump.sh）：core.js / index.html / sw.js 不再各存一份，杜绝发版漏改",
+  "note": "修 AI 余额币种 bug：外币供应商（如 OpenRouter）刷新页面后余额被误显示为 ¥ —— 余额币种持久化到档案，取值改为「查询结果 → 档案默认 → CNY」",
   "url": "https://zhihaofans.github.io/webapp/workbench/"
 }
