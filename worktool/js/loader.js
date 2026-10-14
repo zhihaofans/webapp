@@ -1,10 +1,14 @@
 /* ============================================================
-   loader.js — 渐进加载
-   按固定顺序逐个注入 JS 模块并更新进度，全部就绪后调用启动函数、
-   淡出遮罩。比「等所有脚本下载完再白屏跳变」体验更顺。
+   loader.js — 并行加载
+   一次性把所有模块插进文档，浏览器并行下载、按插入顺序执行。
 
-   加载顺序 = 依赖顺序，不可随意调换：
-     core → registry → shell → router → settings → tools/* → app
+   为什么不是「一个 onload 才插下一个」：
+   那种写法把加载过程人为串行化了 —— 15 个文件就是 15 个来回，
+   弱网下每个来回 200~300ms，加起来正好是「几秒白屏」。
+   动态脚本设 async=false 后浏览器会把它放进「按序执行」队列：
+   下载是并行的，执行仍然严格按 core → registry → … → app 的顺序，
+   依赖关系一点没变，等待时间却从「15 个 RTT 之和」变成「1 个 RTT」。
+
    （各模块都是独立经典脚本，共享全局 Toolbox 命名空间）
    ============================================================ */
 (function () {
@@ -35,7 +39,7 @@
   var verEl = document.getElementById('bootVer');
   var verShown = false;
 
-  /* 版本号只在 core.js 里有一份。core.js 是第 1 个被注入的脚本，
+  /* 版本号只在 core.js 里有一份。core.js 是第 1 个被执行的脚本，
      它一到位就把它填进启动页 —— 不额外发请求，也不会出现两处版本号对不上。 */
   function syncVersion() {
     if (verShown || !verEl) return;
@@ -51,19 +55,27 @@
     syncVersion();
   }
 
-  function loadOne(i) {
-    if (i >= ASSETS.length) { finish(); return; }
-    var s = document.createElement('script');
-    s.src = ASSETS[i];
-    s.async = false;
-    s.onload = function () { done += 1; paint(); loadOne(i + 1); };
-    s.onerror = function () {
-      failed.push(ASSETS[i]);
-      done += 1; paint();
-      console.error('[加载失败] ' + ASSETS[i]);
-      loadOne(i + 1);
-    };
-    document.head.appendChild(s);
+  /* 全部插进去。async=false 保证「并行下载、按序执行」，
+     所以这里不需要任何链式等待 —— 也就不存在被串行化的问题。 */
+  function loadAll() {
+    ASSETS.forEach(function (src) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.async = false;
+      s.onload = function () {
+        done += 1;
+        paint();
+        if (done === total) finish();
+      };
+      s.onerror = function () {
+        failed.push(src);
+        done += 1;
+        paint();
+        console.error('[加载失败] ' + src);
+        if (done === total) finish();
+      };
+      document.head.appendChild(s);
+    });
   }
 
   function finish() {
@@ -100,12 +112,11 @@
 
   paint();
   syncVersion();
-  loadOne(0);
+  loadAll();
 
   /* ------------------------------------------------------------
      Service Worker：PWA 离线可用 + 换版即拿最新
-     要点（踩过的坑）：静态资源一律「网络优先」，不能用 cache-first ——
-     否则新 HTML 会配上旧 JS，表现为「打开还是旧版」。
+     缓存策略见 sw.js（网络优先 + 超时兜底）。
      用户数据都在 localStorage，刷新 / 换 SW / 清缓存都不会丢。
      ------------------------------------------------------------ */
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {

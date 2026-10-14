@@ -3,9 +3,82 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="description" content="泛生活人群的多功能在线工具箱：图片格式转换、GitHub 链接转换、日期天数计算。纯本地处理，数据存在你自己的浏览器里。">
+<meta name="description" content="泛生活人群的多功能在线工具箱：图片格式转换、GitHub 链接转换、日期天数计算、单位换算。纯本地处理，数据存在你自己的浏览器里。">
 <meta name="theme-color" content="#f4f1ea">
 <title>生活工具箱</title>
+
+<!-- ============================================================
+     首屏底色 + 启动遮罩：全部内联在 <head> 最前面，且必须在任何
+     <link rel=stylesheet> 之前。
+     原因：外链样式表会阻塞渲染，10 个 CSS 全部到达之前浏览器不画第一帧。
+     遮罩样式要是也跟着排在那 10 个后面，弱网下第一帧就是白屏 —— 而
+     白屏没有任何信息量，用户只能怀疑是不是打不开。
+     内联之后，网络再差，第一帧也是「米白底 + 具 + 进度条」。
+     （原来是独立文件 assets/css/boot.css，v1.12 起并入此处，
+       换来的是「首帧不依赖任何外部资源」。）
+     ============================================================ -->
+<style>
+  /* 底色先垫上：外链 base.css 到达前，html 也不会是刺眼的白 */
+  html{background:#f4f1ea}
+  html[data-theme="dark"]{background:#1a1917}
+
+  .boot{
+    position:fixed;inset:0;z-index:9999;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:#f4f1ea;color:#756f65;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",system-ui,sans-serif;
+    transition:opacity .34s cubic-bezier(.22,.61,.36,1);
+  }
+  html[data-theme="dark"] .boot{background:#1a1917;color:#948c7f}
+  .boot__mark{
+    width:46px;height:46px;border-radius:14px;
+    background:linear-gradient(150deg,#bb5f3d,#9d4a2d);
+    color:#fffdf8;display:grid;place-items:center;
+    font-family:"Songti SC","Noto Serif SC",Georgia,serif;
+    font-size:22px;font-weight:700;
+    box-shadow:0 1px 2px rgba(42,33,22,.05), 0 14px 30px -18px rgba(42,33,22,.4);
+  }
+  .boot__name{font-size:14.5px;font-weight:600;letter-spacing:.02em}
+  .boot__ver{
+    display:inline-block;margin-left:7px;padding:1px 6px;border-radius:6px;
+    background:rgba(120,110,95,.14);color:inherit;
+    font-size:10.5px;font-weight:600;letter-spacing:.02em;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    vertical-align:1px;
+    opacity:.85;
+  }
+  .boot__ver:empty{display:none}
+  html[data-theme="dark"] .boot__ver{background:rgba(255,255,255,.09)}
+  .boot__bar{
+    width:150px;height:3px;border-radius:99px;overflow:hidden;
+    background:rgba(120,110,95,.18);
+  }
+  .boot__bar i{
+    display:block;height:100%;width:0;border-radius:99px;
+    background:#bb5f3d;transition:width .24s cubic-bezier(.22,.61,.36,1);
+  }
+  .boot__note{font-size:11.5px;letter-spacing:.02em;opacity:.72}
+  .boot--hide{opacity:0;pointer-events:none}
+  .boot--err{background:#f4f1ea}
+  .boot--err .boot__note{color:#a8452f;max-width:30ch;text-align:center;line-height:1.7}
+</style>
+
+<!-- 防闪主题：必须在第一帧之前定好 data-theme，
+     否则深色模式用户会先看到一帧浅色遮罩再跳成深色。
+     只读 localStorage 里那一个字段，失败就按浅色走，绝不能抛错挡住解析。 -->
+<script>
+(function () {
+  try {
+    var raw = localStorage.getItem('lifetoolbox.v1');
+    var th = raw ? ((JSON.parse(raw) || {}).settings || {}).theme : 'auto';
+    var dark = th === 'dark' || (th === 'auto' &&
+      window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+})();
+</script>
 
 <!-- favicon 用内联 data URI：同样是矢量、同样零请求，
      但不再需要一个独立的 .svg 文件（全站因此做到零 SVG 文件） -->
@@ -17,6 +90,49 @@
 <meta name="apple-mobile-web-app-title" content="生活工具箱">
 <link rel="apple-touch-icon" href="icon-192.png">
 
+<!-- ============================================================
+     iOS 启动图（apple-touch-startup-image）
+     这是「三段白屏」里唯一由系统绘制、网页管不到的那一段：
+     iOS 不会拿 manifest 的 background_color 去生成启动图，
+     必须为每个设备尺寸显式给一张 PNG，而且 media 要同时匹配
+     「设计尺寸 + 倍率 + 竖屏」，缺一个条件 Safari 就当作不匹配，
+     结果退回默认白屏。
+
+     深色那套排在前面：Safari 取「第一个匹配」的链接，
+     深色查询不被识别时自然落到后面的浅色套，两套并存是安全的。
+     图片由 tools/make-splash.py 生成，改动尺寸请两处同步。
+     ============================================================ -->
+<link rel="apple-touch-startup-image" href="splash/splash-dark-750x1334.png" media="(prefers-color-scheme:dark) and (device-width:375px) and (device-height:667px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1125x2436.png" media="(prefers-color-scheme:dark) and (device-width:375px) and (device-height:812px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-828x1792.png" media="(prefers-color-scheme:dark) and (device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1242x2688.png" media="(prefers-color-scheme:dark) and (device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1080x2340.png" media="(prefers-color-scheme:dark) and (device-width:360px) and (device-height:780px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1170x2532.png" media="(prefers-color-scheme:dark) and (device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1179x2556.png" media="(prefers-color-scheme:dark) and (device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1284x2778.png" media="(prefers-color-scheme:dark) and (device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1206x2622.png" media="(prefers-color-scheme:dark) and (device-width:402px) and (device-height:874px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1290x2796.png" media="(prefers-color-scheme:dark) and (device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1320x2868.png" media="(prefers-color-scheme:dark) and (device-width:440px) and (device-height:956px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1536x2048.png" media="(prefers-color-scheme:dark) and (device-width:768px) and (device-height:1024px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1620x2160.png" media="(prefers-color-scheme:dark) and (device-width:810px) and (device-height:1080px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-1668x2388.png" media="(prefers-color-scheme:dark) and (device-width:834px) and (device-height:1194px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-dark-2048x2732.png" media="(prefers-color-scheme:dark) and (device-width:1024px) and (device-height:1366px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-750x1334.png" media="(device-width:375px) and (device-height:667px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1125x2436.png" media="(device-width:375px) and (device-height:812px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-828x1792.png" media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1242x2688.png" media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1080x2340.png" media="(device-width:360px) and (device-height:780px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1170x2532.png" media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1179x2556.png" media="(device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1284x2778.png" media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1206x2622.png" media="(device-width:402px) and (device-height:874px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1290x2796.png" media="(device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1320x2868.png" media="(device-width:440px) and (device-height:956px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1536x2048.png" media="(device-width:768px) and (device-height:1024px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1620x2160.png" media="(device-width:810px) and (device-height:1080px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-1668x2388.png" media="(device-width:834px) and (device-height:1194px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/splash-light-2048x2732.png" media="(device-width:1024px) and (device-height:1366px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+
 <!-- 样式：按「令牌 → 基础 → 布局 → 组件 → 各功能」分层，拆成独立文件按序加载 -->
 <link rel="stylesheet" href="assets/css/tokens.css">
 <link rel="stylesheet" href="assets/css/base.css">
@@ -27,9 +143,18 @@
 <link rel="stylesheet" href="assets/css/features/github2jsdelivr.css">
 <link rel="stylesheet" href="assets/css/features/datecalc.css">
 <link rel="stylesheet" href="assets/css/features/unitconvert.css">
-<link rel="stylesheet" href="assets/css/boot.css">
 </head>
 <body>
+
+<!-- 启动遮罩：放在 body 第一行 —— DOM 一解析到这里节点就存在，
+     配上 <head> 里的内联样式，第一帧就能画出来，不必等外链 CSS。
+     脚本并行加载期间显示进度，全部就绪后淡出。 -->
+<div class="boot" id="bootLoader" role="status" aria-live="polite" aria-label="正在加载">
+  <div class="boot__mark">具</div>
+  <div class="boot__name">生活工具箱<span class="boot__ver" id="bootVer"></span></div>
+  <div class="boot__bar"><i id="bootBar"></i></div>
+  <div class="boot__note" id="bootProg">正在加载…</div>
+</div>
 
 <!-- ============================================================
      图标池（SVG sprite）
@@ -150,14 +275,6 @@
 <div id="layer"></div>
 <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
 <input type="file" id="fileIn" accept=".json,application/json" style="display:none" aria-hidden="true">
-
-<!-- 启动遮罩：脚本逐个注入期间显示进度，全部就绪后淡出 -->
-<div class="boot" id="bootLoader" role="status" aria-live="polite" aria-label="正在加载">
-  <div class="boot__mark">具</div>
-  <div class="boot__name">生活工具箱<span class="boot__ver" id="bootVer"></span></div>
-  <div class="boot__bar"><i id="bootBar"></i></div>
-  <div class="boot__note" id="bootProg">正在加载…</div>
-</div>
 
 <script src="js/loader.js"></script>
 </body>

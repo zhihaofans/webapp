@@ -9,7 +9,7 @@ window.Toolbox = window.Toolbox || {};
   'use strict';
 
   var APP_NAME = '生活工具箱';
-  var APP_VER = '1.11.0';
+  var APP_VER = '1.12.0';
   var APP_BUILD = '2026-10-03';
   var SCHEMA = 1;
 

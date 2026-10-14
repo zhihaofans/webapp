@@ -44,8 +44,8 @@
       id: 'github2jsdelivr', group: 'dev', name: 'GITHUB链接转换', icon: 'link',
       status: 'ready',
       sub: 'jsDelivr CDN 与多镜像加速',
-      desc: '两个模式：转成 jsDelivr CDN 地址（可校验版本、补全短 hash），或一次生成一整套加速镜像地址（含 Release 附件与源码包），批量转换、一键复制。',
-      tags: ['双模式', '多镜像', '一键复制']
+      desc: '粘一条 GitHub 链接，一次给出两组地址：加速代理（前缀型镜像站）与 CDN 重写（jsDelivr / GitHack / Statically）。可校验版本、补全短 hash，批量转换、一键复制。',
+      tags: ['两类镜像', '批量', '一键复制']
     },
 
     'text-count': {
