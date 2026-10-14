@@ -41,11 +41,11 @@
     },
 
     'github2jsdelivr': {
-      id: 'github2jsdelivr', group: 'dev', name: 'GitHub 转 jsDelivr', icon: 'link',
+      id: 'github2jsdelivr', group: 'dev', name: 'GITHUB链接转换', icon: 'link',
       status: 'ready',
-      sub: '批量生成 CDN 镜像链接',
-      desc: '把 GitHub 的 blob / raw / tree 链接批量转成 jsDelivr CDN 地址，可校验版本、补全短 hash，一键复制。',
-      tags: ['批量', '支持校验版本', '一键复制']
+      sub: 'jsDelivr CDN 与多镜像加速',
+      desc: '两个模式：转成 jsDelivr CDN 地址（可校验版本、补全短 hash），或一次生成一整套加速镜像地址（含 Release 附件与源码包），批量转换、一键复制。',
+      tags: ['双模式', '多镜像', '一键复制']
     },
 
     'text-count': {

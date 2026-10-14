@@ -1,8 +1,8 @@
-# 生活工具箱 · v1.7.0
+# 生活工具箱 · v1.8.0
 
-泛生活人群的多功能在线工具箱工作台。**多文件交付、零外部依赖**：样式与脚本都是本目录下的独立文件（CSS 8 个、JS 11 个，按层拆分），44 个界面图标为内联 SVG sprite（见「图标系统」一节），不引用任何 CDN、字体服务或组件库。
+泛生活人群的多功能在线工具箱工作台。**多文件交付、零外部依赖**：样式与脚本都是本目录下的独立文件（CSS 8 个、JS 12 个，按层拆分），44 个界面图标为内联 SVG sprite（见「图标系统」一节），不引用任何 CDN、字体服务或组件库。
 
-当前状态：**两个可用的工具** —— 图片格式转换、GitHub 转 jsDelivr。侧拉栏分 4 组共 10 项（其中 8 项为已排期的占位）；**首页只列已上线的工具**。
+当前状态：**两个可用的工具** —— 图片格式转换、GITHUB 链接转换。侧拉栏分 4 组共 10 项（其中 8 项为已排期的占位）；**首页只列已上线的工具**。
 
 ---
 
@@ -13,7 +13,7 @@
 多文件项目应当通过 HTTP 访问，这也是手机端唯一可行的方式。任选一条：
 
 ```bash
-cd 生活工具箱-v1.7
+cd 生活工具箱-v1.8
 python3 -m http.server 8787        # 然后浏览器打开 http://localhost:8787
 ```
 
@@ -29,8 +29,8 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 
 **可以，且不需要改一行代码** —— 已按「项目站」（`https://<用户名>.github.io/<仓库名>/` 这种子路径形式）实测通过。下面三条照做就行：
 
-1. **把本目录的内容放到仓库根目录**，不要连 `生活工具箱-v1.7/` 这层文件夹一起提交。
-   否则访问地址会变成 `…github.io/<仓库名>/生活工具箱-v1.7/` —— 能用，但中文路径会被百分号编码成一长串。
+1. **把本目录的内容放到仓库根目录**，不要连 `生活工具箱-v1.8/` 这层文件夹一起提交。
+   否则访问地址会变成 `…github.io/<仓库名>/生活工具箱-v1.8/` —— 能用，但中文路径会被百分号编码成一长串。
 2. **保留根目录的 `.nojekyll`**（本包已带一个空文件）。
    GitHub Pages 默认会跑一遍 Jekyll 构建，`.nojekyll` 用来关掉它，避免构建环节引入意外。
 3. **仓库 Settings → Pages → Source 选 `Deploy from a branch`，分支 `main`、目录 `/ (root)`**，保存后等一两分钟。
@@ -54,7 +54,7 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 ## 二、目录结构
 
 ```
-生活工具箱-v1.7/
+生活工具箱-v1.8/
 ├── index.html                     入口：图标池（44 个 <symbol>）+ 骨架 + 挂载点 + 加载器
 ├── manifest.webmanifest           PWA 清单（可安装到主屏、standalone）
 ├── sw.js                          Service Worker：同源资源「网络优先 + 离线回退」
@@ -84,22 +84,24 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
     ├── router.js                  基于 hash 的路由 + 占位页 + 兜底页
     ├── settings.js                数据与设置抽屉（外观 / 备份 / 恢复 / 清空 / 检查更新）
     ├── lib/
-    │   └── github2jsdelivr.js     GitHub→jsDelivr 纯转换逻辑（无 DOM，可被 node 直接跑）
+    │   ├── github2jsdelivr.js     GitHub→jsDelivr 纯转换逻辑（无 DOM，可被 node 直接跑）
+    │   └── ghmirror.js            GitHub→多镜像地址 纯转换逻辑（无 DOM，可被 node 直接跑）
     ├── tools/
     │   ├── overview.js            概览页（编辑部式分组清单）
     │   ├── imageconvert.js         图片格式转换
-    │   └── github2jsdelivr.js     GitHub 转 jsDelivr 界面
+    │   └── github2jsdelivr.js     GITHUB 链接转换界面（jsDelivr / 多镜像 双模式）
     └── app.js                     启动：按固定顺序调用上面各层
 
 test/                             纯逻辑用例（node 直接跑，不需要浏览器）
-└── github2jsdelivr.test.js       链接归类、去重与拆行
+├── github2jsdelivr.test.js       链接归类、去重与拆行
+└── ghmirror.test.js              镜像地址拼接、输入归一、适用性判断
 ```
 
 **加载顺序**（`loader.js` 里写死，也是依赖顺序）：
 
 ```
 core → registry → shell → router → settings
-     → lib/github2jsdelivr
+     → lib/github2jsdelivr → lib/ghmirror
      → tools/overview → tools/imageconvert → tools/github2jsdelivr → app
 ```
 
@@ -148,7 +150,11 @@ core → registry → shell → router → settings
 
 **关于输出体积**：`toBlob('image/webp', q)` 对照片类素材通常能减 50–90%（实测 5.17 MB PNG → 829 KB，−84%）。截图、纯色图、已压缩过的 JPEG 收益会小一些，个别情况下 WebP 反而更大 —— 所以每条结果都直接给出体积对比，不做乐观断言。
 
-### GitHub 链接转 jsDelivr
+### GITHUB 链接转换
+
+两个模式，共用「边打字边出结果」的交互，但转换规则完全不同。
+
+#### 模式一 · 转 jsDelivr
 
 | 能力 | 说明 |
 |---|---|
@@ -171,6 +177,29 @@ core → registry → shell → router → settings
 | `…/repo.git/blob/…` | 仓库名带 `.git` | 自动去掉 |
 
 **关于联网**：这是全站**唯一**会发起外部请求的功能。开启「联网校验版本」后，仓库名会发给 `api.github.com`（未登录每小时 60 次配额），因此批量超过 20 条时只解析前 20 条并如实标注；命中配额限制会退回未校验状态而不是失败。关闭该开关后，本工具与其他工具一样全程本地计算。
+
+#### 模式二 · 多镜像站
+
+把一条 GitHub 链接一次展开成一组国内可用的加速地址，**全程本地**，没有任何联网步骤。
+
+| 类别 | 规则 | 适用范围 |
+|---|---|---|
+| **加速代理** | 把原始链接整条拼在镜像域名后面：`https://gh-proxy.com/https://github.com/u/r/raw/main/a.js` | 任何 GitHub 链接 —— 仓库文件、Release 附件、源码包、`git clone` |
+| **CDN 重写** | 改写成 CDN 自己的路径格式：`https://rawcdn.githack.com/u/r/main/a.js` | 仅仓库内的文件或目录，但走 CDN 节点，通常更快 |
+
+共 8 个加速代理（gh-proxy.com、ghfast.top、ghproxy.net、mirror.ghproxy.com、github.moeyy.xyz、hub.gitmirror.com、gh.llkk.cc、gh.jiasu.in）与 5 个 CDN（jsDelivr 三个节点、GitHack、Statically）。
+
+**适用性是自动判断的**，不是无脑复制一份：
+
+- Release 附件（`/releases/download/…`）与源码包（`/archive/…`）路径里虽然也带斜杠，但它们不在仓库文件树里，任何 CDN 都取不到 —— 所以只给前缀代理，不给 CDN。
+- 目录（`/tree/…`）只有 jsDelivr 与 Statically 支持，GitHack 会被跳过。
+- 仓库文件（`blob` / `raw`）代理时会自动换成 `/raw/` 直链 —— blob 页面是 HTML，代理回来的是网页而不是文件本体，下载场景不合适。
+
+**关于可用性**：镜像站都是第三方公益服务，域名随时可能失效。所以工具只负责生成候选地址，**不做可用性探测** —— 探测会被 CORS 拦住，而且不该把你的链接挨个往第三方服务器上发。生成一串之后挑一个能打开的用就行。
+
+**安全提醒**：这些请求会经过第三方服务器，只用来下载公开资源，**不要带 Token、Cookie，也不要传私密文件**。
+
+**关于联网**：模式二不联网（镜像地址就是字符串拼接）；模式一的「联网校验版本」才是全站唯一会发起外部请求的地方。
 
 ---
 
@@ -265,6 +294,7 @@ v1.5.0 把原本 45 个独立 `.svg` 文件合并了进来，理由是实打实�
 ```bash
 node test/github2jsdelivr.test.js            # 22 条离线用例（不打网络）
 node test/github2jsdelivr.test.js --online   # 再追加 3 条真实 GitHub API 用例
+node test/ghmirror.test.js                   # 49 条镜像地址用例（纯字符串拼接，必然离线）
 ```
 
 界面层没有引入测试框架（保持零依赖），改动后用 `python3 -m http.server` 起服务、在浏览器里过一遍即可。Service Worker 注册与导航回退在 `file://` 与 HTTP 下行为不同，两种协议各看一次更稳妥。
@@ -297,6 +327,21 @@ node test/github2jsdelivr.test.js --online   # 再追加 3 条真实 GitHub API 
 ---
 
 ## 九、版本
+
+### v1.8.0 — 2026-10-14
+
+**「GitHub 转 jsDelivr」升级为「GITHUB 链接转换」，从一个功能变成两个模式。** 原 jsDelivr 转换完整保留，新增「多镜像站」—— 一条链接一次展开成一组国内可用的加速地址。
+
+- **新增 `js/lib/ghmirror.js`**（约 4 KB，零依赖）：镜像地址是纯字符串拼接，所以这个模式**完全不联网**，也就没有模式一那套「先出结果、再联网校验」的两段式。
+- **两类镜像，规则不同**：加速代理把原始链接整条拼在镜像域名后（8 个站，Release 附件、源码包、`git clone` 都能走）；CDN 重写改写成 CDN 自己的路径格式（5 个站，只适用于仓库内文件，但走 CDN 节点，通常更快）。
+- **适用性自动判断**，不是无脑复制一份：
+  - Release / archive 链接不在仓库文件树里，CDN 取不到 → 只给代理，不给 CDN；
+  - 目录只有 jsDelivr 与 Statically 支持 → GitHack 自动跳过；
+  - blob 链接代理时自动换成 `/raw/` 直链（blob 是 HTML 页面，代理回来的是网页而不是文件本体）。
+- 开发中修掉一个真实缺陷：Release 附件路径形如 `/releases/download/v1/f.zip`，会被 URL 解析器拆出「version 与 file」，早期实现因此把它误判成仓库文件、转出无效的 `/raw/` 地址。现在按 `kind` 严格区分，并用测试锁死。
+- 界面：顶部加分段切换（两个模式各占一半宽度，手机上铺满），两个模式各有独立输入草稿与结果状态，**切来切去互不影响** —— 切换只改 DOM 可见性，不重算、不清空。模式选择本身也持久化。
+- 新增 49 条单元测试（`test/ghmirror.test.js`），覆盖前缀拼接、CDN 重写、输入归一、目录与 Release 的适用性差异、非法输入与批量回调。
+- 规模：JS 11 → 12 个文件；工具名与描述同步更新到注册表，侧拉栏与首页自动跟随。
 
 ### v1.7.0 — 2026-10-04
 

@@ -157,3 +157,68 @@
   }
   .g2j__side{position:static}
 }
+
+/* ------------------------------------------------------------
+   模式切换：GitHub 转 jsDelivr / GitHub 多镜像站
+   两个模式各占一半宽度，手机上更好点。
+   ------------------------------------------------------------ */
+.seg--mode{
+  display:flex;
+  width:100%;max-width:400px;
+  margin-bottom:20px;
+}
+.seg--mode .seg__b{flex:1;min-width:0}
+@media (max-width:900px){.seg--mode{max-width:none}}
+
+/* ------------------------------------------------------------
+   模式二：多镜像站
+   每条输入下面挂两组镜像；组内一行一个 —— 左边是名字与用途，
+   中间是完整地址，右边是复制与打开。
+   ------------------------------------------------------------ */
+.mm__badge{
+  flex:none;
+  font-family:var(--f-num);font-size:11px;color:var(--ink-4);
+}
+.mm{
+  border-top:1px solid var(--line);
+  padding:11px 0 3px;
+}
+.mm__hd{
+  display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
+  margin-bottom:6px;
+}
+.mm__hd b{font-size:12.5px;color:var(--ink-2)}
+.mm__hd small{font-size:11px;color:var(--ink-4)}
+
+.mm__row{
+  display:grid;
+  grid-template-columns:158px minmax(0,1fr) auto;
+  gap:10px;align-items:center;
+  padding:7px 0;
+  border-top:1px dashed var(--line);
+}
+.mm__hd + .mm__row{border-top:0}    /* 紧跟标题的第一行不必再画分隔线 */
+.mm__tx{min-width:0}
+.mm__tx b{display:block;font-size:12px;font-weight:600;color:var(--ink-2)}
+.mm__tx small{display:block;font-size:10.5px;line-height:1.5;color:var(--ink-4);margin-top:1px}
+.mm__url{
+  display:block;
+  font-family:var(--f-num);font-size:11.5px;color:var(--ink-2);
+  background:var(--surface-2);border:1px solid var(--line);
+  border-radius:var(--r-xs);padding:5px 8px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.mm__acts{display:flex;gap:5px;flex:none}
+
+@media (max-width:900px){
+  .mm__row{
+    grid-template-columns:minmax(0,1fr);
+    gap:7px;
+    padding:9px 0;
+  }
+  .mm__acts{justify-content:flex-end}
+  /* 手机上地址很长，允许折行比横向截断有用得多 */
+  .mm__url{white-space:normal;word-break:break-all;line-height:1.55}
+  .mm__tx{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+  .mm__tx small{margin-top:0}
+}

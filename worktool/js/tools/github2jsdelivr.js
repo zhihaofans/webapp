@@ -1,24 +1,44 @@
 /* ============================================================
-   tools/github2jsdelivr.js — GitHub 链接转 jsDelivr
-   两段式：先本地立刻算出结果（无网络、无等待），再按需联网校验版本。
-   纯转换逻辑在 js/lib/github2jsdelivr.js，本文件只负责界面与状态。
+   tools/github2jsdelivr.js — GITHUB 链接转换（两个模式）
+     模式一 · 转 jsDelivr：两段式，先本地立刻出结果，再按需联网校验版本。
+     模式二 · 多镜像站：纯本地字符串拼接，一次生成一整套加速镜像地址。
+
+   纯转换逻辑分别在 js/lib/github2jsdelivr.js 与 js/lib/ghmirror.js，
+   本文件只负责界面与状态。两个模式各有独立的输入草稿与结果状态，
+   互不干扰；切换模式只切 DOM 可见性，不重算、不清空。
    ============================================================ */
 (function (T) {
   'use strict';
 
   var $ = T.$;
   var G = null;                 /* 延迟到 render 时取，保证 lib 已加载 */
+  var M = null;
 
   var MAX_RECORD = 30;
   var state = { results: [], token: 0, running: false };
   var inputEl = null, listEl = null;
   var runSoon = null;
 
+  /* 模式二单独一套状态；草稿也分开存，免得两边输入互相覆盖 */
+  var MIRROR_DRAFT = 'github2jsdelivr-mirror';
+  var mstate = { results: [] };
+  var mInputEl = null;
+  var mRunSoon = null;
+
   var SAMPLES = [
     { label: 'jquery 文件', url: 'https://github.com/jquery/jquery/blob/main/dist/jquery.min.js' },
     { label: 'bootstrap 固定 tag', url: 'https://github.com/twbs/bootstrap/blob/v5.3.3/dist/css/bootstrap.min.css' },
     { label: '目录（tree）', url: 'https://github.com/twbs/bootstrap/tree/v5.3.3/dist' },
     { label: '只要仓库', url: 'https://github.com/microsoft/TypeScript' }
+  ];
+
+  /* 模式二的样本特意挑了三种「镜像规则不同」的链接：
+     仓库文件、Release 附件、源码包 —— 让用户一眼看出代理与 CDN 的适用范围差别。 */
+  var SAMPLES2 = [
+    { label: '仓库文件', url: 'https://github.com/jquery/jquery/blob/main/dist/jquery.min.js' },
+    { label: 'Release 附件', url: 'https://github.com/git-for-windows/git/releases/download/v2.44.0.windows.1/Git-2.44.0-64-bit.exe' },
+    { label: '源码包 zip', url: 'https://github.com/torvalds/linux/archive/refs/heads/master.zip' },
+    { label: 'raw 域名', url: 'https://raw.githubusercontent.com/jquery/jquery/main/dist/jquery.min.js' }
   ];
 
   /* 徽标：kind -> [文案, 样式] */
@@ -242,6 +262,150 @@
     if (tmp.firstChild) row.parentNode.replaceChild(tmp.firstChild, row);
   }
 
+  /* ---------------- 模式二：多镜像 ----------------
+     全程本地。镜像地址就是字符串拼接，没有任何联网步骤，
+     所以不需要模式一那套「先出结果、再联网校验」的两段式。 */
+  function mRun() {
+    if (!mInputEl) return;
+    var links = G ? G.splitLinks(mInputEl.value) : [];
+    mstate.results = M ? M.convertMany(links) : [];
+    paintMirror();
+  }
+  function mScheduleRun() {
+    if (!mRunSoon) mRunSoon = T.debounce(mRun, 420);
+    mRunSoon();
+  }
+
+  function mGroupHTML(title, sub, list, grp) {
+    if (!list.length) return '';
+    return '<div class="mm" data-grp="' + grp + '">' +
+      '<div class="mm__hd"><b>' + T.esc(title) + '</b><small>' + T.esc(sub) + '</small></div>' +
+      list.map(function (m) {
+        return '<div class="mm__row">' +
+          '<div class="mm__tx">' +
+            '<b>' + T.esc(m.name) + '</b>' +
+            '<small>' + T.esc(m.note) + '</small>' +
+          '</div>' +
+          '<code class="mm__url" title="' + T.escAttr(m.url) + '">' + T.esc(m.url) + '</code>' +
+          '<div class="mm__acts">' +
+            '<button class="btn btn--sm" type="button" data-act="mcopy" data-url="' + T.escAttr(m.url) + '">' +
+              T.ic('copy', '', 0) + '复制</button>' +
+            '<a class="btn btn--sm btn--icon" href="' + T.escAttr(m.url) + '" target="_blank" rel="noopener noreferrer"' +
+              ' title="新窗口打开，验证这个镜像通不通">' + T.ic('external', '', 0) + '</a>' +
+          '</div>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  }
+
+  function mRowHTML(r) {
+    if (!r) return '';
+    if (!r.ok) {
+      return '<div class="grow">' +
+        '<div class="grow__hd">' +
+          '<span class="tag tag--danger">无法识别</span>' +
+          '<span class="grow__src" title="' + T.escAttr(r.input) + '">' + T.esc(r.input) + '</span>' +
+        '</div>' +
+        '<div class="grow__out grow__out--err">' + T.esc(r.error || '无法识别') + '</div>' +
+      '</div>';
+    }
+    var kind = r.parsed.kind === 'tree' ? '目录' : (r.parsed.file ? '文件' : '仓库');
+    return '<div class="grow">' +
+      '<div class="grow__hd">' +
+        '<span class="tag tag--accent">' + kind + '</span>' +
+        '<span class="grow__src" title="' + T.escAttr(r.input) + '">' + T.esc(r.input) + '</span>' +
+        '<span class="grow__sp"></span>' +
+        '<span class="mm__badge">' + r.total + ' 个镜像</span>' +
+      '</div>' +
+      (r.rawUrl !== r.input
+        ? '<div class="grow__note">' + T.ic('info', '', 0) +
+            '<span>代理用的是文件直链：<em>' + T.esc(r.rawUrl) + '</em></span></div>'
+        : '') +
+      mGroupHTML('加速代理', '适用于任何 GitHub 链接：文件、Release 附件、源码包、git clone', r.proxies, 'proxy') +
+      mGroupHTML('CDN 重写', '仅适用于仓库内的文件或目录，走 CDN 节点通常更快', r.cdns, 'cdn') +
+    '</div>';
+  }
+
+  function mirrorResultsHTML() {
+    if (!mstate.results.length) {
+      if (!mInputEl || !mInputEl.value.trim()) {
+        return '<div class="empty">' + T.ic('link', '', 0) +
+          '<b>还没有输入链接</b><p>粘一条 GitHub 链接进来，这里会一次列出它能用的镜像地址，' +
+          '挑一个能打开的用就行。</p></div>';
+      }
+      return '';
+    }
+    return '<div class="qhead">' +
+        '<h2>镜像地址</h2><i class="hr"></i>' +
+        '<div class="qhead__acts">' +
+          '<button class="btn btn--sm btn--primary" type="button" data-act="mcopyall">' +
+            T.ic('copy', '', 0) + '复制全部镜像</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="glist2" id="mmList">' + mstate.results.map(mRowHTML).join('') + '</div>';
+  }
+
+  function mirrorSummaryHTML() {
+    var all = mstate.results.length;
+    if (!all) return '';
+    var ok = mstate.results.filter(function (r) { return r.ok; }).length;
+    var total = mstate.results.reduce(function (a, r) { return a + (r.ok ? r.total : 0); }, 0);
+    var bad = all - ok;
+    return '<div class="sum">' +
+      '<div class="sum__i"><b>' + all + '</b><span>条链接</span></div>' +
+      '<div class="sum__i"><b>' + ok + '</b><span>条已生成</span></div>' +
+      '<div class="sum__i"><b>' + total + '</b><span>个镜像地址</span></div>' +
+      (bad ? '<div class="sum__i"><b style="color:var(--danger)">' + bad + '</b><span>条无法识别</span></div>' : '') +
+      '<div class="sum__sp"></div>' +
+      '<div class="sum__i"><span>全部本地生成，不联网</span></div>' +
+    '</div>';
+  }
+
+  function paintMirror() {
+    var meta = $('#mmMeta');
+    if (meta) {
+      var n = (mInputEl && G) ? G.splitLinks(mInputEl.value).length : 0;
+      meta.innerHTML = '<span><span class="num">' + n + '</span> 条链接</span>' +
+        '<i>·</i><span>每行一个，自动去重</span>';
+    }
+    var sum = $('#mmSum');
+    if (sum) sum.innerHTML = mirrorSummaryHTML();
+    var out = $('#mmOutHost');
+    if (out) out.innerHTML = mirrorResultsHTML();
+  }
+
+  /* 复制全部：一行一个地址，方便直接贴进脚本或下载器 */
+  function mCopyAll() {
+    var urls = [];
+    mstate.results.forEach(function (r) {
+      if (!r || !r.ok) return;
+      r.proxies.concat(r.cdns).forEach(function (m) { urls.push(m.url); });
+    });
+    if (!urls.length) { T.toast('还没有可复制的镜像地址', { icon: 'warn' }); return; }
+    T.copyText(urls.join('\n')).then(function () {
+      T.toast('已复制 ' + urls.length + ' 个镜像地址', { icon: 'check' });
+    }).catch(function () { T.toast('复制失败，请手动选中复制', { icon: 'warn' }); });
+  }
+
+  /* 模式切换：只切可见性，不动两边已经算好的结果 */
+  function currentMode() {
+    return T.Store.settings.g2jMode === 'mirror' ? 'mirror' : 'cdn';
+  }
+  function applyMode(host) {
+    var m = currentMode();
+    var cdn = host.querySelector('#g2jPaneCdn');
+    var mir = host.querySelector('#g2jPaneMirror');
+    if (cdn) cdn.hidden = (m !== 'cdn');
+    if (mir) mir.hidden = (m !== 'mirror');
+    var seg = host.querySelector('#segMode');
+    if (seg) Array.prototype.forEach.call(seg.querySelectorAll('.seg__b'), function (b) {
+      var on = b.getAttribute('data-m') === m;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if (m === 'mirror') paintMirror(); else paint();
+  }
+
   /* ---------------- 设置面板 ---------------- */
   function ctlHTML() {
     var s = T.Store.settings;
@@ -311,7 +475,30 @@
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); run(); }
     });
 
+    /* 模式二：同样的输入即保存 + 防抖重算 */
+    if (mInputEl) {
+      mInputEl.addEventListener('input', function () {
+        T.Store.setDraft(MIRROR_DRAFT, mInputEl.value);
+        mScheduleRun();
+      });
+      mInputEl.addEventListener('keydown', function (e) {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); mRun(); }
+      });
+    }
+
     host.addEventListener('click', function (e) {
+      var msBtn = e.target.closest('[data-msample]');
+      if (msBtn) {
+        if (!mInputEl) return;
+        var murl = msBtn.getAttribute('data-msample');
+        var mcur = mInputEl.value;
+        mInputEl.value = mcur && mcur.trim() ? mcur.replace(/\s*$/, '\n' + murl) : murl;
+        T.Store.setDraft(MIRROR_DRAFT, mInputEl.value);
+        mRun();
+        mInputEl.focus();
+        return;
+      }
+
       var sBtn = e.target.closest('[data-sample]');
       if (sBtn) {
         var url = sBtn.getAttribute('data-sample');
@@ -369,6 +556,24 @@
         }).catch(function () { T.toast('复制失败', { icon: 'warn' }); });
         return;
       }
+
+      /* ---- 模式二 ---- */
+      if (act === 'mclear') {
+        if (!mInputEl) return;
+        mInputEl.value = '';
+        T.Store.setDraft(MIRROR_DRAFT, '');
+        mstate.results = [];
+        paintMirror();
+        mInputEl.focus();
+        return;
+      }
+      if (act === 'mcopy') {
+        T.copyText(b.getAttribute('data-url') || '').then(function () {
+          T.toast('已复制镜像地址', { icon: 'check', ms: 1500 });
+        }).catch(function () { T.toast('复制失败', { icon: 'warn' }); });
+        return;
+      }
+      if (act === 'mcopyall') { mCopyAll(); return; }
     });
   }
 
@@ -376,7 +581,8 @@
   T.register('github2jsdelivr', {
     render: function (host) {
       G = T.GitHub2JsDelivr;
-      if (!G) {
+      M = T.GhMirror;
+      if (!G || !M) {
         host.innerHTML = '<div class="capmsg">' + T.ic('warn', '', 0) +
           '<div><b>转换模块没有加载成功。</b>请刷新页面重试。</div></div>';
         return;
@@ -384,8 +590,15 @@
       T.Settings.bindFileInput();
 
       var draft = T.Store.getDraft('github2jsdelivr');
+      var mDraft = T.Store.getDraft(MIRROR_DRAFT);
 
       host.innerHTML =
+        '<div class="seg seg--mode" id="segMode" role="tablist" aria-label="转换模式">' +
+          '<button class="seg__b" type="button" role="tab" data-m="cdn">GitHub 转 jsDelivr</button>' +
+          '<button class="seg__b" type="button" role="tab" data-m="mirror">GitHub 多镜像站</button>' +
+        '</div>' +
+
+        '<div id="g2jPaneCdn">' +
         '<div class="g2j">' +
           '<div class="g2j__in">' +
             '<div class="panel">' +
@@ -441,6 +654,71 @@
         '</div>' +
         '<div class="pagefoot">' +
           '链接转换在本机完成；只有开启「联网校验版本」时才会向 api.github.com 查询一次版本是否存在。' +
+        '</div>' +
+        '</div>' +
+
+        /* ---------- 模式二：多镜像站 ---------- */
+        '<div id="g2jPaneMirror" hidden>' +
+          '<div class="g2j">' +
+            '<div class="g2j__in">' +
+              '<div class="panel">' +
+                '<div class="panel__hd"><h3>' + T.ic('link', '', 0) + 'GitHub 链接</h3></div>' +
+                '<div class="panel__bd">' +
+                  '<textarea class="ta" id="mmInput" spellcheck="false" autocomplete="off"' +
+                    ' placeholder="每行一个 GitHub 链接，例如：&#10;https://github.com/jquery/jquery/blob/main/dist/jquery.min.js">' +
+                    T.esc(mDraft) + '</textarea>' +
+                  '<div class="g2j__acts">' +
+                    '<button class="btn btn--primary" type="button" id="mmRun">' + T.ic('convert', '', 0) + '生成镜像</button>' +
+                    '<button class="btn" type="button" data-act="mclear">' + T.ic('trash', '', 0) + '清空</button>' +
+                    '<div class="g2j__meta" id="mmMeta"></div>' +
+                  '</div>' +
+                  '<div class="samples">' +
+                    '<span class="samples__hd">试试：</span>' +
+                    SAMPLES2.map(function (s) {
+                      return '<button class="sample" type="button" data-msample="' + T.escAttr(s.url) + '">' +
+                        T.ic('plus', '', 0) + T.esc(s.label) + '</button>';
+                    }).join('') +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+
+            '<div class="g2j__out">' +
+              '<div id="mmSum"></div>' +
+              '<div id="mmOutHost"></div>' +
+            '</div>' +
+
+            '<aside class="g2j__side">' +
+              '<div class="panel">' +
+                '<div class="panel__hd"><h3>' + T.ic('info', '', 0) + '两类镜像</h3></div>' +
+                '<div class="panel__bd">' +
+                  '<p class="note" style="margin-bottom:9px">' +
+                    '<b style="color:var(--ink-3)">加速代理：</b>把整条链接拼在镜像域名后面，' +
+                    '文件、Release 附件、源码包、git clone 都能走 —— 适用面最广。' +
+                  '</p>' +
+                  '<p class="note" style="margin-bottom:9px">' +
+                    '<b style="color:var(--ink-3)">CDN 重写：</b>改写成 CDN 自己的路径格式，' +
+                    '只适用于仓库里的文件或目录，但走的是 CDN 节点，通常更快更稳。' +
+                  '</p>' +
+                  '<p class="note">' +
+                    '镜像站都是第三方公益服务，域名随时可能失效。生成一串挑一个能打开的用就行。' +
+                  '</p>' +
+                '</div>' +
+              '</div>' +
+              '<div class="panel">' +
+                '<div class="panel__hd"><h3>' + T.ic('shield', '', 0) + '安全提醒</h3></div>' +
+                '<div class="panel__bd">' +
+                  '<div class="netnote">' + T.ic('warn', '', 0) +
+                    '<div><b>请求会经过第三方服务器。</b>只用来下载公开资源，' +
+                    '不要带 Token、Cookie，也不要用它传私密文件。</div>' +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
+            '</aside>' +
+          '</div>' +
+          '<div class="pagefoot">' +
+            '镜像地址全部在本机拼出来，这一步不联网、不上传；真正联网的是你点开链接之后，浏览器去访问那个镜像站。' +
+          '</div>' +
         '</div>';
 
       inputEl = host.querySelector('#g2jInput');
@@ -452,9 +730,23 @@
         ctlHost.innerHTML = ctlHTML();
         bindControls(host);
       }
+
+      mInputEl = host.querySelector('#mmInput');
+      var mRunBtn = host.querySelector('#mmRun');
+      if (mRunBtn) mRunBtn.addEventListener('click', mRun);
+
+      var segMode = host.querySelector('#segMode');
+      if (segMode) segMode.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-m]');
+        if (!b) return;
+        T.Store.patch({ g2jMode: b.getAttribute('data-m') });
+        applyMode(host);
+      });
+
       bindEvents(host);
-      paint();
+      applyMode(host);                    /* 决定进来先显示哪个模式 */
       if (draft.trim()) run();
+      if (mDraft.trim()) mRun();
     },
 
     onLeave: function () {
@@ -465,6 +757,10 @@
       state.results = [];
       inputEl = null;
       listEl = null;
+
+      if (mInputEl) T.Store.setDraft(MIRROR_DRAFT, mInputEl.value);
+      mstate.results = [];
+      mInputEl = null;
     }
   });
 })(window.Toolbox);

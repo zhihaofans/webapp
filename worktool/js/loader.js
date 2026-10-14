@@ -15,6 +15,7 @@
     'js/router.js',
     'js/settings.js',
     'js/lib/github2jsdelivr.js',
+    'js/lib/ghmirror.js',
     'js/tools/overview.js',
     'js/tools/imageconvert.js',
     'js/tools/github2jsdelivr.js',

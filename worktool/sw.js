@@ -6,7 +6,7 @@
    第三方接口一律不拦截。
    ============================================================ */
 
-var CACHE = 'toolbox-v1.7.0';
+var CACHE = 'toolbox-v1.8.0';
 
 var SHELL = [
   './',
@@ -28,6 +28,7 @@ var SHELL = [
   'js/router.js',
   'js/settings.js',
   'js/lib/github2jsdelivr.js',
+  'js/lib/ghmirror.js',
   'js/tools/overview.js',
   'js/tools/imageconvert.js',
   'js/tools/github2jsdelivr.js',
