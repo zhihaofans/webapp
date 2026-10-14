@@ -22,6 +22,7 @@
     'js/lib/ghmirror.js',
     'js/lib/datecalc.js',
     'js/lib/unitconvert.js',
+    'js/lib/webpenc.js',
     'js/tools/overview.js',
     'js/tools/imageconvert.js',
     'js/tools/github2jsdelivr.js',

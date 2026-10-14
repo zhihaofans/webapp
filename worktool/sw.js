@@ -20,7 +20,7 @@
    第三方接口一律不拦截。
    ============================================================ */
 
-var CACHE = 'toolbox-v1.12.0';
+var CACHE = 'toolbox-v1.13.1';
 
 /* 网络等待上限（毫秒）
    - 导航：给宽一点。HTML 必须拿到最新的，否则新页面配旧脚本。
@@ -52,6 +52,7 @@ var SHELL = [
   'js/lib/ghmirror.js',
   'js/lib/datecalc.js',
   'js/lib/unitconvert.js',
+  'js/lib/webpenc.js',
   'js/tools/overview.js',
   'js/tools/imageconvert.js',
   'js/tools/github2jsdelivr.js',
@@ -173,10 +174,16 @@ function networkFirst(e, req, ms) {
 function isCritical(url) {
   /* splash/ 是 iOS 主屏启动时系统要的那张图 —— 它比页面本身还早显示，
      更不该等网络。不放进预缓存列表（389 KB 会拖慢安装），
-     靠这条规则按需缓存：用到哪张存哪张，第二次打开就秒开。 */
+     靠这条规则按需缓存：用到哪张存哪张，第二次打开就秒开。
+
+     assets/wasm 与 js/worker 同理：WebP 编码器（约 121 KB gzip）只在
+     用户打开图片转换工具时才需要，没必要让每个访客都背。第一次用到时
+     下载并缓存，其后即离线可用。 */
   return /\.css$/.test(url.pathname)
       || /\/loader\.js$/.test(url.pathname)
-      || /\/splash\//.test(url.pathname);
+      || /\/splash\//.test(url.pathname)
+      || /\/assets\/wasm\//.test(url.pathname)
+      || /\/js\/worker\//.test(url.pathname);
 }
 
 function cacheFirst(e, req) {

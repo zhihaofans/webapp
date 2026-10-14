@@ -141,6 +141,21 @@
 }
 .qsave--up{color:var(--danger)}
 .qsave--down{color:var(--sage)}
+/* 「无损」标记：混在一堆灰色数据里，得让它稍微跳出来一点 */
+.qmode{
+  padding:1px 6px;border-radius:5px;
+  background:var(--sage-soft);color:var(--sage);
+  font-family:inherit;font-weight:600;
+}
+/* 颜色少的图建议改无损：一行轻提示，不打断操作 */
+.qtip{
+  display:flex;align-items:center;gap:7px;
+  margin-top:9px;padding:6px 9px;border-radius:var(--r-sm);
+  background:var(--surface-3);color:var(--ink-3);
+  font-size:11.5px;line-height:1.5;
+}
+.qtip .ic{width:13px;height:13px;flex:none;color:var(--ink-4)}
+.qtip b{color:var(--accent)}
 .qact{display:flex;align-items:center;gap:6px;flex:none}
 .qerr{
   display:flex;align-items:flex-start;gap:7px;

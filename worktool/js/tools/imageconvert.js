@@ -52,20 +52,32 @@
   var MIME_LABEL = { 'image/webp': 'WebP', 'image/jpeg': 'JPEG', 'image/png': 'PNG' };
   var MIME_EXT = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png' };
   var MIME_HINT = {
-    'image/webp': '体积最小，现代浏览器与系统相册都能打开，保留透明。',
+    'image/webp': '体积最小，现代浏览器与系统相册都能打开，保留透明。质量拉满（100%）即无损。',
     'image/jpeg': '兼容性最好；有损压缩，不支持透明（透明区域会自动填白）。',
     'image/png': '无损、保留透明；体积通常比原图还大，适合图标与线稿。'
   };
   /* 展示顺序：WebP 最省流量，放第一个 */
   var FORMAT_ORDER = ['image/webp', 'image/jpeg', 'image/png'];
 
+  /* WASM 编码器是否可用。
+     加载前（idle）按「应该能用」处理 —— WebAssembly 的支持率极高，
+     先乐观显示 WebP 选项，等真失败了再收回去，也好过让 iOS 用户
+     一进来就看不到 WebP 然后再也没有第二次机会。 */
+  function wasmUsable() {
+    return !!(T.WebpEnc && T.WebpEnc.supported() && T.WebpEnc.status() !== 'failed');
+  }
+
   /* 本设备能编码哪些格式。
      注意这里返回的是「可用清单」而不是「是否支持 WebP」——
      界面直接照着它渲染，不支持的格式根本不会出现，也就没有可点错的地方。 */
   function availableFormats() {
     var cap = probeCap();
+    /* WebP 有两条路：Canvas 原生编码（Chrome / Edge / Firefox），
+       或者 WASM 编码器（全平台，含 Safari 与 iOS）。
+       后者一旦可用，WebP 就不再受「WebKit 不能编码 WebP」的限制。 */
+    var canWebp = cap.webp || wasmUsable();
     return FORMAT_ORDER.filter(function (m) {
-      if (m === 'image/webp') return cap.webp;
+      if (m === 'image/webp') return canWebp;
       if (m === 'image/jpeg') return cap.jpeg;
       return cap.png;
     });
@@ -110,6 +122,44 @@
     });
   }
 
+  /* 抽样判断这张图是不是「图形类」（截图 / UI / 图表 / 图标）。
+     这类图颜色数很少，用无损 WebP 往往比有损还小、画质还完美；
+     照片则相反，无损会让体积暴涨十几倍。
+     抽样就够用，而且一旦超过上限立刻返回，不让大图在这里耗时。 */
+  var FLAT_LIMIT = 20000;
+  function looksFlat(id) {
+    var d = id.data, W = id.width, H = id.height;
+    var step = Math.max(1, Math.floor(Math.sqrt(W * H / 40000)));
+    var seen = new Set();
+    for (var y = 0; y < H; y += step) {
+      for (var x = 0; x < W; x += step) {
+        var i = (y * W + x) * 4;
+        seen.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+        if (seen.size > FLAT_LIMIT) return false;
+      }
+    }
+    return true;
+  }
+
+  /* Canvas 兜底编码：WASM 用不了、或者它不是 WebP 目标格式时走这里。
+     Canvas 没有无损模式，而且 quality 逼近 1 时输出会突然膨胀
+     （实测 12 KB 的图能编出 341 KB），所以把上限压在 0.98。 */
+  function canvasEncode(canvas, opt, mime, base) {
+    var q = Math.min(0.98, opt.quality);
+    return canvasToBlob(canvas, q, mime).then(function (blob) {
+      /* 再兜一道：规范允许浏览器静默改用 PNG。这里必须核对真实类型，
+         否则会产出「后缀 .webp 内容是 PNG」的坏文件。 */
+      if (blob.type !== mime) {
+        throw new Error('浏览器实际返回了 ' + (MIME_LABEL[blob.type] || blob.type) +
+          ' 而不是 ' + MIME_LABEL[mime] + '，已中止以免产出错误格式的文件');
+      }
+      base.blob = blob;
+      base.mode = 'lossy';
+      base.engine = 'canvas';
+      return base;
+    });
+  }
+
   function encodeOne(file, opt) {
     return loadImage(file).then(function (r) {
       var img = r.img;
@@ -143,15 +193,38 @@
       ctx.drawImage(img, 0, 0, tw, th);
       URL.revokeObjectURL(r.url);
 
-      return canvasToBlob(canvas, opt.quality, mime).then(function (blob) {
-        /* 再兜一道：规范允许浏览器静默改用 PNG。这里必须核对真实类型，
-           否则会产出「后缀 .webp 内容是 PNG」的坏文件。 */
-        if (blob.type !== mime) {
-          throw new Error('浏览器实际返回了 ' + (MIME_LABEL[blob.type] || blob.type) +
-            ' 而不是 ' + MIME_LABEL[mime] + '，已中止以免产出错误格式的文件');
+      var base = { w: tw, h: th, ow: w, oh: h, mime: mime };
+
+      /* WebP 优先交给 WASM 编码器：method=6 参数可调、有真正的无损模式，
+         而且不受 Safari / iOS 不能编码 WebP 的限制。 */
+      if (mime === 'image/webp' && wasmUsable()) {
+        var id = null;
+        try { id = ctx.getImageData(0, 0, tw, th); } catch (e) { id = null; }
+        if (id) {
+          /* 质量拉满（100%）即视为要求无损 —— 这正是用户的直觉，
+             而 Canvas 那边给不出无损，只会给出一个膨胀几十倍的文件。 */
+          var lossless = opt.quality >= 1;
+          base.flat = looksFlat(id);
+          return T.WebpEnc.encode(id, {
+            lossless: lossless,
+            quality: lossless ? 100 : Math.round(opt.quality * 100)
+          }).then(function (res) {
+            base.blob = new Blob([res.buffer], { type: 'image/webp' });
+            base.mode = lossless ? 'lossless' : 'lossy';
+            base.ms = res.ms;
+            base.engine = 'wasm';
+            return base;
+          }).catch(function (e) {
+            /* 编码器出问题不该让整张图失败，退回 Canvas 继续；
+               但要留痕，否则「为什么体积和以前一样」会很难查 */
+            console.warn('[WebP] WASM 编码失败，已回退 Canvas：',
+              e && e.message ? e.message : e);
+            return canvasEncode(canvas, opt, mime, base);
+          });
         }
-        return { blob: blob, w: tw, h: th, ow: w, oh: h, mime: mime };
-      });
+      }
+
+      return canvasEncode(canvas, opt, mime, base);
     });
   }
 
@@ -221,6 +294,11 @@
         it.w = res.w; it.h = res.h; it.ow = res.ow; it.oh = res.oh;
         it.quality = quality;
         it.mime = res.mime;
+        it.mode = res.mode || 'lossy';     /* lossless | lossy */
+        it.engine = res.engine || 'canvas'; /* wasm | canvas */
+        it.ms = res.ms || 0;
+        /* 颜色少 + 有损编码 = 这张图很可能换个无损会更小更好看 */
+        it.flatHint = !!res.flat && res.mode === 'lossy' && res.mime === 'image/webp';
         it.status = 'done';
         if (!it.thumb) it.thumb = URL.createObjectURL(it.file);
         T.Store.addHistory({
@@ -309,11 +387,18 @@
         '<i>·</i><span>' + (MIME_LABEL[it.mime] || 'WebP') + '</span>' +
         (it.mime === 'image/png'
           ? ''
-          : '<i>·</i><span>质量 ' + Math.round((it.quality || T.Store.settings.quality) * 100) + '%</span>');
+          : (it.mode === 'lossless'
+              ? '<i>·</i><span class="qmode">无损</span>'
+              : '<i>·</i><span>质量 ' + Math.round((it.quality || T.Store.settings.quality) * 100) + '%</span>'));
       soon = '<div class="qbar" title="灰色为原图，橙色为转换后">' +
         '<i class="qbar__a" style="width:' + (wA / total * 100) + '%"></i>' +
         '<i class="qbar__b" style="width:' + (wB / total * 100) + '%"></i>' +
         '</div>';
+      /* 颜色少的图用无损往往比有损更小、画质还完美 —— 值得提一句 */
+      if (it.flatHint) {
+        soon += '<div class="qtip">' + T.ic('info', '', 0) +
+          '<span>颜色少，把质量拉到 <b>100%</b> 改无损，通常更小且画质完美</span></div>';
+      }
       var badge = up
         ? '<span class="qsave qsave--up">+' + Math.abs(pct) + '%</span>'
         : '<span class="qsave qsave--down">−' + pct + '%</span>';
@@ -462,21 +547,29 @@
           }).join('') +
         '</div>' +
         '<div class="ctl__hint">' + MIME_HINT[mime] + '</div>' +
-        (cap.webp ? '' :
+        (cap.webp || wasmUsable() ? '' :
           '<div class="ctl__note">' + T.ic('info', '', 0) +
-            '<span>本设备不能编码 WebP（Safari / WebKit 的 Canvas 限制），所以列表里没有它。</span></div>' +
+            '<span>这台设备既没有原生的 WebP 编码能力（Safari / WebKit 的限制），' +
+            'WASM 编码器也没能加载起来，所以列表里没有它。</span></div>' +
           '<button class="btn btn--sm" type="button" id="btnRecheck" style="align-self:flex-start">' +
             T.ic('restore', '', 0) + '重新检测编码能力</button>') +
+        (wasmUsable() && T.WebpEnc.status() === 'loading'
+          ? '<div class="ctl__note ctl__note--enc">' + T.ic('info', '', 0) +
+            '<span>正在加载 WebP 编码器（约 120 KB，只需一次，之后走缓存）…</span></div>'
+          : '') +
       '</div>' +
 
       '<div class="ctl__row' + (mime === 'image/png' ? ' is-off' : '') + '">' +
-        '<div class="ctl__hd"><b>输出质量</b><em id="qVal">' + Math.round(s.quality * 100) + '%</em></div>' +
-        '<input class="rng" type="range" id="rngQ" min="40" max="98" step="1" value="' + Math.round(s.quality * 100) + '"' +
-          ' style="--pct:' + Math.round((s.quality * 100 - 40) / 58 * 100) + '%" aria-label="输出质量">' +
-        '<div class="ctl__hint">' +
+        '<div class="ctl__hd"><b>输出质量</b><em id="qVal">' +
+          (s.quality >= 1 ? '无损' : Math.round(s.quality * 100) + '%') + '</em></div>' +
+        '<input class="rng" type="range" id="rngQ" min="40" max="100" step="1" value="' + Math.round(s.quality * 100) + '"' +
+          ' style="--pct:' + Math.round((s.quality * 100 - 40) / 60 * 100) + '%" aria-label="输出质量">' +
+        '<div class="ctl__hint" id="qHint">' +
           (mime === 'image/png'
             ? 'PNG 是无损格式，质量设置对它不生效。'
-            : '数值越高越清晰、文件越大。照片一般 75–85%，截图和线稿 88% 以上更稳。') +
+            : (s.quality >= 1
+                ? '无损：像素完全不变。截图、图标、图表用它常常比原图还小；照片会大很多。'
+                : '数值越高越清晰、文件越大。照片一般 75–85%，截图与线稿 88% 以上更稳；拉到 100% 是无损。')) +
         '</div>' +
       '</div>' +
       '<div class="ctl__row">' +
@@ -501,7 +594,7 @@
         '</label>' +
       '</div>' +
       '<div class="tip">' + T.ic('shield', '', 0) +
-        '<div><b>图片不会离开这台设备。</b>转换在浏览器里用 Canvas 完成，没有任何上传步骤，断网也能用。</div>' +
+        '<div><b>图片不会离开这台设备。</b>转换全部在本机浏览器内完成，没有任何上传步骤，断网也能用。</div>' +
       '</div>' +
       (cap.webp ? '' :
         '<button class="btn btn--sm btn--block" type="button" id="btnRecheck2">' +
@@ -537,10 +630,18 @@
     if (rng) {
       rng.addEventListener('input', function () {
         var v = parseInt(rng.value, 10);
-        var q = T.clamp(v / 100, 0.4, 0.98);
+        /* 100% 是特殊档：它代表无损，而不是「质量再高一点」。
+           Canvas 那边给不出无损，只有 WASM 路径才兑现这个语义。 */
+        var q = T.clamp(v / 100, 0.4, 1);
         var lab = host.querySelector('#qVal');
-        if (lab) lab.textContent = v + '%';
-        rng.style.setProperty('--pct', Math.round((v - 40) / 58 * 100) + '%');
+        if (lab) lab.textContent = (v >= 100 ? '无损' : v + '%');
+        var hint = host.querySelector('#qHint');
+        if (hint) {
+          hint.textContent = v >= 100
+            ? '无损：像素完全不变。截图、图标、图表用它常常比原图还小；照片会大很多。'
+            : '数值越高越清晰、文件越大。照片一般 75–85%，截图与线稿 88% 以上更稳；拉到 100% 是无损。';
+        }
+        rng.style.setProperty('--pct', Math.round((v - 40) / 60 * 100) + '%');
         T.Store.patch({ quality: q });          /* 输入即保存 */
         if (items.some(function (it) { return it.status === 'done'; })) {
           dirty = true; paintQueue();
@@ -697,13 +798,15 @@
   /* ---------------- 视图 ---------------- */
   var viewHost = null;
 
+  /* 只在「原生不支持 + WASM 也没起来」时才出现 —— 这种情况很少见，
+     所以文案里要把两条路都交代清楚，免得用户以为是自己设备的老问题。 */
   var NOTICE_WEBP_OFF =
     '<div class="capmsg">' + T.ic('info', '', 0) +
-      '<div><b>这台设备不能编码 WebP，所以格式列表里没有它。</b>' +
-      '原因是 Safari / WebKit 至今不支持 Canvas 导出 WebP，而 iOS 上所有浏览器都是 WebKit，' +
-      '换浏览器也不会有变化。<br>' +
+      '<div><b>这台设备暂时不能编码 WebP，所以格式列表里没有它。</b>' +
+      'Safari / WebKit 的 Canvas 至今不支持导出 WebP，而 iOS 上所有浏览器都是 WebKit；' +
+      '本页本来带了一个「自带 libwebp 编码器的 WASM」来绕开这个限制，但这次它也没能加载起来。<br>' +
       '现在用 <b id="fbLabel">JPEG</b> 输出，体积收益与 WebP 很接近。' +
-      '想拿 WebP 的话，用电脑上的 Chrome / Edge / Firefox 打开本页即可，会自动多出 WebP 选项。' +
+      '刷新一下页面、或者换个网络再试，通常就恢复了。' +
       '</div></div><div style="height:14px"></div>';
 
   function renderView(host) {
@@ -711,8 +814,13 @@
       var cap = probeCap();
       T.Settings.bindFileInput();
 
+      /* 打开工具就把编码器拉起来 —— 用户挑图、调参数这点功夫，120 KB 已经下完，
+         于是既不占首屏，也不必在真正点转换时干等。
+         必须在渲染设置区之前调用：ctlHTML 会读 status() 决定要不要显示「加载中」。 */
+      if (wasmUsable()) T.WebpEnc.warmup();
+
       host.innerHTML =
-        (cap.webp ? '' : NOTICE_WEBP_OFF) +
+        (cap.webp || wasmUsable() ? '' : NOTICE_WEBP_OFF) +
 
         '<div class="i2w">' +
           '<div class="i2w__drop">' +
@@ -759,6 +867,23 @@
       if (ctlHost) {
         ctlHost.innerHTML = ctlHTML();
         bindControls(host);
+
+        /* 就绪后把「正在加载」那行撤掉就行，不必重建整块设置区
+           （重建会连带重绑控件，没必要）；失败才需要重画。 */
+        if (wasmUsable()) {
+          T.WebpEnc.whenReady().then(function () {
+            if (!ctlHost.parentNode) return;      /* 已经离开这个工具页了 */
+            var note = ctlHost.querySelector('.ctl__note--enc');
+            if (note && note.parentNode) note.parentNode.removeChild(note);
+          }).catch(function (e) {
+            if (!ctlHost.parentNode) return;
+            /* 失败要重画：WebP 得从格式列表里撤掉，并说明为什么 */
+            ctlHost.innerHTML = ctlHTML();
+            bindControls(host);
+            T.toast('WebP 编码器没能加载，已退回浏览器内置编码' +
+              (e && e.message ? '：' + e.message : ''), { icon: 'warn', ms: 5200 });
+          });
+        }
       }
       bindDrop(host);
       bindQueue(host);
@@ -778,6 +903,9 @@
       }
       if (delayTimer) { clearTimeout(delayTimer); delayTimer = null; }
       busy = false;
+      /* 还在排队的编码请求全部作废。Worker 与已加载的 wasm 都留着不销毁 ——
+         重新进来时立刻可用，不必再下一次。 */
+      if (T.WebpEnc) T.WebpEnc.abort();
       /* 释放缩略图的 Object URL，避免长时间浏览后内存上涨 */
       items.forEach(function (it) { if (it.thumb) URL.revokeObjectURL(it.thumb); });
       items = [];
