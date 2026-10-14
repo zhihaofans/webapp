@@ -9,7 +9,7 @@ window.Toolbox = window.Toolbox || {};
   'use strict';
 
   var APP_NAME = '生活工具箱';
-  var APP_VER = '1.10.0';
+  var APP_VER = '1.10.1';
   var APP_BUILD = '2026-10-03';
   var SCHEMA = 1;
 
@@ -376,9 +376,14 @@ window.Toolbox = window.Toolbox || {};
     if (meta) meta.setAttribute('content', real === 'dark' ? '#1a1917' : '#f4f1ea');
     /* 主题按钮在侧栏与手机抽屉里各有一个，用属性选择器统一更新 */
     T.$$('[data-theme-btn]').forEach(function (btn) {
+      /* 自动模式下要把解析结果一起显示出来（浅色·自动 / 深色·自动）——
+         否则用户看到光秃秃的「浅色」，会以为是自己手动选的浅色模式。 */
+      var name = real === 'dark' ? '深色' : '浅色';
       btn.innerHTML = ic(real === 'dark' ? 'moon' : 'sun', '', 0) +
-        '<span>' + (real === 'dark' ? '深色' : '浅色') + '</span>';
-      var label = v === 'auto' ? '跟随系统' : (v === 'dark' ? '深色模式' : '浅色模式');
+        '<span>' + name + (v === 'auto' ? '·自动' : '') + '</span>';
+      var label = v === 'auto'
+        ? ('跟随系统，当前' + name)
+        : (v === 'dark' ? '深色模式' : '浅色模式');
       btn.setAttribute('title', '当前：' + label + ' · 点击切换');
       btn.setAttribute('aria-label', '切换主题，当前为' + label);
     });

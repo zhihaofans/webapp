@@ -96,10 +96,14 @@
   border-top:1px solid var(--line);
 }
 .rail__foot .rbtn{flex:1}
+/* 主题按钮自动模式下要多带「·自动」三个字，按内容取宽，
+   否则被三兄弟平分后会被挤到换行 */
+.rail__foot .rbtn[data-theme-btn]{flex:0 0 auto}
 .rbtn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
   height:36px;padding:0 10px;border-radius:var(--r-sm);
   color:var(--ink-3);font-size:12.5px;
+  white-space:nowrap;
   transition:background .16s var(--ease),color .16s var(--ease);
 }
 .rbtn:hover{background:var(--surface-3);color:var(--ink)}
