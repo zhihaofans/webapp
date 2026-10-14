@@ -16,9 +16,11 @@
     'js/settings.js',
     'js/lib/github2jsdelivr.js',
     'js/lib/ghmirror.js',
+    'js/lib/datecalc.js',
     'js/tools/overview.js',
     'js/tools/imageconvert.js',
     'js/tools/github2jsdelivr.js',
+    'js/tools/datecalc.js',
     'js/app.js'
   ];
 

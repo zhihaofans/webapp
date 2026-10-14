@@ -146,6 +146,9 @@
           return r.json();
         }).then(function (j) {
           var remote = String((j && j.ver) || '');
+          /* version.json 里的 url 是这份工具的部署地址，用作「立即更新」的兜底：
+             Service Worker 能原地换版就用它，否则跳到那个地址取最新版。 */
+          var remoteUrl = String((j && j.url) || '');
           if (remote && cmpVer(remote, T.APP_VER) > 0) {
             em.textContent = '有新版本 v' + remote;
             T.toast('发现新版本 v' + remote + '（当前 v' + T.APP_VER + '）', {
@@ -153,8 +156,13 @@
               action: {
                 label: '立即更新',
                 fn: function () {
-                  if (typeof window.__TOOLBOX_FORCE_UPDATE__ === 'function') window.__TOOLBOX_FORCE_UPDATE__();
-                  else location.reload();
+                  if (typeof window.__TOOLBOX_FORCE_UPDATE__ === 'function') {
+                    window.__TOOLBOX_FORCE_UPDATE__();
+                  } else if (remoteUrl) {
+                    location.href = remoteUrl;
+                  } else {
+                    location.reload();
+                  }
                 }
               }
             });

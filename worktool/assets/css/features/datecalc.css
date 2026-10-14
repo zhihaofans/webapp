@@ -1,0 +1,126 @@
+/* ============================================================
+   功能层 · 日期天数计算
+   两块：计算日期（基准日 + 偏移量）与计算日期间隔。
+   结构照着常见日期计算器的习惯来：一行一个「从…开始」，
+   结果单独占一行，间隔那个大数字放在最显眼的位置。
+   ============================================================ */
+
+.dc{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 306px;
+  gap:18px 24px;
+  align-items:start;
+}
+.dc__main{min-width:0;display:flex;flex-direction:column;gap:18px}
+.dc__side{
+  position:sticky;
+  top:calc(var(--topbar-h) + 16px);
+  display:flex;flex-direction:column;gap:16px;
+}
+
+/* ------------------------------------------------------------
+   日期行
+   ------------------------------------------------------------ */
+.dc__base{
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  padding:10px 0;
+}
+.dc__base + .dc__base{border-top:1px solid var(--line)}
+.dc__base:first-child{padding-top:0}
+.dc__lbl{font-size:13px;color:var(--ink-3);flex:none}
+.dc__date{
+  flex:1;min-width:148px;max-width:210px;
+  font-family:var(--f-num);
+}
+.dc__wk{font-size:12.5px;color:var(--ink-3);flex:none}
+.dc__today{margin-left:auto}
+
+/* ------------------------------------------------------------
+   偏移计算：数字 + 单位 + 前后
+   ------------------------------------------------------------ */
+.dc__calc{margin-top:10px}
+.dc__row{
+  display:flex;align-items:center;gap:9px;
+  padding:10px 0 5px;
+  border-top:1px solid var(--line);
+}
+.dc__num{flex:1;min-width:0;font-family:var(--f-num)}
+.dc__unit{flex:none;width:86px;font-family:var(--f-num)}
+.dc__out{
+  padding:0 2px 12px;
+  font-family:var(--f-num);
+  font-size:14px;font-weight:600;
+  color:var(--accent-ink);
+}
+.dc__out.is-empty{
+  font-family:inherit;
+  font-size:12.5px;font-weight:400;
+  color:var(--ink-4);
+}
+
+/* ------------------------------------------------------------
+   快捷天数
+   ------------------------------------------------------------ */
+.dc__presets{
+  display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+  padding-top:12px;border-top:1px solid var(--line);
+}
+.chip{
+  height:28px;padding:0 11px;border-radius:99px;
+  background:var(--surface-2);border:1px solid var(--line);
+  font-family:var(--f-num);font-size:12px;color:var(--ink-3);
+  transition:background .16s var(--ease),color .16s var(--ease),border-color .16s var(--ease);
+}
+.chip:hover{background:var(--surface-3);border-color:var(--line-2);color:var(--ink)}
+.chip:active{transform:scale(.97)}
+
+/* ------------------------------------------------------------
+   间隔结果
+   ------------------------------------------------------------ */
+.dc__total{
+  display:flex;align-items:baseline;justify-content:center;gap:10px;
+  padding:18px 0 14px;
+  border-top:1px solid var(--line);
+}
+.dc__total b{
+  font-family:var(--f-num);
+  font-size:40px;line-height:1;font-weight:600;
+  color:var(--accent);
+  font-variant-numeric:tabular-nums;
+}
+.dc__unit-tag{
+  padding:3px 9px;border-radius:6px;
+  background:var(--surface-3);
+  font-family:var(--f-num);font-size:12px;color:var(--ink-3);
+}
+.dc__inc{border-top:1px solid var(--line);padding-top:13px}
+.dc__hint{
+  display:flex;align-items:flex-start;gap:8px;
+  margin-top:11px;padding:9px 11px;
+  background:var(--surface-2);border-radius:var(--r-sm);
+  font-size:11.5px;line-height:1.65;color:var(--ink-3);
+}
+.dc__hint .ic{width:14px;height:14px;flex:none;margin-top:1.5px;color:var(--ink-4)}
+
+/* ------------------------------------------------------------
+   响应式
+   ------------------------------------------------------------ */
+@media (max-width:1080px){
+  .dc{
+    grid-template-columns:minmax(0,1fr);
+    gap:16px;
+  }
+  .dc__side{position:static}
+}
+
+@media (max-width:900px){
+  /* 手机上日期框整行铺开，右侧的星期跟着换行 */
+  .dc__date{max-width:none;flex:1 1 100%}
+  .dc__today{margin-left:0}
+  .dc__num{flex:1 1 110px}
+  .dc__unit{width:74px}
+  .dc__total b{font-size:34px}
+  .chip{height:var(--tap);padding:0 14px}   /* 触控目标不缩水 */
+  .dc__presets{gap:8px}
+  .dc__presets .dc__lbl{width:100%}
+}

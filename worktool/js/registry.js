@@ -79,10 +79,10 @@
     },
     'calc-date': {
       id: 'calc-date', group: 'calc', name: '日期天数计算', icon: 'clock',
-      status: 'soon',
-      sub: '相隔天数与倒推日期',
-      desc: '算两个日期相隔多少天，或从某天往前 / 往后推 N 天。',
-      plan: ['日期间隔（含工作日）', '日期加减天数', '常用纪念日倒计时']
+      status: 'ready',
+      sub: '相隔天数与推算日期',
+      desc: '算两个日期相隔多少天（可含起始日），或从某天往前 / 往后推 N 天、周、月、年。',
+      tags: ['日期间隔', '日期推算', '不联网']
     },
     'calc-ratio': {
       id: 'calc-ratio', group: 'calc', name: '比例与百分比', icon: 'calculator',
