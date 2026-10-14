@@ -6,7 +6,7 @@
    第三方接口一律不拦截。
    ============================================================ */
 
-var CACHE = 'toolbox-v1.10.1';
+var CACHE = 'toolbox-v1.11.0';
 
 var SHELL = [
   './',
@@ -22,6 +22,7 @@ var SHELL = [
   'assets/css/features/imageconvert.css',
   'assets/css/features/github2jsdelivr.css',
   'assets/css/features/datecalc.css',
+  'assets/css/features/unitconvert.css',
   'js/loader.js',
   'js/core.js',
   'js/registry.js',
@@ -31,10 +32,12 @@ var SHELL = [
   'js/lib/github2jsdelivr.js',
   'js/lib/ghmirror.js',
   'js/lib/datecalc.js',
+  'js/lib/unitconvert.js',
   'js/tools/overview.js',
   'js/tools/imageconvert.js',
   'js/tools/github2jsdelivr.js',
   'js/tools/datecalc.js',
+  'js/tools/unitconvert.js',
   'js/app.js',
   'icon-192.png',
   'icon-512.png'

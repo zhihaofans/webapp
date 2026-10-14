@@ -72,10 +72,10 @@
 
     'calc-unit': {
       id: 'calc-unit', group: 'calc', name: '单位换算', icon: 'convert',
-      status: 'soon',
-      sub: '长度、重量、面积、温度',
-      desc: '常用单位之间即时换算，输入即出结果，无需点击计算。',
-      plan: ['长度 / 重量 / 面积 / 体积', '温度与速度', '自定义换算系数']
+      status: 'ready',
+      sub: '14 类 123 个单位',
+      desc: '长度、面积、体积、质量、温度、压力、功率、能量、力、密度、速度、时间、数据存储、角度，输入即出结果，并列出该数值在所有单位下的取值。',
+      tags: ['14 类', '即输即算', '全单位对照']
     },
     'calc-date': {
       id: 'calc-date', group: 'calc', name: '日期天数计算', icon: 'clock',
