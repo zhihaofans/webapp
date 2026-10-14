@@ -44,13 +44,14 @@
   ];
 
   /* style: gh    → {host}{user}/{repo}@{ref}/{path}
-            plain → {host}{user}/{repo}/{ref}/{path}          */
+            plain → {host}{user}/{repo}/{ref}/{path}
+     jsd: 属于 jsDelivr 系 —— 只有它们认「latest 省略版本段」这种老写法 */
   var CDNS = [
-    { id: 'jsdelivr', name: 'jsDelivr', host: 'https://cdn.jsdelivr.net/gh/', style: 'gh',
+    { id: 'jsdelivr', name: 'jsDelivr', host: 'https://cdn.jsdelivr.net/gh/', style: 'gh', jsd: true,
       note: '全球 CDN，最稳；分支链接缓存 12 小时，用 tag 更放心' },
-    { id: 'fastly', name: 'jsDelivr · Fastly', host: 'https://fastly.jsdelivr.net/gh/', style: 'gh',
+    { id: 'fastly', name: 'jsDelivr · Fastly', host: 'https://fastly.jsdelivr.net/gh/', style: 'gh', jsd: true,
       note: 'jsDelivr 备用节点，主域名打不开时换它' },
-    { id: 'gcore', name: 'jsDelivr · Gcore', host: 'https://gcore.jsdelivr.net/gh/', style: 'gh',
+    { id: 'gcore', name: 'jsDelivr · Gcore', host: 'https://gcore.jsdelivr.net/gh/', style: 'gh', jsd: true,
       note: 'jsDelivr 备用节点' },
     { id: 'githack', name: 'GitHack', host: 'https://rawcdn.githack.com/', style: 'plain',
       note: '国内速度好，但不支持目录，只适合单个文件', noDir: true },
@@ -83,10 +84,36 @@
     return p.normalized;
   }
 
+  /* 用指定的 ref 生成 CDN 重写列表。
+     单独抽出来是为了配合界面的「版本校验」：校验拿到完整 commit 之后，
+     只需要重建这一组链接，不用把整条结果推倒重算。 */
+  function buildCdns(parsed, version, opts) {
+    opts = opts || {};
+    var out = [];
+    if (!isRepoPath(parsed) || !version || !parsed.file) return out;
+    CDNS.forEach(function (m) {
+      if (m.noDir && parsed.kind === 'tree') return;
+      var url;
+      if (m.style === 'gh') {
+        /* latest 可以省略 @version 段 —— 只有 jsDelivr 系认这种老写法 */
+        if (version === 'latest' && opts.omitLatest && m.jsd) {
+          url = m.host + parsed.user + '/' + parsed.repo + '/' + parsed.file;
+        } else {
+          url = m.host + parsed.user + '/' + parsed.repo + '@' + version + '/' + parsed.file;
+        }
+      } else {
+        url = m.host + parsed.user + '/' + parsed.repo + '/' + version + '/' + parsed.file;
+      }
+      out.push({ id: m.id, name: m.name, note: m.note, url: url });
+    });
+    return out;
+  }
+
   /* 单条转换
      返回 { input, ok, error, parsed, rawUrl, proxies[], cdns[], total }
      解析失败时 ok 为 false，proxies / cdns 都是空数组。 */
-  function convert(input) {
+  function convert(input, opts) {
+    opts = opts || {};
     var G = lib();
     if (!G) {
       return { input: input, ok: false, error: '转换模块未加载', proxies: [], cdns: [], total: 0 };
@@ -102,29 +129,21 @@
       return { id: m.id, name: m.name, note: m.note, url: m.prefix + raw };
     });
 
-    var cdns = [];
-    if (isRepoPath(parsed) && parsed.version && parsed.file) {
-      CDNS.forEach(function (m) {
-        if (m.noDir && parsed.kind === 'tree') return;
-        var u = m.style === 'gh'
-          ? m.host + parsed.user + '/' + parsed.repo + '@' + parsed.version + '/' + parsed.file
-          : m.host + parsed.user + '/' + parsed.repo + '/' + parsed.version + '/' + parsed.file;
-        cdns.push({ id: m.id, name: m.name, note: m.note, url: u });
-      });
-    }
+    var cdns = buildCdns(parsed, parsed.version, opts);
 
     return {
       input: input, ok: true, error: null,
       parsed: parsed, rawUrl: raw,
       proxies: proxies, cdns: cdns,
+      version: parsed.version,
       total: proxies.length + cdns.length
     };
   }
 
   /* 批量：逐条转换并回调，全部是同步的（没有任何联网步骤）。 */
-  function convertMany(list, onEach) {
+  function convertMany(list, opts, onEach) {
     return list.map(function (raw, i) {
-      var r = convert(raw);
+      var r = convert(raw, opts);
       if (typeof onEach === 'function') { try { onEach(r, i, list.length); } catch (e) {} }
       return r;
     });
@@ -135,6 +154,7 @@
     CDNS: CDNS,
     isRepoPath: isRepoPath,
     toRawUrl: toRawUrl,
+    buildCdns: buildCdns,
     convert: convert,
     convertMany: convertMany
   };

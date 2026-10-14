@@ -122,17 +122,44 @@ console.log('\n── 非法输入 ──');
   checkTrue('  且给出可读原因: ' + (bad || '(空)'), x.error && x.error.length > 4);
 });
 
-/* ---------- ⑦ 批量 ---------- */
+/* ---------- ⑦ latest 省略与按 ref 重建 ---------- */
+console.log('\n── latest 省略与按 ref 重建 ──');
+var lat2 = M.convert('https://github.com/u/r/blob/latest/a.js', { omitLatest: true });
+check('开启省略后 jsDelivr 去掉版本段',
+  lat2.cdns[0].url, 'https://cdn.jsdelivr.net/gh/u/r/a.js');
+check('GitHack 不受影响（不是 jsDelivr 系）',
+  (lat2.cdns.filter(function (c) { return c.id === 'githack'; })[0] || {}).url,
+  'https://rawcdn.githack.com/u/r/latest/a.js');
+check('Statically 也不受影响',
+  (lat2.cdns.filter(function (c) { return c.id === 'statically'; })[0] || {}).url,
+  'https://cdn.statically.io/gh/u/r@latest/a.js');
+
+/* buildCdns：界面做版本校验时按完整 commit 重建这一组 */
+var parsed = M.convert('https://github.com/u/r/blob/abc1234/a.js').parsed;
+var SHA = '8b7fbe7a2b3e0d4a3f2e1c0b9a8d7e6f5c4b3a21';
+var rebuilt = M.buildCdns(parsed, SHA, {});
+check('按完整 commit 重建：jsDelivr 用 commit',
+  rebuilt[0].url, 'https://cdn.jsdelivr.net/gh/u/r@' + SHA + '/a.js');
+check('重建条数与定义一致', rebuilt.length, M.CDNS.length);
+check('非仓库路径重建为空',
+  M.buildCdns(M.convert('https://github.com/u/r').parsed, 'main', {}).length, 0);
+check('Release 路径重建为空',
+  M.buildCdns(M.convert('https://github.com/u/r/releases/download/v1/f.zip').parsed, 'main', {}).length, 0);
+
+/* ---------- ⑧ 批量 ---------- */
 console.log('\n── 批量 ──');
 var seen = [];
 var many = M.convertMany([
   'https://github.com/u/r/blob/main/a.js',
   'garbage',
   'https://github.com/u/r/blob/main/a.js'
-], function (res, i, total) { seen.push(i + '/' + total); });
+], {}, function (res, i, total) { seen.push(i + '/' + total); });
 check('批量返回同样条数', many.length, 3);
 check('批量不自动去重（去重交给界面）', many.filter(function (x) { return x.ok; }).length, 2);
 check('逐条回调带索引与总数', seen.join(','), '0/3,1/3,2/3');
+check('批量透传 opts',
+  M.convertMany(['https://github.com/u/r/blob/latest/a.js'], { omitLatest: true })[0].cdns[0].url,
+  'https://cdn.jsdelivr.net/gh/u/r/a.js');
 
 console.log('\n' + '='.repeat(46));
 console.log('结果: ' + pass + ' 通过 / ' + fail + ' 失败');
