@@ -549,8 +549,10 @@
         '<div class="ctl__hint">' + MIME_HINT[mime] + '</div>' +
         (cap.webp || wasmUsable() ? '' :
           '<div class="ctl__note">' + T.ic('info', '', 0) +
-            '<span>这台设备既没有原生的 WebP 编码能力（Safari / WebKit 的限制），' +
-            'WASM 编码器也没能加载起来，所以列表里没有它。</span></div>' +
+            '<span>这台设备没有原生的 WebP 编码能力（Safari / WebKit 的限制），' +
+            'WASM 编码器也没能加载起来' +
+            (T.WebpEnc && T.WebpEnc.reason() ? '：' + T.esc(T.WebpEnc.reason()) : '') +
+            '。所以列表里没有它。</span></div>' +
           '<button class="btn btn--sm" type="button" id="btnRecheck" style="align-self:flex-start">' +
             T.ic('restore', '', 0) + '重新检测编码能力</button>') +
         (wasmUsable() && T.WebpEnc.status() === 'loading'
@@ -596,7 +598,10 @@
       '<div class="tip">' + T.ic('shield', '', 0) +
         '<div><b>图片不会离开这台设备。</b>转换全部在本机浏览器内完成，没有任何上传步骤，断网也能用。</div>' +
       '</div>' +
-      (cap.webp ? '' :
+      /* 判据必须和 availableFormats() 一致：只看 cap.webp 的话，iOS 上
+         这个按钮会永远挂着（Canvas 编不出 WebP），点下去还说「不支持」，
+         明明 WASM 那条路是好的。只有 WebP 真的用不了时才需要这个入口。 */
+      (cap.webp || wasmUsable() ? '' :
         '<button class="btn btn--sm btn--block" type="button" id="btnRecheck2">' +
           T.ic('restore', '', 0) + '重新检测编码能力</button>') +
     '</div>';
@@ -614,15 +619,47 @@
         if (viewHost) renderView(viewHost);   /* 事件 → 重建视图，单向 */
       });
     }
-    /* 重新检测：万一系统/浏览器升级后就能编码 WebP 了，不必刷新页面 */
+    /* 重新检测：两条路都真探一遍，而不是只看 Canvas。
+       这里曾经有过一个会骗人的 bug —— 提示只读 Canvas 探测的结果，
+       可 iOS 的 Canvas 永远编不出 WebP（WebKit 的限制），于是 cap.webp
+       恒为 false，第三方 WASM 编码器工作得再好也照样弹「仍然不支持」。
+       结果就是：格式列表里明明列着 WebP 三个字，点一下检测却被告知不支持，
+       用户只能以为功能没生效。判据必须和 availableFormats() 一致。 */
     ['#btnRecheck', '#btnRecheck2'].forEach(function (sel) {
       var b = host.querySelector(sel);
       if (!b) return;
       b.addEventListener('click', function () {
-        var cap = resetCap();
-        if (viewHost) renderView(viewHost);
-        T.toast(cap.webp ? '这台设备现在支持 WebP 编码了' : '仍然不支持 WebP 编码，继续用兜底格式',
-          { icon: cap.webp ? 'check' : 'info', ms: 3600 });
+        var cap = resetCap();                    /* 重探 Canvas（原生编码能力）*/
+
+        if (cap.webp) {
+          if (viewHost) renderView(viewHost);
+          T.toast('这台设备支持 WebP 编码（浏览器原生）', { icon: 'check', ms: 3600 });
+          return;
+        }
+
+        var enc = T.WebpEnc;
+        if (!enc || !enc.supported()) {
+          T.toast('仍然不支持 WebP 编码：这台浏览器缺少 WebAssembly 或 Worker',
+            { icon: 'warn', ms: 5200 });
+          return;
+        }
+
+        /* Canvas 这条路不行 —— 而 Safari / iOS 上 WASM 是唯一可能成功的路，
+           所以真去加载一次再说。「失败」是个一次性状态，必须先重置才有
+           重试的机会，否则这里点一百次也只会拿到上次那个死掉的结论。 */
+        if (enc.status() === 'failed') enc.reset();
+
+        var p = enc.whenReady();
+        if (viewHost) renderView(viewHost);      /* 先显示「正在加载编码器…」*/
+
+        p.then(function () {
+          if (viewHost) renderView(viewHost);
+          T.toast('WebP 编码器可用，输出格式里的 WebP 可以正常使用', { icon: 'check', ms: 4000 });
+        }, function () {
+          if (viewHost) renderView(viewHost);
+          T.toast('仍然不支持 WebP 编码：' + (enc.reason() || '编码器加载失败'),
+            { icon: 'warn', ms: 5600 });
+        });
       });
     });
 
@@ -804,9 +841,10 @@
     '<div class="capmsg">' + T.ic('info', '', 0) +
       '<div><b>这台设备暂时不能编码 WebP，所以格式列表里没有它。</b>' +
       'Safari / WebKit 的 Canvas 至今不支持导出 WebP，而 iOS 上所有浏览器都是 WebKit；' +
-      '本页本来带了一个「自带 libwebp 编码器的 WASM」来绕开这个限制，但这次它也没能加载起来。<br>' +
+      '本页本来带了一个「自带 libwebp 编码器的 WASM」来绕开这个限制，但这次它也没能加载起来' +
+      (T.WebpEnc && T.WebpEnc.reason() ? '（' + T.esc(T.WebpEnc.reason()) + '）' : '') + '。<br>' +
       '现在用 <b id="fbLabel">JPEG</b> 输出，体积收益与 WebP 很接近。' +
-      '刷新一下页面、或者换个网络再试，通常就恢复了。' +
+      '点上面的「重新检测编码能力」或刷新页面再试一次，通常就恢复了。' +
       '</div></div><div style="height:14px"></div>';
 
   function renderView(host) {

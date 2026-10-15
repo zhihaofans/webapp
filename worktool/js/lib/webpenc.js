@@ -152,6 +152,26 @@
     failAll('已取消');
   }
 
+  /* 重置回 idle，让「重新检测」能真的重试一次。
+     为什么必须要有它：start() 是一次性的（state !== 'idle' 就直接 return），
+     所以一旦判成 failed 就再无翻身机会 —— 可失败原因常常只是当时那一次
+     网络没把 wasm 拉下来，或者刚好在系统内存吃紧的时候创建 Worker 失败，
+     这类问题重试本来就该有用。
+     排队中的请求一律作废（它们等的是上一个已经拆掉的 Worker）。 */
+  function reset() {
+    if (initTimer) { clearTimeout(initTimer); initTimer = null; }
+    if (worker) {
+      try { worker.terminate(); } catch (e) {}
+      worker = null;
+    }
+    failAll('已重置');
+    var list = waiters.splice(0);
+    list.forEach(function (fn) { try { fn('failed'); } catch (e) {} });
+    state = 'idle';
+    failReason = '';
+    simd = false;
+  }
+
   T.WebpEnc = {
     supported: supported,
     status: function () { return state; },
@@ -160,6 +180,7 @@
     warmup: warmup,
     whenReady: whenReady,
     encode: encode,
-    abort: abort
+    abort: abort,
+    reset: reset
   };
 })(window.Toolbox);
