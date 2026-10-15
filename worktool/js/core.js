@@ -9,8 +9,8 @@ window.Toolbox = window.Toolbox || {};
   'use strict';
 
   var APP_NAME = '生活工具箱';
-  var APP_VER = '1.13.3';
-  var APP_BUILD = '2026-10-03';
+  var APP_VER = '1.13.4';
+  var APP_BUILD = '2026-10-15';
   var SCHEMA = 1;
   /* 迁移戳：标记「这份数据已经过 v1.13.2 那次默认值迁移」。
      注意它跟着「引入迁移的那个版本」走，不随每次发版更新 ——
