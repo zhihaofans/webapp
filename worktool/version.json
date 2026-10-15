@@ -1,7 +1,7 @@
 {
-  "ver": "1.13.1",
-  "build": "2026-10-14",
+  "ver": "1.13.2",
+  "build": "2026-10-15",
   "name": "生活工具箱",
-  "note": "文案修正：图片工具页底部原写「转换在浏览器里用 Canvas 完成」，接入 WASM 编码器后已不准确。功能无变化。",
+  "note": "GITHUB 链接转换的两个转换设置「联网校验版本」「latest 省略版本段」默认改为关闭，全程本地计算，需要时再手动开。",
   "url": "https://zhihaofans.github.io/webapp/worktool/"
 }

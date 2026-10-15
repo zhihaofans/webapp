@@ -9,9 +9,11 @@ window.Toolbox = window.Toolbox || {};
   'use strict';
 
   var APP_NAME = '生活工具箱';
-  var APP_VER = '1.13.1';
+  var APP_VER = '1.13.2';
   var APP_BUILD = '2026-10-03';
   var SCHEMA = 1;
+  /* 一次性迁移戳：跑到过哪个版本。老数据在 normalize 里按它翻默认值 */
+  var MIGRATED = '1.13.2';
 
   T.APP_NAME = APP_NAME;
   T.APP_VER = APP_VER;
@@ -132,15 +134,16 @@ window.Toolbox = window.Toolbox || {};
         suffix: '',           // 输出文件名后缀
         keepNameTip: true,    // 首次使用提示
         autoDownload: false,  // 转换完自动下载
-        g2jResolve: true,     // 链接工具：联网校验版本
-        g2jOmitLatest: true,  // 链接工具：latest 省略版本段
+        g2jResolve: false,    // 链接工具：联网校验版本（默认关，全程本地）
+        g2jOmitLatest: false, // 链接工具：latest 省略版本段（默认关）
         g2jCopyMode: 'plain', // 链接工具：复制格式 plain | html | css
         outFormat: 'image/webp' // 图片工具的输出格式（WebP / JPEG / PNG）
       },
       recent: [],             // [{ id, tool, at }]                     使用痕迹
       history: [],            // [{ id, name, at, srcBytes, ... }]      图片转换记录
       links: [],              // [{ id, from, to, kind, at }]           链接转换记录
-      drafts: {}              // { 工具id: 未提交的输入 }                输入即保存
+      drafts: {},             // { 工具id: 未提交的输入 }                输入即保存
+      migrated: MIGRATED      // 一次性迁移戳，见 normalize()
     };
   }
   T.blankDB = blankDB;
@@ -169,8 +172,15 @@ window.Toolbox = window.Toolbox || {};
     d.settings.suffix = str(s.suffix, '').slice(0, 24);
     d.settings.keepNameTip = bool(s.keepNameTip, true);
     d.settings.autoDownload = bool(s.autoDownload, false);
-    d.settings.g2jResolve = bool(s.g2jResolve, true);
-    d.settings.g2jOmitLatest = bool(s.g2jOmitLatest, true);
+    d.settings.g2jResolve = bool(s.g2jResolve, false);
+    d.settings.g2jOmitLatest = bool(s.g2jOmitLatest, false);
+    /* v1.13.2 起两个转换设置默认关。老数据（无迁移戳）里存的是旧默认 true，
+       首次加载一次性翻成 false 并打戳；之后正常记忆用户的选择 */
+    if (!raw.migrated) {
+      d.settings.g2jResolve = false;
+      d.settings.g2jOmitLatest = false;
+    }
+    d.migrated = MIGRATED;
     var cm = str(s.g2jCopyMode, 'plain');
     d.settings.g2jCopyMode = (cm === 'plain' || cm === 'html' || cm === 'css') ? cm : 'plain';
     /* 输出格式只认这三种；万一设备不支持（比如 iOS 上的 WebP），

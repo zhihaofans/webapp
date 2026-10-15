@@ -59,7 +59,7 @@
     return { omitLatest: T.Store.settings.g2jOmitLatest === true };
   }
   function verifyOn() {
-    return T.Store.settings.g2jResolve !== false;
+    return T.Store.settings.g2jResolve === true;
   }
 
   /* ---------------- 转换主流程 ---------------- */
