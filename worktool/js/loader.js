@@ -145,7 +145,10 @@
     }
 
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js').then(function (reg) {
+      /* updateViaCache:'none' —— 让浏览器查 sw.js 更新时绕开 HTTP 缓存。
+         GitHub Pages 给静态文件发的是 max-age=600，不绕过的话新版本
+         可能被浏览器自己缓存压住最多 10 分钟，用户拿到的一直是旧 SW。 */
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
         try { reg.update(); } catch (e) {}
         reg.addEventListener('updatefound', function () {
           var nw = reg.installing;

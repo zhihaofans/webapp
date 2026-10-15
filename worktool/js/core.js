@@ -9,10 +9,12 @@ window.Toolbox = window.Toolbox || {};
   'use strict';
 
   var APP_NAME = '生活工具箱';
-  var APP_VER = '1.13.2';
+  var APP_VER = '1.13.3';
   var APP_BUILD = '2026-10-03';
   var SCHEMA = 1;
-  /* 一次性迁移戳：跑到过哪个版本。老数据在 normalize 里按它翻默认值 */
+  /* 迁移戳：标记「这份数据已经过 v1.13.2 那次默认值迁移」。
+     注意它跟着「引入迁移的那个版本」走，不随每次发版更新 ——
+     否则每次升版都会把用户手动打开的开关又翻回去。 */
   var MIGRATED = '1.13.2';
 
   T.APP_NAME = APP_NAME;
