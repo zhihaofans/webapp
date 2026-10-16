@@ -133,6 +133,7 @@
   padding:1.5px 7px;border-radius:6px;
   font-size:10.5px;font-weight:600;letter-spacing:.01em;
   background:var(--surface-3);color:var(--ink-3);
+  white-space:nowrap;      /* 标签一律不折行，宁可换行也不拆字 */
 }
 .tag--accent{background:var(--accent-soft);color:var(--accent-ink)}
 .tag--sage{background:var(--sage-soft);color:var(--sage)}

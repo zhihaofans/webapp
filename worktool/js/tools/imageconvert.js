@@ -456,9 +456,12 @@
     var doneCount = items.filter(function (it) { return it.status === 'done'; }).length;
     var head =
       '<div class="qhead">' +
-        '<h2>转换队列</h2><i class="hr"></i>' +
+        '<h2>转换队列</h2>' +
+        /* 「设置已改」是状态，不是操作，放在标题这边。
+           原来它跟三个按钮挤在同一组里，会把那一行撑爆。 */
+        (dirty ? '<span class="tag tag--amber">设置已改，可重转</span>' : '') +
+        '<i class="hr"></i>' +
         '<div class="qhead__acts">' +
-          (dirty ? '<span class="tag tag--amber">设置已改，可重转</span>' : '') +
           (doneCount ? '<button class="btn btn--sm btn--primary" type="button" data-act="dlall">' +
             T.ic('download', '', 0) + '下载全部 (' + doneCount + ')</button>' : '') +
           '<button class="btn btn--sm" type="button" data-act="reconv">' + T.ic('convert', '', 0) + '重新转换</button>' +

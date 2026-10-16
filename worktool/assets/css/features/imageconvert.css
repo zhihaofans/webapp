@@ -92,10 +92,25 @@
 .qhead{
   display:flex;align-items:center;gap:10px;
   padding:0 2px 10px;
+  /* 放不下就整体换行。这里踩过一次坑：按钮组原来是 flex:none（不许收缩），
+     而这一行又不许换行，于是「设置已改，可重转」这个标签一出现，
+     一行就撑不下了 —— 按钮不是被压缩，而是直接被顶出屏幕外
+     （实测 393px 宽下「清空」右边界跑到 476px，整条看不见）。
+     宁可换行，也不能把操作按钮弄丢。 */
+  flex-wrap:wrap;
 }
 .qhead h2{font-size:12px;font-weight:600;color:var(--ink-4);letter-spacing:.16em;white-space:nowrap}
 .qhead .hr{flex:1}
-.qhead__acts{display:flex;gap:6px;flex:none}
+.qhead__acts{
+  display:flex;gap:6px;
+  /* 不再 flex:none：允许收缩，并且自己也能换行 */
+  flex:0 1 auto;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  /* 换到第二行时靠右对齐，而不是贴在左边 */
+  margin-left:auto;
+  min-width:0;
+}
 
 .qitem{
   display:grid;
