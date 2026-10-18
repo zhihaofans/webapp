@@ -1,7 +1,7 @@
 {
-  "ver": "1.13.6",
-  "build": "2026-10-15",
+  "ver": "1.14",
+  "build": "2026-10-18",
   "name": "生活工具箱",
-  "note": "修复「设置已改，可重转」标签把工具栏按钮挤出屏幕：工具栏按钮组原来是 flex:none（不许收缩）且整行不许换行，标签一出现就撑爆，393px 下「清空」右边界跑到 477px（视口 393px）；360px 机型即使没有标签也会越界 16px。改为整行可换行、按钮组可收缩且右对齐，标签移到标题旁。新增 tools/check-layout.py 用真实 Chromium 量越界，防止这类逻辑全对但屏幕坏掉的 bug 再溜过去。",
+  "note": "局域网传输：桌面端 BarcodeDetector 只覆盖 ChromeOS/macOS，Windows/Linux 的 Chrome、Edge、Firefox 都没有 —— 之前把这当成「不能扫码」，电脑明明有摄像头也被判成扫不了。现在自带二维码解码器兜底，没有原生 API 也能对着屏幕扫。配对页同时改成显式两步引导。",
   "url": "https://zhihaofans.github.io/webapp/worktool/"
 }

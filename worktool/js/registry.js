@@ -13,7 +13,8 @@
     { id: 'image', name: '图像处理', desc: '压缩、转格式、裁剪' },
     { id: 'dev', name: '开发工具', desc: '链接、镜像、资源' },
     { id: 'text', name: '文本处理', desc: '统计、清洗、对比' },
-    { id: 'calc', name: '计算换算', desc: '单位、日期、比例' }
+    { id: 'calc', name: '计算换算', desc: '单位、日期、比例' },
+    { id: 'share', name: '传输分享', desc: '局域网直传' }
   ];
 
   /* status: ready = 已实现；soon = 已在路线图、尚未实现 */
@@ -90,6 +91,14 @@
       sub: '折扣、涨幅、分摊',
       desc: '百分比增减、折扣换算、多人分摊与等比缩放。',
       plan: ['涨跌幅与占比', '折扣与到手价', '按比例分摊金额']
+    },
+
+    'lanshare': {
+      id: 'lanshare', group: 'share', name: '局域网文件传输', icon: 'swap',
+      status: 'ready',
+      sub: '同一 Wi-Fi 直传 · 不经过服务器',
+      desc: '两台设备连同一个局域网，扫码配对后点对点传文件与文本。WebRTC DTLS 端到端加密，只用本地/私网候选，不走 TURN 中继，文件内容不经过任何服务器。',
+      tags: ['点对点', 'DTLS 加密', 'SAS 核验', '免账号']
     },
 
   };

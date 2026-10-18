@@ -1,0 +1,172 @@
+/* ============================================================
+   features/lanshare.css — 局域网文件传输
+   ============================================================ */
+.ls{display:flex;flex-direction:column;gap:16px}
+.ls__intro{display:flex;flex-wrap:wrap;gap:6px}
+.ls__badges{display:flex;flex-wrap:wrap;gap:6px}
+.ls__badges .tag{font-weight:600}
+
+/* 错误条 */
+.ls__err{
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  padding:11px 13px;border-radius:var(--r-md);
+  background:var(--danger-soft);color:var(--danger);
+  font-size:12.5px;line-height:1.6;
+}
+.ls__err .btn{margin-left:auto}
+
+.ls__flow{display:flex;flex-direction:column;gap:16px}
+
+/* ---------------- 首屏 / 状态卡 ---------------- */
+.ls__hero{
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+  gap:10px;padding:34px 20px;
+}
+.ls__hero h3{font-size:17px;font-weight:650;color:var(--ink)}
+.ls__hero p{max-width:44ch;font-size:12.5px;line-height:1.75;color:var(--ink-3);margin:0}
+.ls__hero-ic{
+  width:56px;height:56px;border-radius:18px;display:grid;place-items:center;
+  background:var(--accent-soft);color:var(--accent-ink);
+  margin-bottom:2px;
+}
+.ls__hero-ic .ic{width:26px;height:26px}
+.ls__hero-ic--off{background:var(--surface-3);color:var(--ink-4)}
+.ls__hero-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.ls__tip{font-size:11.5px !important;color:var(--ink-4) !important}
+
+.ls__spin{
+  width:26px;height:26px;border-radius:50%;
+  border:2.5px solid var(--line-2);border-top-color:var(--accent);
+  animation:ls-spin .8s linear infinite;
+}
+@keyframes ls-spin{to{transform:rotate(360deg)}}
+
+/* ---------------- 配对：二维码 ---------------- */
+.ls__pair{display:flex;flex-direction:column;gap:13px;padding:22px 20px;align-items:center}
+.ls__pair-hd{text-align:center}
+.ls__pair-hd h3{font-size:15.5px;font-weight:650;margin-bottom:5px}
+.ls__pair-hd p{font-size:12px;line-height:1.7;color:var(--ink-3);max-width:42ch;margin:0 auto}
+.ls__qr{
+  width:min(100%,320px);padding:10px;border-radius:var(--r-md);
+  background:#fff;border:1px solid var(--line);
+  box-shadow:var(--sh-1);
+}
+.ls__qr canvas{display:block;width:100%;height:auto;image-rendering:pixelated}
+.ls__link{display:flex;gap:7px;width:100%;max-width:420px}
+.ls__link-in{
+  flex:1;min-width:0;height:34px;padding:0 10px;
+  border:1px solid var(--line-2);border-radius:var(--r-sm);
+  background:var(--surface-2);color:var(--ink-2);
+  font-size:11px;font-family:var(--f-num);
+}
+.ls__paste{width:100%;max-width:420px;display:flex;flex-direction:column;gap:6px}
+.ls__paste label{font-size:11.5px;color:var(--ink-4)}
+.ls__paste .ta{font-size:12px}
+.ls__paste .btn{align-self:flex-start}
+
+/* ---------------- 已连接 ---------------- */
+.ls__ok{padding:18px 20px;display:flex;flex-direction:column;gap:13px}
+.ls__ok-hd{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--sage)}
+.ls__ok-hd .ic{width:18px;height:18px}
+.ls__ok-hd b{color:var(--ink)}
+.ls__ok-hd .tag{margin-left:auto}
+.ls__sas{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:14px;border-radius:var(--r-md);background:var(--surface-2);
+  border:1px dashed var(--line-2);
+}
+.ls__sas-lb{font-size:11px;letter-spacing:.14em;color:var(--ink-4)}
+.ls__sas-num{
+  font-family:var(--f-num);font-size:27px;font-weight:700;
+  letter-spacing:.14em;color:var(--ink);
+}
+.ls__sas-hint{font-size:11px;color:var(--ink-4);text-align:center;line-height:1.6}
+
+/* ---------------- 发送区 ---------------- */
+.ls__drop{
+  display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
+  padding:20px 14px;margin-bottom:12px;
+  border:1.5px dashed var(--line-2);border-radius:var(--r-md);
+  background:var(--surface-2);font-size:12.5px;color:var(--ink-3);
+  transition:border-color .16s,background .16s;
+}
+.ls__drop.is-over{border-color:var(--accent);background:var(--accent-soft)}
+.ls__text{display:flex;flex-direction:column;gap:7px}
+.ls__text .btn{align-self:flex-start}
+
+/* ---------------- 传输列表 ---------------- */
+.ls__items{display:flex;flex-direction:column;gap:2px}
+.ls__item{padding:11px 2px;border-bottom:1px solid var(--line)}
+.ls__item:last-child{border-bottom:0}
+.ls__item-hd{display:flex;align-items:center;gap:8px;min-width:0}
+.ls__dir{
+  flex:none;width:20px;height:20px;border-radius:6px;
+  display:grid;place-items:center;font-size:10.5px;font-weight:700;
+  background:var(--surface-3);color:var(--ink-3);
+}
+.ls__item-hd .ls__dir{background:var(--accent-soft);color:var(--accent-ink)}
+.ls__name{
+  flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.ls__size{flex:none;font-size:11px;color:var(--ink-4);font-family:var(--f-num)}
+.ls__bar{
+  height:3px;margin:8px 0 5px;border-radius:99px;overflow:hidden;
+  background:var(--surface-3);
+}
+.ls__bar i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .2s}
+.ls__meta{font-size:10.5px;color:var(--ink-4)}
+.ls__textbody{
+  margin:8px 0 0;padding:9px 11px;border-radius:var(--r-sm);
+  background:var(--surface-2);font-size:12px;line-height:1.7;
+  color:var(--ink-2);white-space:pre-wrap;word-break:break-word;
+  max-height:160px;overflow:auto;
+}
+
+/* ---------------- 窄屏 ---------------- */
+@media (max-width:640px){
+  .ls__pair{padding:18px 14px}
+  .ls__qr{width:min(100%,300px)}
+  .ls__hero{padding:28px 16px}
+  .ls__link{flex-direction:column}
+  .ls__link .btn{width:100%}
+  .ls__sas-num{font-size:24px}
+}
+
+/* ---------------- 两步进度 ---------------- */
+.ls__steps{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;width:100%}
+.ls__step{
+  font-size:11px;line-height:1.65;color:var(--ink-4);
+  background:var(--surface-3);border-radius:999px;padding:3px 11px;
+  border:1px solid transparent;
+}
+.ls__step.is-on{
+  color:var(--accent);background:var(--accent-soft);
+  border-color:var(--accent);font-weight:650;
+}
+.ls__step.is-done{color:var(--ink-3);background:var(--surface-3);opacity:.62}
+
+/* ---------------- 读入对方的应答 ---------------- */
+.ls__recv{
+  width:100%;max-width:420px;display:flex;flex-direction:column;gap:8px;
+  padding-top:12px;border-top:1px dashed var(--line-2);
+}
+.ls__recv-hd{font-size:11.5px;color:var(--ink-4);line-height:1.7}
+.ls__recv-hd b{display:block;font-size:12.5px;color:var(--ink);font-weight:650;margin-bottom:2px}
+.ls__recv-acts{display:flex;gap:7px;flex-wrap:wrap}
+.ls__manual{font-size:11.5px;color:var(--ink-4)}
+.ls__manual summary{cursor:pointer;padding:3px 0;user-select:none}
+.ls__manual textarea{margin:6px 0}
+.ls__manual .btn{margin-top:0}
+
+.ls__scan{
+  width:100%;max-width:420px;display:flex;flex-direction:column;
+  gap:9px;align-items:center;
+  padding-top:12px;border-top:1px dashed var(--line-2);
+}
+.ls__scan video{
+  width:100%;max-width:340px;aspect-ratio:1/1;
+  border-radius:var(--r-md);background:#000;object-fit:cover;
+  border:1px solid var(--line);
+}
+.ls__scan-hint{font-size:11.5px;color:var(--ink-4);text-align:center}

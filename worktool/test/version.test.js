@@ -45,7 +45,8 @@ check('APP_BUILD = version.json build', APP_BUILD, ver.build);
 console.log('  info 当前版本 v' + APP_VER + '，构建于 ' + APP_BUILD);
 
 console.log('\n── 格式与基本合理性 ──');
-check('版本号形如 a.b.c', /^\d+\.\d+\.\d+$/.test(APP_VER || ''), true);
+// 允许 a.b 这种省略末尾 0 的写法（如 1.14），但组件数不得多于 3
+check('版本号形如 a.b 或 a.b.c', /^\d+\.\d+(?:\.\d+)?$/.test(APP_VER || ''), true);
 check('构建日期形如 YYYY-MM-DD', /^\d{4}-\d{2}-\d{2}$/.test(APP_BUILD || ''), true);
 check('构建日期是真实存在的日期', String(new Date(APP_BUILD + 'T00:00:00')) !== 'Invalid Date', true);
 check('构建日期没有跑到未来', !(APP_BUILD > new Date().toISOString().slice(0, 10)), true);

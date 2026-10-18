@@ -23,7 +23,7 @@
    第三方接口一律不拦截。
    ============================================================ */
 
-var CACHE = 'toolbox-1.13.6';
+var CACHE = 'toolbox-1.14';
 
 /* 网络等待上限（毫秒）—— 只用于脚本资源。
    它们全在预缓存里，超时直接吃缓存反而更快；而且此时启动遮罩已经画出来
@@ -44,6 +44,7 @@ var SHELL = [
   'assets/css/features/github2jsdelivr.css',
   'assets/css/features/datecalc.css',
   'assets/css/features/unitconvert.css',
+  'assets/css/features/lanshare.css',
   'js/loader.js',
   'js/core.js',
   'js/registry.js',
@@ -55,11 +56,15 @@ var SHELL = [
   'js/lib/datecalc.js',
   'js/lib/unitconvert.js',
   'js/lib/webpenc.js',
+  'js/lib/qr.js',
+  'js/lib/qrdec.js',
+  'js/lib/lanshare.js',
   'js/tools/overview.js',
   'js/tools/imageconvert.js',
   'js/tools/github2jsdelivr.js',
   'js/tools/datecalc.js',
   'js/tools/unitconvert.js',
+  'js/tools/lanshare.js',
   'js/app.js',
   'manifest.webmanifest',
   'icon-192.png',

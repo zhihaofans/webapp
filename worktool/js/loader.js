@@ -23,11 +23,15 @@
     'js/lib/datecalc.js',
     'js/lib/unitconvert.js',
     'js/lib/webpenc.js',
+    'js/lib/qr.js',
+    'js/lib/qrdec.js',
+    'js/lib/lanshare.js',
     'js/tools/overview.js',
     'js/tools/imageconvert.js',
     'js/tools/github2jsdelivr.js',
     'js/tools/datecalc.js',
     'js/tools/unitconvert.js',
+    'js/tools/lanshare.js',
     'js/app.js'
   ];
 
