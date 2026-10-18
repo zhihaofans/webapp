@@ -469,6 +469,20 @@ function openSettings(){
             '<p>还没有供应商</p><small>先在「AI 余额」里加一个，填上 API Key。</small></div>') +
       '</div>' +
 
+      '<div class="sect"><h4>联网检索</h4>' +
+        '<label class="swrow">' +
+          '<input type="checkbox" id="stWeb"' + (st.webSearch ? ' checked' : '') + '>' +
+          '<span class="switch" aria-hidden="true"></span>' +
+          '<span class="swrow__t">饮品营养查证 · 热榜总结抓正文</span></label>' +
+        '<p class="hint">开启后，查饮品营养时会先搜资料再给数值（结果标「联网查证」并注明来源）；' +
+          '热榜总结会抓几篇正文再归纳，而不是只看标题。' +
+          '使用 DeepSeek 的搜索与抓取接口，按次计费约 ¥0.005，抓不到不计费。</p>' +
+        (WebSearch.provider()
+          ? '<p class="hint">检索固定使用 DeepSeek 的 Key；整理结论仍用你在上面选的模型。</p>'
+          : '<p class="hint">还没填 DeepSeek 的 API Key —— 这个开关现在打开也不会生效。' +
+            '<a href="#" id="stWebKey">去填写</a></p>') +
+      '</div>' +
+
       '<div class="sect"><h4>数据</h4><div class="stack--sm" style="display:flex;flex-direction:column;gap:8px">' +
         '<button class="btn btn--primary btn--block" id="stExp">' + ic('dl') + '导出备份</button>' +
         '<button class="btn btn--block" id="stImp">' + ic('ul') + '导入备份</button>' +
@@ -560,6 +574,29 @@ function openSettings(){
     $$('#stHoliType button', d.body).forEach(x => x.classList.toggle('is-on', x === b));
     toast('ok', '倒计时目标：' + Holiday.label(b.dataset.v));
   });
+
+  // 联网检索开关：要花钱的能力，打开时明确告知，并提示抓取失败不算钱
+  const webBox = $('#stWeb', d.body);
+  const syncWebSw = () => webBox.closest('.swrow')?.querySelector('.switch')?.classList.toggle('is-on', webBox.checked);
+  webBox.onchange = () => {
+    syncWebSw();
+    Store.mutate(db => { db.settings.webSearch = webBox.checked; });
+    if (webBox.checked && !WebSearch.provider()){
+      toast('warn', '还差一把 Key', '联网检索用的是 DeepSeek 的接口，先去「AI 余额」填上 Key。', 7000, [
+        { text: '去填写', fn: () => { d.close(); setTimeout(() => Bal.openEditor((AI.all.find(p => p.kind === 'deepseek') || {}).id), 260); } }
+      ]);
+    } else {
+      toast('ok', webBox.checked ? '已开启联网检索' : '已关闭联网检索',
+        webBox.checked ? '查饮品营养和热榜总结时会联网查证' : '');
+    }
+  };
+  syncWebSw();
+  const webKeyLink = $('#stWebKey', d.body);
+  if (webKeyLink) webKeyLink.onclick = (e) => {
+    e.preventDefault();
+    d.close();
+    setTimeout(() => Bal.openEditor((AI.all.find(p => p.kind === 'deepseek') || {}).id), 260);
+  };
 }
 
 function applyTheme(){

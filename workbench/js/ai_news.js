@@ -322,11 +322,47 @@ const AI = {
         '规格为「' + (official.d || '官方默认配置') + '」。这些已知值请原样返回，不要修改。'
       : '没有官方数据，请按你的知识估算。';
 
-    const ask = '饮品名称：' + name + '（容量约 ' + volume + 'ml）\n' + known +
+    /**
+     * 联网查证（v1.27）：内置官方表没覆盖的品牌饮品，先搜一下它的营养标注。
+     *
+     * 只在「官方表缺值」时才搜 —— 官方值已经拿到热量与咖啡因时，联网只能补一个
+     * 糖分，边际收益低却要多花两次调用，不划算。
+     *
+     * 整段包在 try 里且不重新抛出：联网是锦上添花，任何失败（限流、Key 失效、
+     * 目标站反爬）都必须静默退回到纯 AI 估算，绝不能让「查不到」变成「用不了」。
+     */
+    let refs = '', srcHost = '';
+    const lackOfficial = !official || official.k == null || official.c == null;
+    if (lackOfficial && WebSearch.ready()){
+      try {
+        const rs = await WebSearch.search(
+          name + ' ' + (volume || '') + 'ml 热量 咖啡因 添加糖 营养成分',
+          { count: 4, content: true, timeout: 15000 }
+        );
+        // 优先用带正文的（content），退而用摘要（summary）；两者都空就丢掉这条
+        const picked = rs.filter(r => r && (r.content || r.summary)).slice(0, 3);
+        if (picked.length){
+          refs = picked.map((r, i) =>
+            '【资料' + (i + 1) + '】' + String(r.title || '').slice(0, 60) +
+            '（' + String(r.site_name || '网页') + '）\n' +
+            String(r.content || r.summary || '').replace(/\s+/g, ' ').slice(0, 1200)
+          ).join('\n\n');
+          srcHost = String(picked[0].site_name || '').slice(0, 30);
+        }
+      } catch (e){ refs = ''; }
+    }
+
+    const refBlock = refs
+      ? '\n\n以下是刚检索到的网络资料，请**优先依据它们**给出数值；资料之间矛盾时取更具体、更接近官方的那条：\n' +
+        refs + '\n\n若资料里没有某项数据，再按常识估算，并在 basis 里说明是估算。'
+      : '';
+
+    const ask = '饮品名称：' + name + '（容量约 ' + volume + 'ml）\n' + known + refBlock +
       '\n请返回 JSON，字段：\n' +
-      '{"kcal":热量千卡整数,"caffeine":咖啡因毫克整数,"sugar":添加糖克整数,"confidence":"high|medium|low","basis":"依据简述20字内"}\n' +
+      '{"kcal":热量千卡整数,"caffeine":咖啡因毫克整数,"sugar":添加糖克整数,"confidence":"high|medium|low","basis":"依据简述20字内","source":"资料来源站点名，没有就留空"}\n' +
       '要求：三个数值都必须是不带单位的纯数字；不确定的字段给最接近的整数，不要写 null；' +
-      'sugar 指添加糖（不含牛奶等天然存在的乳糖）；confidence 表示你对估算的把握。';
+      'sugar 指添加糖（不含牛奶等天然存在的乳糖）；confidence 表示你对估算的把握，' +
+      '依据了检索资料时用 high，纯凭记忆时用 medium 或 low。';
 
     const r = await this.chat(providerId, [
       { role: 'system', content: sys },
@@ -353,6 +389,10 @@ const AI = {
       sugar: n(o.sugar, 500),
       confidence: ['high', 'medium', 'low'].includes(o.confidence) ? o.confidence : 'medium',
       basis: String(o.basis || '').slice(0, 40),
+      // 是否真的依据了联网资料 + 来源站点。UI 靠它把「查证」与「估算」区分开，
+      // 不能让用户以为纯凭记忆猜出来的数字也是查到的。
+      web: !!refs,
+      source: String(o.source || srcHost || '').slice(0, 30),
       model: r.model
     };
     if (out.kcal === null && out.caffeine === null && out.sugar === null){
@@ -454,6 +494,92 @@ const AI = {
   }
 };
 
+/* ==========================================================================
+   联网检索 —— DeepSeek Search / Fetch（v1.27）
+   --------------------------------------------------------------------------
+   两个接口 2026-10-17 上线，与 chat 用同一把 Bearer Key：
+     POST https://api.deepseek.com/v1/tools/search   { query, count, need_content }
+     POST https://api.deepseek.com/v1/tools/fetch    { url } → { title, content(Markdown) }
+
+   为什么固定用 DeepSeek 的 Key、而不是「默认 AI」那把：
+   这是 DeepSeek 独有的能力，换成 OpenRouter / Moonshot 的 Key 根本调不通。
+   所以检索走 DeepSeek，整理（写结论）仍走用户选中的模型 —— 两者解耦。
+
+   计费：¥5/1000 次，**只有返回内容才计费**（空结果 / 超时 / 4xx 都免费），
+   所以「搜不到」不心疼，可以放心当兜底用。
+   ========================================================================== */
+const WebSearch = {
+  HOST: 'https://api.deepseek.com/v1/tools',
+  _lastAt: 0,
+  _chain: Promise.resolve(),   // 串行闸门：让并发调用排队，而不是同时撞上去
+
+  /** 找一把能用的 DeepSeek Key：先认 kind，再认 base（用户可能自建了一个 DeepSeek 供应商） */
+  provider(){
+    return AI.all.find(p => p.kind === 'deepseek' && p.key)
+        || AI.all.find(p => p.key && /api\.deepseek\.com/i.test(p.base || ''))
+        || null;
+  },
+
+  /** 用户是否在设置里打开了开关 */
+  get on(){ return !!Store.db.settings.webSearch; },
+
+  /** 真正可用的条件：开关打开 + 有 Key。UI 和调用方都用它判断 */
+  ready(){ return this.on && !!this.provider(); },
+
+  /**
+   * 全局限流闸门。文档限 5 req/s（Search 与 Fetch 各自独立计），这里取 4 req/s 留余量。
+   * 关键点：必须**串行**。若只用「记录上次调用时间」那种写法，多个并发调用会同时
+   * 读到同一个旧时间戳、同时判定「可以发」，闸门形同虚设（总结要并发抓 8 条正文，
+   * 正好会踩这个）。
+   */
+  _gate(){
+    const run = this._chain.then(async () => {
+      const wait = this._lastAt + 250 - Date.now();
+      if (wait > 0) await new Promise(r => setTimeout(r, wait));
+      this._lastAt = Date.now();
+    });
+    this._chain = run.catch(() => {});
+    return run;
+  },
+
+  async _post(path, body, timeout){
+    const p = this.provider();
+    if (!p) throw new Error('需要先在「AI 余额」里填好 DeepSeek 的 API Key');
+    await this._gate();
+    try {
+      return await jjson(this.HOST + path, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + p.key, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }, timeout || 20000);
+    } catch (e){
+      // 翻译成用户能处理的说法。其余错误交给调用方决定降级还是提示。
+      if (e.status === 429) throw new Error('联网检索被限流了（5 次/秒），稍等几秒再试');
+      if (e.status === 401 || e.status === 403) throw new Error('DeepSeek 的 Key 无效，去「AI 余额」检查一下');
+      throw e;
+    }
+  },
+
+  /**
+   * 搜网页。content=true 时一并带回正文 —— 这一步能省掉后续的 fetch，
+   * 文档里 content 在 need_content=false 时恒为空串。
+   */
+  async search(query, { count = 5, content = false, timeout = 20000 } = {}){
+    const q = String(query || '').trim().slice(0, 128);   // 接口上限 128 字符
+    if (!q) return [];
+    const d = await this._post('/search', { query: q, count, need_content: !!content }, timeout);
+    return (d && Array.isArray(d.results)) ? d.results : [];
+  },
+
+  /** 抓单个网页正文（Markdown）。返回 { title, content } */
+  async fetch(url, { timeout = 20000 } = {}){
+    const u = String(url || '').trim();
+    if (!/^https?:\/\//i.test(u)) throw new Error('只支持 http/https 链接');
+    const d = await this._post('/fetch', { url: u }, timeout);
+    return { title: String((d && d.title) || ''), content: String((d && d.content) || '') };
+  }
+};
+
 /** 数值格式化：null/undefined → 「未知」，否则带单位 */
 function fmtNum(v, unit){
   if (v == null || !isFinite(Number(v))) return '未知';
@@ -491,6 +617,7 @@ const News = {
   summaries: {},   // providerId -> {text, at}
   summarizing: false,
   summarizeErr: '',
+  sumNote: '',       // 抓正文时的进度文案（「正在抓取 6 条正文…」），抓完清空
 
   get enabled(){ return new Set(Store.db.settings.newsSources || []); },
 
@@ -636,31 +763,76 @@ const News = {
       return;
     }
     if (!this.items.length){ toast('warn', '还没有热榜内容', '先刷新一次热榜。'); return; }
-    this.summarizing = true; this.summarizeErr = ''; this.render();
+    this.summarizing = true; this.summarizeErr = ''; this.sumNote = ''; this.render();
+
+    /**
+     * 联网抓正文（v1.27）。
+     *
+     * 只对「资讯类」来源抓 —— 微博热搜、知乎热榜、抖音、夸克、头条的链接都是
+     * 站内页，反爬严格，抓取几乎必失败；IT之家 / AI快讯 / Hacker News 是正经
+     * 文章页，成功率高。与其广撒网白烧钱，不如只抓能抓的。
+     *
+     * 条数上限 8 条：一是限流 5 req/s（这里串行排队约 250ms/条），二是计费
+     * ¥0.005/条 —— 45 条全抓要 0.225 元还得等十几秒，不值。
+     *
+     * 抓不到就静默跳过，最终会退化回「仅标题」模式，不影响总结本身。
+     */
+    let briefs = '', webCount = 0;
+    if (WebSearch.ready()){
+      const FETCHABLE = { itnews: 1, ainews: 1, hn: 1 };
+      const cands = this.items.filter(x => x.url && FETCHABLE[x.src]).slice(0, 8);
+      if (cands.length){
+        this.sumNote = '正在抓取 ' + cands.length + ' 条正文…';
+        this.render();
+        const got = await Promise.all(cands.map(async x => {
+          try {
+            const r = await WebSearch.fetch(x.url, { timeout: 15000 });
+            // 正文压成一行再截断：省 token，也避免模型被排版符号带偏。
+            // 少于 120 字的多半是登录墙 / 404 页，丢掉不用。
+            const t = String(r.content || '').replace(/\s+/g, ' ').trim();
+            return t.length >= 120 ? { head: '[' + x.srcName + '] ' + x.title, text: t.slice(0, 800) } : null;
+          } catch (e){ return null; }
+        }));
+        const ok = got.filter(Boolean);
+        if (ok.length){
+          webCount = ok.length;
+          briefs = '\n\n以下 ' + ok.length + ' 条附有正文（其余只有标题）：\n' +
+            ok.map((b, i) => (i + 1) + '. ' + b.head + '\n' + b.text).join('\n\n');
+        }
+        this.sumNote = '';
+        this.render();
+      }
+    }
 
     const list = this.items.slice(0, 45).map((x, i) =>
       (i + 1) + '. [' + x.srcName + '] ' + x.title).join('\n');
 
-    const sys = '你是一位资讯编辑。请只依据用户给出的热榜标题进行归纳，不要编造未出现的事实、数字或链接。输出使用简体中文，Markdown 格式，结构如下（不要添加其他标题层级）：\n' +
+    const sys = '你是一位资讯编辑。' +
+      (webCount
+        ? '部分条目附有正文，请优先依据正文事实归纳；只有标题的条目只做概括，不要臆测其中的人物、数字或结论。'
+        : '请只依据用户给出的热榜标题进行归纳，不要编造未出现的事实、数字或链接。') +
+      '输出使用简体中文，Markdown 格式，结构如下（不要添加其他标题层级）：\n' +
       '## 一句话概览\n（40字以内概括当下舆论重心）\n' +
       '## 正在发生\n（4到6条要点，每条以「- 」开头，说明是什么事、为何受关注）\n' +
       '## 值得留意\n（2到3条更深一层的观察或趋势判断）\n' +
       '## 生活提示\n（1到2条与普通人日常生活相关的实用提示，例如出行、消费、天气相关注意事项）';
 
-    const usr = '今日热榜（共 ' + this.items.length + ' 条，以下为节选）：\n\n' + list + '\n\n请按要求归纳。';
+    const usr = '今日热榜（共 ' + this.items.length + ' 条，以下为节选）：\n\n' + list + briefs + '\n\n请按要求归纳。';
 
     try {
       const r = await AI.chat(providerId, [
         { role: 'system', content: sys },
         { role: 'user', content: usr }
       ], { maxTokens: 1500, temperature: 0.35 });
-      this.summaries[providerId] = { text: r.text, at: Date.now(), model: r.model, usage: r.usage };
-      toast('ok', p.name + ' 总结完成', '模型：' + r.model, 3200);
+      this.summaries[providerId] = { text: r.text, at: Date.now(), model: r.model, usage: r.usage, webCount };
+      toast('ok', p.name + ' 总结完成',
+        '模型：' + r.model + (webCount ? ' · 参考了 ' + webCount + ' 篇正文' : ' · 仅依据标题'), 3200);
     } catch (e){
       this.summarizeErr = AI.friendly(e, p);
       toast('err', p.name + ' 总结失败', this.summarizeErr, 7000);
     }
     this.summarizing = false;
+    this.sumNote = '';
     this.render();
   },
 

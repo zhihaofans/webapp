@@ -1176,13 +1176,15 @@ function renderNewsList(){
       '<div id="sumBody">' + News.md(News.summaries[ids[0]].text) + '</div>' +
       '<div class="tiny muted" style="margin-top:11px;padding-top:10px;border-top:1px solid var(--line)">' +
         '生成于 ' + esc(fmtTime(News.summaries[ids[0]].at)) + ' · 模型 ' + esc(News.summaries[ids[0]].model || '') +
+        (News.summaries[ids[0]].webCount ? ' · 参考 ' + esc(News.summaries[ids[0]].webCount) + ' 篇正文' : ' · 仅依据标题') +
         (News.summaries[ids[0]].usage ? ' · 消耗 ' + esc(News.summaries[ids[0]].usage.total_tokens || '?') + ' tokens' : '') +
         ' · 内容由 AI 生成，请自行核实' +
       '</div>' +
     '</div>';
   } else if (News.summarizing){
+    // 开了联网时会先抓正文（几秒钟），这时显示具体进度 —— 只写「正在阅读」会让人以为卡住
     html += '<div class="newsai" style="margin-bottom:14px"><div class="newsai__hd">' + ic('spark','spin') +
-      '<b>正在让模型阅读热榜…</b></div>' +
+      '<b>' + esc(News.sumNote || '正在让模型阅读热榜…') + '</b></div>' +
       '<div class="skeleton" style="height:13px;width:85%;margin-bottom:9px"></div>' +
       '<div class="skeleton" style="height:13px;width:70%;margin-bottom:9px"></div>' +
       '<div class="skeleton" style="height:13px;width:78%"></div></div>';

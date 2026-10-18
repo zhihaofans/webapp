@@ -1243,15 +1243,20 @@ function openDrinkEditor(preset){
         (local.d ? '<br><em>' + esc(local.d) + '</em>' : '') + '</span></div>');
     }
     if (ai){
-      rows.push('<div class="dk__src"><b>AI 估算</b><span>' +
+      // 「联网查证」和「AI 估算」必须分开显示：前者有资料依据，后者是凭记忆猜，
+      // 可信度不一样，混成一个标签会误导用户。
+      rows.push('<div class="dk__src"><b>' + (ai.web ? '联网查证' : 'AI 估算') + '</b><span>' +
         '糖 ' + ai.sugar + 'g　热量 ' + ai.kcal + 'kcal　咖啡因 ' + ai.caffeine + 'mg' +
         (ai.basis ? '<br><em>' + esc(ai.basis) + '</em>' : '') +
         '<br><em>把握：' + ({ high: '较高', medium: '中等', low: '较低' }[ai.confidence] || '中等') +
+        (ai.web && ai.source ? ' · 来源 ' + esc(ai.source) : '') +
         ' · 模型 ' + esc(ai.model) + '</em></span></div>');
     }
     const tip = local
       ? '热量和咖啡因来自瑞幸官网，糖分为 AI 估算（官网未公开）。数值会随杯型/甜度变化，可手动微调。'
-      : '三项均为 AI 估算，仅供参考。如果包装上有标注，建议按实际填写。';
+      : (ai && ai.web
+          ? '数据依据联网检索到的资料给出（来源：' + esc(ai.source || '网页') + '），不同杯型/甜度会有差异，可手动微调。'
+          : '三项均为 AI 估算，仅供参考。如果包装上有标注，建议按实际填写。');
     if (err) rows.push('<div class="dk__src dk__src--warn"><b>部分失败</b><span>' + esc(err.message) + '</span></div>');
     return '<div class="dk__result">' + rows.join('') +
       '<p class="tiny">' + esc(tip) + '</p></div>';

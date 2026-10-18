@@ -247,6 +247,10 @@ const DEFAULT_SETTINGS = {
   // 默认 AI（v1.16）：饮品查值、摘要等「只用一个模型」的功能统一读它。
   // 空串表示还没选过 —— 运行时由 AI.pickDefault() 回退到第一个有 Key 的供应商。
   defaultAI: '',
+  // 联网检索（v1.27）：饮品营养查证、热榜总结抓正文时，调用 DeepSeek 的
+  // /v1/tools/search 与 /v1/tools/fetch。按次计费（约 ¥0.005/次，失败不计费）。
+  // 默认关闭 —— 会产生费用的能力，默认开启是不礼貌的；要用户在设置里明确打开。
+  webSearch: false,
   lastNews: null,
   lastWeather: null,
   backupHint: 20,
@@ -521,6 +525,9 @@ const Store = {
       // 这里不校验 id 是否存在 —— 供应商是后加载的，normalize 阶段拿到的是原始数组，
       // 在这里判断容易误杀；且用户删掉供应商后 id 会短暂失效，运行时回退更稳。
       if (typeof s.defaultAI === 'string') out.settings.defaultAI = s.defaultAI.slice(0, 60);
+      // 联网检索开关。必须在这里登记 —— normalize 是逐字段重建的，
+      // 漏登记 = 用户开到 true、刷新后悄悄变回 false（这坑项目里踩过三次）。
+      if (typeof s.webSearch === 'boolean') out.settings.webSearch = s.webSearch;
       if (s.lastNews && typeof s.lastNews === 'object') out.settings.lastNews = s.lastNews;
       if (s.lastWeather && typeof s.lastWeather === 'object') out.settings.lastWeather = s.lastWeather;
       out.settings.backupHint = clamp(Number(s.backupHint) || 20, 5, 500);
