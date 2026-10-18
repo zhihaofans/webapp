@@ -828,6 +828,8 @@ function boot(){
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') Store.save();
   });
+  initNetBar();
+
   window.addEventListener('beforeunload', () => Store.save());
 
   // 切回前台时静默看一眼有没有新版本（替代「新 SW 接管自动刷新」那条路径）
@@ -916,6 +918,37 @@ function cmpVer(a, b){
  * 用户数据都在 localStorage，刷新不会丢。
  */
 let _seenVer = '';
+/**
+ * 离线提示条。
+ *
+ * 为什么不能只监听 offline 事件：**冷启动时就已经离线，offline 事件根本不会触发**
+ * （事件只在「在线 → 离线」的状态切换时派发）。只挂监听的话，用户断网打开应用
+ * 会看不到任何提示，只能自己猜「天气怎么转圈不出来」。
+ * 所以启动时必须主动判一次 navigator.onLine。
+ *
+ * 恢复联网时给一条 toast —— 用户刚看到的失败卡片不会自己重试，得让他知道
+ * 可以再点一次了。
+ */
+function initNetBar(){
+  const bar = document.getElementById('netBar');
+  if (!bar) return;
+  let wasOffline = false;
+
+  const sync = (announce) => {
+    const offline = !navigator.onLine;
+    bar.hidden = !offline;
+    // 只在「从离线恢复」时道喜；一开始就在线不该弹
+    if (!offline && wasOffline && announce){
+      toast('ok', '已恢复联网', '天气、热榜与 AI 功能现在可以正常用了');
+    }
+    wasOffline = offline;
+  };
+
+  window.addEventListener('online',  () => sync(true));
+  window.addEventListener('offline', () => sync(false));
+  sync(false);          // ← 冷启动补判，这一行是整段的关键
+}
+
 function watchNewVersion(){
   const mine = APP_META.ver;
   if (!mine || mine === '—') return;              // 本机版本都没读到，不比较

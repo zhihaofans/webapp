@@ -1,6 +1,6 @@
 {
-  "ver": "1.27.0",
+  "ver": "1.27.1",
   "build": "2026/10/18",
-  "note": "新增联网检索（DeepSeek Search / Fetch）：饮品营养可查证并标注来源，热榜总结抓正文再归纳；默认关闭，设置页可开",
+  "note": "补齐 PWA 缺项：iOS 启动图 6 组 + 180 主屏图标；新增离线状态提示条（含冷启动就离线的场景）",
   "url": "https://zhihaofans.github.io/webapp/workbench/"
 }

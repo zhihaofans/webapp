@@ -13,7 +13,25 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="生活工作台">
-<link rel="apple-touch-icon" href="icon-192.png">
+<!-- iOS 主屏图标：180×180 且不透明（透明的会被 iOS 填成黑底）。
+     192 那张保留作 Android / 通用回退。 -->
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+
+<!-- iOS 启动图：缺哪一组，那台机器启动时就是纯白屏。
+     media 里用 CSS 像素（390×844）+ DPR，图片本身是物理像素（1170×2532）。
+     由 tools/gen-pwa-assets.py 生成，改图标后重跑一次即可。 -->
+<link rel="apple-touch-startup-image" href="splash/splash-iphone-se-750x1334.png"
+      media="(device-width:375px) and (device-height:667px) and (-webkit-device-pixel-ratio:2)">
+<link rel="apple-touch-startup-image" href="splash/splash-iphone-x-1125x2436.png"
+      media="(device-width:375px) and (device-height:812px) and (-webkit-device-pixel-ratio:3)">
+<link rel="apple-touch-startup-image" href="splash/splash-iphone-13-1170x2532.png"
+      media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3)">
+<link rel="apple-touch-startup-image" href="splash/splash-iphone-15pro-1179x2556.png"
+      media="(device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3)">
+<link rel="apple-touch-startup-image" href="splash/splash-iphone-15promax-1290x2796.png"
+      media="(device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3)">
+<link rel="apple-touch-startup-image" href="splash/splash-ipad-1536x2048.png"
+      media="(device-width:768px) and (device-height:1024px) and (-webkit-device-pixel-ratio:2)">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="stylesheet" href="assets/style.css">
 <style>
@@ -43,6 +61,11 @@
 
   <!-- ===================== 主区域 ===================== -->
   <main class="main">
+    <!-- 离线提示：冷启动就离线时 offline 事件不会触发，必须由 JS 主动判一次 -->
+    <div class="netbar" id="netBar" hidden>
+      <span class="netbar__dot" aria-hidden="true"></span>
+      <span>离线模式 · 本地数据正常可用，天气 / 热榜 / AI 需联网</span>
+    </div>
     <header class="topbar">
       <!-- 手机端：菜单按钮 + 当前页标题；桌面端隐藏按钮 -->
       <button class="topbar__menu" id="btnMenu" aria-label="打开菜单" aria-expanded="false">
