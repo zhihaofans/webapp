@@ -109,6 +109,22 @@ var SDP_OFFER = [
     checkTrue('0-300 字节随机长度无损往返', okAll);
   }
 
+  console.log('\n── 版本号比较（配对时靠它判断两端是否同版）──');
+  check('相同版本', LS.cmpVer('1.14', '1.14'), 0);
+  check('1.14 vs 1.14.1', LS.cmpVer('1.14', '1.14.1'), -1);
+  check('1.14.1 vs 1.14', LS.cmpVer('1.14.1', '1.14'), 1);
+  check('1.9 vs 1.14（不能按字符串比）', LS.cmpVer('1.9', '1.14'), -1);
+  check('2.0 vs 1.99', LS.cmpVer('2.0', '1.99'), 1);
+  check('空值当 0.0', LS.cmpVer('', '0.0'), 0);
+  checkTrue('对方缺版本字段判为不同', LS.cmpVer('', '1.14') !== 0);
+
+  console.log('\n── 配对包带版本号后仍无损往返 ──');
+  var packed = await LS.pack({ k: 'offer', sdp: 'v=0 fake sdp', v: '1.14.1' });
+  var o = await LS.unpack(packed);
+  check('版本字段保住', o.v, '1.14.1');
+  check('SDP 保住', o.sdp, 'v=0 fake sdp');
+  check('类型保住', o.k, 'offer');
+
   console.log('\n==============================================');
   console.log('结果: ' + pass + ' 通过 / ' + fail + ' 失败');
   if (fail) process.exitCode = 1;

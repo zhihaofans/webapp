@@ -152,8 +152,23 @@
     return /typ relay/i.test(String(sdp || ''));
   }
 
+  /* 版本号比较：'1.14' 与 '1.14.1' 视为不同，缺的段按 0 补。
+     配对时两端版本不一致，分块与消息格式可能对不上，最好早点提示。 */
+  function cmpVer(a, b) {
+    var pa = String(a || '').split('.');
+    var pb = String(b || '').split('.');
+    var n = Math.max(pa.length, pb.length);
+    for (var i = 0; i < n; i++) {
+      var x = parseInt(pa[i], 10) || 0;
+      var y = parseInt(pb[i], 10) || 0;
+      if (x !== y) return x < y ? -1 : 1;
+    }
+    return 0;
+  }
+
   return {
     pack: pack, unpack: unpack,
+    cmpVer: cmpVer,
     sas: sas, sasPretty: sasPretty, fingerprintOf: fingerprintOf,
     fmtSize: fmtSize, countHostCandidates: countHostCandidates, hasRelay: hasRelay,
     CHUNK: CHUNK, HIGH_WATER: HIGH_WATER, LOW_WATER: LOW_WATER, MAX_FILE: MAX_FILE,

@@ -41,6 +41,7 @@
     inbound: null,        /* { id, name, size, mime, chunks, recv } */
     transfers: [],        /* { id, name, size, done, dir, kind, status, url, text } */
     incoming: {},         /* 元信息暂存 */
+    peerVer: '',          /* 对方版本号，从对方发来的配对包里读 */
     consumed: false
   };
 
@@ -252,7 +253,7 @@
     pc.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false })
       .then(function (o) { return pc.setLocalDescription(o); })
       .then(function () { return waitIce(pc, 3500); })
-      .then(function () { return LS.pack({ k: 'offer', sdp: pc.localDescription.sdp }); })
+      .then(function () { return LS.pack({ k: 'offer', sdp: pc.localDescription.sdp, v: T.APP_VER }); })
       .then(function (payload) {
         state.qrText = buildUrl(payload);
         state.phase = 'hosting';
@@ -268,13 +269,14 @@
 
     LS.unpack(payload).then(function (obj) {
       if (obj.k !== 'offer') throw new Error('这不是「发起方」的二维码');
+      state.peerVer = String(obj.v || '');
       var pc = newPC();
       state.pc = pc;
       return pc.setRemoteDescription({ type: 'offer', sdp: obj.sdp })
         .then(function () { return pc.createAnswer(); })
         .then(function (a) { return pc.setLocalDescription(a); })
         .then(function () { return waitIce(pc, 3500); })
-        .then(function () { return LS.pack({ k: 'answer', sdp: pc.localDescription.sdp }); })
+        .then(function () { return LS.pack({ k: 'answer', sdp: pc.localDescription.sdp, v: T.APP_VER }); })
         .then(function (p) {
           state.qrText = buildUrl(p);
           state.phase = 'joining';
@@ -290,6 +292,7 @@
     }
     LS.unpack(payload).then(function (obj) {
       if (obj.k !== 'answer') throw new Error('这不是「接收方」的应答二维码');
+      state.peerVer = String(obj.v || '');
       return state.pc.setRemoteDescription({ type: 'answer', sdp: obj.sdp });
     }).then(function () {
       state.phase = 'connecting';
@@ -347,7 +350,8 @@
         };
         state.transfers.unshift({
           id: m.id, kind: 'file', dir: 'in', name: m.name || '未命名',
-          size: m.size || 0, done: 0, status: 'receiving', url: ''
+          size: m.size || 0, done: 0, status: 'receiving', url: '',
+          mime: m.mime || '', thumb: ''
         });
         paint();
         return;
@@ -361,8 +365,11 @@
         if (rec) {
           rec.status = 'done';
           rec.done = ib.size;
+          rec.mime = rec.mime || ib.mime || '';
           rec.url = URL.createObjectURL(blob);
           rec.blob = blob;
+          /* 图片就直接用这个 blob URL 当缩略图，不用再建第二个 */
+          if (isImageMime(rec.mime)) rec.thumb = rec.url;
         }
         state.inbound = null;
         paint();
@@ -388,6 +395,8 @@
     if (r) r.done = ib2.recv;
     paintThrottled();
   }
+
+  function isImageMime(t) { return /^image\//.test(String(t || '')); }
 
   function findTransfer(id) {
     for (var i = 0; i < state.transfers.length; i++) {
@@ -416,8 +425,11 @@
     var id = 'f' + (++seq);
     var rec = {
       id: id, kind: 'file', dir: 'out', name: file.name, size: file.size,
-      done: 0, status: 'sending', url: '', mime: file.type
+      done: 0, status: 'sending', url: '', mime: file.type, thumb: ''
     };
+    if (isImageMime(file.type)) {
+      try { rec.thumb = URL.createObjectURL(file); } catch (e) { rec.thumb = ''; }
+    }
     state.transfers.unshift(rec);
     paint();
 
@@ -489,7 +501,12 @@
     state.sas = '';
     state.note = '';
     state.error = '';
+    state.peerVer = '';
     state.inbound = null;
+    state.transfers.forEach(function (r) {
+      if (r.thumb && r.thumb !== r.url) { try { URL.revokeObjectURL(r.thumb); } catch (e) {} }
+      if (r.url) { try { URL.revokeObjectURL(r.url); } catch (e) {} }
+    });
     state.transfers = [];
     paint();
   }
@@ -590,6 +607,7 @@
               '<button class="btn btn--sm" type="button" data-act="copylink">' + T.ic('copy', '', 0) + '复制链接</button>' +
             '</div>') +
         actArea +
+        verLine() +
         '<button class="btn btn--sm btn--ghost" type="button" data-act="reset">取消</button>' +
       '</div>';
     }
@@ -608,6 +626,7 @@
           '<b class="ls__sas-num">' + esc(LS.sasPretty(state.sas)) + '</b>' +
           '<span class="ls__sas-hint">两台设备显示一致才说明没有人插在中间</span>' +
         '</div>' +
+        verLine() +
       '</div>';
     }
 
@@ -644,6 +663,22 @@
     '</div>';
   }
 
+  /* 版本行：让对方一眼看出两边是不是同一版。
+     不同版本时消息格式可能对不上，与其连上后传不明白，不如提前讲清楚。 */
+  function verLine() {
+    var mine = T.APP_VER || '';
+    var peer = state.peerVer || '';
+    if (!peer) {
+      return '<div class="ls__verline">本机 v' + esc(mine) + ' · 对方版本连接后可见</div>';
+    }
+    if (LS.cmpVer(peer, mine) === 0) {
+      return '<div class="ls__verline">两端均为 v' + esc(mine) + '</div>';
+    }
+    return '<div class="ls__verline is-warn">' + T.ic('warn', '', 0) +
+      '本机 v' + esc(mine) + ' · 对方 v' + esc(peer) +
+      ' —— 版本不一致，建议双方都刷新到最新</div>';
+  }
+
   function listHTML() {
     if (!state.transfers.length) {
       return '<p class="note">还没有传输记录。连接是点对点的，关掉页面记录就没了。</p>';
@@ -659,7 +694,16 @@
         right = '<a class="btn btn--sm" href="' + esc(r.url) + '" download="' + esc(r.name) + '">' +
           T.ic('download', '', 0) + '保存</a>';
       }
-      return '<div class="ls__item">' +
+      var showThumb = !isText && isImageMime(r.mime);
+      var thumb = '';
+      if (showThumb) {
+        thumb = '<div class="ls__thumb">' +
+          (r.thumb
+            ? '<img src="' + esc(r.thumb) + '" alt="" loading="lazy">'
+            : T.ic('image', '', 0)) +
+        '</div>';
+      }
+      var body =
         '<div class="ls__item-hd">' +
           '<span class="ls__dir">' + (r.dir === 'in' ? '收' : '发') + '</span>' +
           '<b class="ls__name" title="' + esc(r.name) + '">' + esc(r.name) + '</b>' +
@@ -670,7 +714,11 @@
           ? '<pre class="ls__textbody">' + esc(r.text) + '</pre>'
           : '<div class="ls__bar"><i style="width:' + (r.status === 'done' ? 100 : pct) + '%"></i></div>' +
             '<div class="ls__meta">' + (r.status === 'done' ? '已完成' : pct + '%') +
-            (r.dir === 'out' ? ' · 已发出' : '') + '</div>') +
+            (r.dir === 'out' ? ' · 已发出' : '') + '</div>');
+
+      return '<div class="ls__item' + (showThumb ? ' has-thumb' : '') + '">' +
+        thumb +
+        '<div class="ls__item-body">' + body + '</div>' +
       '</div>';
     }).join('') + '</div>';
   }

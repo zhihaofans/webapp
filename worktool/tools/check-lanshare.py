@@ -79,7 +79,7 @@ def start_host(page):
     return wait_pair(page)
 
 
-def check_paste(pw, port, test_file):
+def check_paste(pw, port, test_file, test_img):
     """① 粘贴路径：完整传一条文本 + 一个文件"""
     ok = True
     b = pw.chromium.launch()
@@ -110,14 +110,33 @@ def check_paste(pw, port, test_file):
         print("  文本: %-24r %s" % (got, "✅" if "端到端检查" in got else "❌"))
         ok = ok and "端到端检查" in got
 
-        A.set_input_files("#lsFile", test_file)
+        files = [test_file] + ([test_img] if test_img else [])
+        A.set_input_files("#lsFile", files)
         B.wait_for_selector(".ls__item a[download]", timeout=30000)
-        href = B.get_attribute(".ls__item a[download]", "href")
+        # 传了两个文件，最新记录在最前 —— 按文件名找回二进制那条
+        links = B.eval_on_selector_all(
+            ".ls__item a[download]",
+            "els => els.map(e => ({name: e.getAttribute('download'), href: e.getAttribute('href')}))")
+        target = next((l for l in links if l["name"] == "check.bin"), None)
         size = B.evaluate("""async (h) => {
             const r = await fetch(h); const blob = await r.blob(); return blob.size;
-        }""", href)
+        }""", target["href"]) if target else -1
         print("  文件: %d 字节（期望 %d）%s" % (size, TEST_SIZE, "✅" if size == TEST_SIZE else "❌"))
         ok = ok and size == TEST_SIZE
+
+        if test_img:
+            B.wait_for_selector(".ls__thumb img", timeout=15000)
+            thumbs = B.eval_on_selector_all(
+                ".ls__thumb img", "els => els.map(e => e.getAttribute('src') || '')")
+            blob_ok = len(thumbs) == 1 and thumbs[0].startswith("blob:")
+            print("  缩略图: %d 张 %s  %s"
+                  % (len(thumbs), thumbs[:1], "✅" if blob_ok else "❌"))
+            ok = ok and blob_ok
+
+        vl = " ".join(B.inner_text(".ls__verline").split())
+        same = ("两端均为 v" in vl)
+        print("  版本行: %s  %s" % (vl[:44], "✅" if same else "❌"))
+        ok = ok and same
     finally:
         b.close()
     return ok
@@ -251,6 +270,13 @@ def main():
     with open(test_file, "wb") as f:
         f.write(os.urandom(TEST_SIZE))
 
+    test_img = os.path.join(tmp, "check.png")
+    try:
+        from PIL import Image
+        Image.new("RGB", (96, 96), (187, 95, 61)).save(test_img)
+    except Exception:
+        test_img = None
+
     srv = subprocess.Popen(
         [sys.executable, "-m", "http.server", str(args.port), "--bind", "127.0.0.1", "--directory", ROOT],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -259,7 +285,7 @@ def main():
     ok = True
     try:
         with sync_playwright() as pw:
-            for name, fn in (("① 粘贴路径", lambda: check_paste(pw, args.port, test_file)),
+            for name, fn in (("① 粘贴路径", lambda: check_paste(pw, args.port, test_file, test_img)),
                              ("② 扫码路径（原生 BarcodeDetector）", lambda: check_scan(pw, args.port)),
                              ("③ 无原生 API、有摄像头（自研解码兜底）",
                               lambda: check_native_missing(pw, args.port)),

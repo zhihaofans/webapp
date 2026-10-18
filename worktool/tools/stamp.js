@@ -45,6 +45,8 @@ function today() {
 }
 function bump(ver, which) {
   var p = ver.split('.').map(Number);
+  /* 允许 '1.14' 这种省略末尾 0 的写法，补齐到三段再算 */
+  while (p.length < 3) p.push(0);
   if (p.length !== 3 || p.some(isNaN)) die('当前版本号解析失败：' + ver);
   if (which === 'a') { p[0] += 1; p[1] = 0; p[2] = 0; }
   else if (which === 'b') { p[1] += 1; p[2] = 0; }
