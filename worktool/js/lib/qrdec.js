@@ -135,7 +135,7 @@
     for (var i = 0; i < g.length; i++) hist[g[i]]++;
     var total = g.length, sum = 0;
     for (var t = 0; t < 256; t++) sum += t * hist[t];
-    var sumB = 0, wB = 0, best = 0, bestVar = -1;
+    var sumB = 0, wB = 0, best = 0, last = 0, bestVar = -1;
     for (var k = 0; k < 256; k++) {
       wB += hist[k];
       if (!wB) continue;
@@ -144,9 +144,14 @@
       sumB += k * hist[k];
       var mB = sumB / wB, mF = (sum - sumB) / wF;
       var v = wB * wF * (mB - mF) * (mB - mF);
-      if (v > bestVar) { bestVar = v; best = k; }
+      if (v > bestVar) { bestVar = v; best = k; last = k; }
+      else if (v === bestVar) last = k;
     }
-    return best || 128;
+    /* 只有两种灰阶的图（例如直接渲染出来的二维码截图）里，最优阈值是一段
+       平台而不是一个点：k 从暗值一直取到亮值前都同分。取平台中点，否则会
+       落到暗值本身 —— 那个阈值配上下面的严格小于，会把纯黑块内部判成白，
+       整张码的模块全被掏空。真实照片有噪声，通常没有这个平台。 */
+    return bestVar > 0 ? Math.round((best + last) / 2) : 128;
   }
 
   /* 轻量 3x3 平滑（[1,2,1] 分离式）。摄像头本身有噪声，
@@ -174,8 +179,8 @@
     return out;
   }
 
-  function binarize(g, w, h) {
-    var BS = 8;
+  function binarize(g, w, h, blockSize) {
+    var BS = blockSize || 8;
     var t0 = otsu(g);
     var lo = t0 * 0.5, hi = t0 * 1.7;
     var bw = Math.ceil(w / BS), bh = Math.ceil(h / BS);
@@ -834,8 +839,8 @@
     return list.slice(0, limit);
   }
 
-  function decodeWith(g, w, h) {
-    var bin = binarize(g, w, h);
+  function decodeWith(g, w, h, blockSize) {
+    var bin = binarize(g, w, h, blockSize);
     var cands = findFinders(bin, w, h);
     if (cands.length < 3) return null;
 
@@ -854,12 +859,23 @@
 
     var g0 = toGray(img);
 
-    /* 先原图：小模块、清晰画面最吃这一套，平滑反而会糊掉细格子 */
-    var r = decodeWith(g0, w, h);
-    if (r) return r;
+    /* 分块尺寸不是越小越好：模块只有几像素时 8px 的局部窗口会把相邻模块
+       搅在一起；模块很大时 8px 又太小、块内没有明暗对比。所以三档都试，
+       谁先出结果用谁 —— 这比「调一个万能参数」可靠得多。 */
+    var BS = [8, 16, 24];
+    var i, r;
+    for (i = 0; i < BS.length; i++) {
+      r = decodeWith(g0, w, h, BS[i]);
+      if (r) return r;
+    }
 
-    /* 再平滑：噪声大、对焦虚时才走这条，代价是牺牲小模块的分辨率 */
-    return decodeWith(smooth(g0, w, h), w, h);
+    /* 对焦虚、噪声大时先平滑再去分块，代价是牺牲小模块的分辨率 */
+    var gs = smooth(g0, w, h);
+    for (i = 0; i < BS.length; i++) {
+      r = decodeWith(gs, w, h, BS[i]);
+      if (r) return r;
+    }
+    return null;
   }
 
   return {

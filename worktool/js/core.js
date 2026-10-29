@@ -9,8 +9,8 @@ window.Toolbox = window.Toolbox || {};
   'use strict';
 
   var APP_NAME = '生活工具箱';
-  var APP_VER = '1.14.1';
-  var APP_BUILD = '2026-10-18';
+  var APP_VER = '1.15.0';
+  var APP_BUILD = '2026-10-28';
   var SCHEMA = 1;
   /* 迁移戳：标记「这份数据已经过 v1.13.2 那次默认值迁移」。
      注意它跟着「引入迁移的那个版本」走，不随每次发版更新 ——
@@ -139,7 +139,9 @@ window.Toolbox = window.Toolbox || {};
         g2jResolve: false,    // 链接工具：联网校验版本（默认关，全程本地）
         g2jOmitLatest: false, // 链接工具：latest 省略版本段（默认关）
         g2jCopyMode: 'plain', // 链接工具：复制格式 plain | html | css
-        outFormat: 'image/webp' // 图片工具的输出格式（WebP / JPEG / PNG）
+        outFormat: 'image/webp', // 图片工具的输出格式（WebP / JPEG / PNG）
+        qrEcc: 'M',           // 二维码工具：纠错等级 L | M
+        qrSize: 512           // 二维码工具：输出边长（px）
       },
       recent: [],             // [{ id, tool, at }]                     使用痕迹
       history: [],            // [{ id, name, at, srcBytes, ... }]      图片转换记录
@@ -189,6 +191,10 @@ window.Toolbox = window.Toolbox || {};
        由图片工具在可选列表里挑第一个可用的，不在这里兜底 */
     var of = str(s.outFormat, 'image/webp');
     d.settings.outFormat = (of === 'image/webp' || of === 'image/jpeg' || of === 'image/png') ? of : 'image/webp';
+    /* 二维码工具：纠错等级只有编码器支持的 L / M；边长收敛到合理区间 */
+    var qe = str(s.qrEcc, 'M');
+    d.settings.qrEcc = (qe === 'L' || qe === 'M') ? qe : 'M';
+    d.settings.qrSize = clamp(Math.round(num(s.qrSize, 512)), 128, 2048);
     d.createdAt = num(raw.createdAt, Date.now());
 
     /* 草稿：纯文本，限长防止异常输入把配额撑爆 */

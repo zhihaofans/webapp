@@ -26,12 +26,14 @@
     'js/lib/qr.js',
     'js/lib/qrdec.js',
     'js/lib/lanshare.js',
+    'js/scanner.js',
     'js/tools/overview.js',
     'js/tools/imageconvert.js',
     'js/tools/github2jsdelivr.js',
     'js/tools/datecalc.js',
     'js/tools/unitconvert.js',
     'js/tools/lanshare.js',
+    'js/tools/qrcode.js',
     'js/app.js'
   ];
 

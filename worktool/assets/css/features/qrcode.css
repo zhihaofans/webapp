@@ -1,0 +1,208 @@
+/* ============================================================
+   features/qrcode.css — 二维码生成与识别
+
+   两块内容并排（生成 / 识别），右栏是说明，与其它工具保持同一套
+   分栏节奏。二维码本体固定白底黑块 —— 它是要被机器读的图形，
+   不跟着深色模式变，深色下那块白反而成了视觉锚点。
+   ============================================================ */
+
+.qr{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 306px;
+  gap:18px 24px;
+  align-items:start;
+}
+.qr__main{min-width:0;display:flex;flex-direction:column;gap:18px}
+.qr__side{
+  position:sticky;
+  top:calc(var(--topbar-h) + 16px);
+  display:flex;flex-direction:column;gap:16px;
+}
+.qr__meta{
+  margin-left:auto;flex:none;
+  font-family:var(--f-num);font-size:11.5px;color:var(--ink-4);
+}
+
+/* ------------------------------------------------------------
+   生成：左填写、右出图
+   ------------------------------------------------------------ */
+.qr__gen{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 268px;
+  gap:20px;
+  align-items:start;
+}
+.qr__form{min-width:0;display:flex;flex-direction:column}
+
+.qr__lbl{
+  display:block;margin-bottom:7px;
+  font-size:10.5px;font-weight:600;letter-spacing:.11em;
+  color:var(--ink-4);
+}
+.qr__ta{
+  width:100%;min-height:136px;resize:vertical;
+  padding:11px 12px;
+  border:1px solid var(--line-2);border-radius:var(--r-sm);
+  background:var(--surface-2);color:var(--ink);
+  font:13px/1.7 var(--f-sans);
+  transition:border-color .16s var(--ease),box-shadow .16s var(--ease),background .16s var(--ease);
+}
+.qr__ta::placeholder{color:var(--ink-4)}
+.qr__ta:hover{background:var(--surface)}
+.qr__ta:focus{
+  outline:none;border-color:var(--accent);background:var(--surface);
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+
+.qr__opts{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px}
+.qr__opt{display:flex;flex-direction:column;gap:6px}
+.qr__opt-l{
+  font-size:10.5px;font-weight:600;letter-spacing:.11em;
+  color:var(--ink-4);
+}
+.qr__sel{height:36px;min-width:106px;padding:0 9px}
+
+.qr__cap{
+  margin-top:12px;min-height:16px;
+  font-family:var(--f-num);font-size:11px;line-height:1.6;
+  color:var(--ink-4);
+}
+.qr__cap.is-bad{color:var(--danger)}
+
+/* 出图区：白底卡片，二维码永远白底黑块 */
+.qr__canvaswrap{min-width:0}
+.qr__canvas{
+  position:relative;
+  padding:10px;
+  background:#ffffff;
+  border:1px solid var(--line);
+  border-radius:var(--r-md);
+  box-shadow:var(--sh-1);
+}
+.qr__canvas canvas{
+  display:block;width:100%;height:auto;
+  image-rendering:pixelated;   /* 放大看模块边界时别被浏览器插值糊掉 */
+}
+.qr__ph{
+  display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:7px;
+  aspect-ratio:1/1;
+  color:var(--ink-4);font-size:11.5px;
+}
+.qr__ph .ic{width:22px;height:22px;opacity:.55}
+.qr__canvas.is-empty{
+  aspect-ratio:1/1;
+  padding:0;
+  background:var(--surface-2);
+  border-style:dashed;
+  box-shadow:none;
+}
+.qr__canvas.is-empty canvas{display:none}
+.qr__canvas.is-empty .qr__ph{display:flex}
+
+.qr__btnrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.qr__btnrow .btn{flex:1;justify-content:center;white-space:nowrap}
+
+/* ------------------------------------------------------------
+   识别：三个入口，一个结果区
+   ------------------------------------------------------------ */
+.qr__drop{
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:26px 18px;
+  border:1.5px dashed var(--line-2);
+  border-radius:var(--r-md);
+  background:var(--surface-2);
+  text-align:center;cursor:pointer;
+  transition:border-color .18s var(--ease),background .18s var(--ease);
+}
+.qr__drop:hover,.qr__drop:focus-visible,.qr__drop.is-over{
+  outline:none;
+  border-color:var(--accent);
+  background:var(--accent-soft);
+}
+.qr__drop .ic{width:22px;height:22px;color:var(--ink-4)}
+.qr__drop:hover .ic,.qr__drop.is-over .ic{color:var(--accent-ink)}
+.qr__drop b{font-size:13px;font-weight:600;color:var(--ink);letter-spacing:.01em}
+.qr__drop span{max-width:42ch;font-size:11.5px;line-height:1.6;color:var(--ink-4)}
+
+.qr__scanbtns{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+/* http 局域网地址下没有实时取景，用一句说明指向「拍照扫码」 */
+.qr__hint{
+  margin:10px 0 0;
+  display:flex;align-items:flex-start;gap:6px;
+  padding:9px 11px;
+  border-radius:var(--r-sm);
+  background:var(--surface-2);border:1px solid var(--line);
+  font-size:11.5px;line-height:1.65;color:var(--ink-4);
+}
+.qr__hint .ic{width:14px;height:14px;flex:none;margin-top:2px;color:var(--ink-4)}
+
+/* 实时取景：方形取景框 + 一句提示，与局域网传输的扫码区保持同一套观感 */
+.qr__cam{
+  display:flex;flex-direction:column;align-items:center;gap:9px;
+  margin-top:14px;padding-top:12px;
+  border-top:1px dashed var(--line-2);
+}
+.qr__cam video{
+  display:block;width:100%;max-width:320px;aspect-ratio:1/1;
+  border-radius:var(--r-md);background:#0d0b08;
+  border:1px solid var(--line);object-fit:cover;
+}
+.qr__cam-hint{font-size:11.5px;line-height:1.6;color:var(--ink-4);text-align:center}
+
+.qr__res{
+  margin-top:14px;
+  border:1px solid var(--line);border-radius:var(--r-md);
+  overflow:hidden;
+}
+.qr__res-hd{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 13px;
+  background:var(--surface-2);
+  border-bottom:1px solid var(--line);
+}
+.qr__res-meta{
+  margin-left:auto;font-family:var(--f-num);
+  font-size:11px;color:var(--ink-4);
+}
+.qr__res-body{
+  margin:0;padding:13px;
+  max-height:240px;overflow:auto;
+  font-family:var(--f-num);font-size:12px;line-height:1.8;
+  color:var(--ink-2);
+  white-space:pre-wrap;word-break:break-all;
+  background:var(--surface);
+}
+.qr__res-foot{
+  display:flex;flex-wrap:wrap;gap:8px;
+  padding:11px 13px;
+  border-top:1px solid var(--line);
+  background:var(--surface);
+}
+.qr__res-clear{margin-left:auto}
+
+.qr__err{
+  display:flex;gap:9px;margin-top:14px;
+  padding:11px 13px;
+  border-radius:var(--r-sm);
+  background:var(--danger-soft);color:var(--danger);
+  font-size:12px;line-height:1.65;
+}
+
+/* ------------------------------------------------------------
+   响应式：先并排，再上下
+   ------------------------------------------------------------ */
+@media (max-width:1080px){
+  .qr{grid-template-columns:minmax(0,1fr);gap:16px}
+  .qr__side{position:static}
+}
+@media (max-width:760px){
+  .qr__gen{grid-template-columns:minmax(0,1fr);gap:16px}
+  .qr__canvas{max-width:280px;margin:0 auto}
+  .qr__btnrow{max-width:280px;margin-left:auto;margin-right:auto}
+}
+@media (max-width:900px){
+  .qr__ta{font-size:16px;min-height:120px}   /* 避免 iOS 聚焦时整页放大 */
+  .qr__sel{height:var(--tap)}
+  .qr__drop{padding:22px 14px}
+}

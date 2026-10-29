@@ -20,7 +20,7 @@
 (function (T) {
   'use strict';
 
-  var LS = null, QR = null, QRDec = null;
+  var LS = null, QR = null;
   var hostEl = null;
   var seq = 0;
   var lastPaint = 0;
@@ -36,8 +36,6 @@
     dc: null,
     scanning: false,
     hasCam: true,         /* 由 probeCameras() 校准；拿不到设备列表时保持 true，不误伤 */
-    stream: null,
-    scanTimer: null,
     inbound: null,        /* { id, name, size, mime, chunks, recv } */
     transfers: [],        /* { id, name, size, done, dir, kind, status, url, text } */
     incoming: {},         /* 元信息暂存 */
@@ -47,29 +45,17 @@
 
   /* ---------------- 页内扫码 ----------------
      有摄像头就直接扫，省掉「复制一长串链接」这一步。
-     BarcodeDetector 的支持情况：Safari 17+ / Chrome 88+ / Edge 83+（Firefox 没有）。
-     不支持就不显示这个入口，退回剪贴板或手动粘贴 —— 不做假按钮。 */
-  /* 能不能扫，取三者之一：
-       · 系统自带 BarcodeDetector（Safari 17+ / macOS、ChromeOS 上的 Chrome）
-       · 自研解码器 qrdec.js（其它 Chrome/Edge/Firefox 都靠它）
-     桌面端的 BarcodeDetector 只覆盖 ChromeOS 和 macOS —— Windows / Linux
-     的 Chrome 明明有摄像头却用不了，所以必须有兜底。 */
-  function nativeDetector() {
-    return typeof window.BarcodeDetector === 'function';
-  }
+     取景与解码都在 js/scanner.js 里（二维码工具也用它），这里只负责
+     「扫到之后按配对流程连接」和「扫不到时给什么退路」。 */
+  var scanCtl = null;
+
+  /* 能不能扫：有 getUserMedia，且至少有系统 API 或自研解码器之一 */
   function canScan() {
-    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return false;
-    return nativeDetector() || !!(QRDec && QRDec.ready);
+    return !!(T.Scanner && T.Scanner.canScan());
   }
-  /* 「支持扫码 API」和「真的有摄像头」是两件事：台式机/部分笔记本有前者没后者，
-     点了 getUserMedia 才报错，用户白挨一下挫败。先问设备列表。 */
   function probeCameras() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-    navigator.mediaDevices.enumerateDevices().then(function (list) {
-      if (!list || !list.length) return;   /* 未授权时部分浏览器返回空表，按「有」处理 */
-      var n = 0;
-      for (var i = 0; i < list.length; i++) if (list[i].kind === 'videoinput') n++;
-      var has = n > 0;
+    if (!(T.Scanner && T.Scanner.hasCamera)) return;
+    T.Scanner.hasCamera().then(function (has) {
       if (has === state.hasCam) return;
       state.hasCam = has;
       if (!state.scanning && (state.phase === 'hosting' || state.phase === 'joining')) paint();
@@ -80,34 +66,10 @@
   function canClipPaste() {
     return !!(navigator.clipboard && navigator.clipboard.readText);
   }
+
   function stopScan() {
-    if (state.scanTimer) { clearInterval(state.scanTimer); state.scanTimer = null; }
-    if (state.stream) {
-      try { state.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
-      state.stream = null;
-    }
+    if (scanCtl) { scanCtl.stop(); scanCtl = null; }
     if (state.scanning) { state.scanning = false; paint(); }
-  }
-  /* 抽帧：把视频帧画到离屏 canvas，缩到 640 宽再交给解码器。
-     太大只是慢，太小则模块不够分辨 —— 800 宽下 v16 码每个模块约 3px，勉强够。 */
-  function makeGrabber() {
-    if (typeof document === 'undefined') return null;
-    var cv = document.createElement('canvas');
-    var cx = cv.getContext && cv.getContext('2d', { willReadFrequently: true });
-    if (!cx) return null;
-    return function (video) {
-      var vw = video.videoWidth, vh = video.videoHeight;
-      if (!vw || !vh) return null;
-      var maxW = 800;
-      var k = vw > maxW ? maxW / vw : 1;
-      var w = Math.max(21, Math.round(vw * k));
-      var h = Math.max(21, Math.round(vh * k));
-      if (cv.width !== w) { cv.width = w; cv.height = h; }
-      try {
-        cx.drawImage(video, 0, 0, w, h);
-        return cx.getImageData(0, 0, w, h);
-      } catch (e) { return null; }
-    };
   }
 
   function startScan() {
@@ -116,51 +78,22 @@
     state.error = '';
     paint();
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
-      .then(function (stream) {
-        if (!state.scanning) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
-        state.stream = stream;
-        var v = hostEl && hostEl.querySelector('#lsVideo');
-        if (!v) return;
-        v.srcObject = stream;
-        v.setAttribute('playsinline', '');
-        v.play().catch(function () {});
+    /* paint() 之后视频元素才存在 —— 扫码器要绑在它上面 */
+    var v = hostEl && hostEl.querySelector('#lsVideo');
+    if (!v) { state.scanning = false; paint(); return; }
 
-        var det = nativeDetector() ? new window.BarcodeDetector({ formats: ['qr_code'] }) : null;
-        var grab = det ? null : makeGrabber();
-
-        state.scanTimer = setInterval(function () {
-          if (!v.videoWidth) return;
-
-          if (det) {
-            det.detect(v).then(function (codes) {
-              if (!codes || !codes.length) return;
-              var raw = codes[0].rawValue || '';
-              stopScan();
-              applyFromUrl(raw);
-            }).catch(function () {});
-            return;
-          }
-
-          /* 自研解码：抽帧 → 灰度 → 找定位图案 → 采样 → 纠错，整条都是同步的，
-             所以间隔放长一点，别把主线程占满、让取景卡住 */
-          if (!grab || !QRDec) return;
-          var img = grab(v);
-          if (!img) return;
-          var got = null;
-          try { got = QRDec.decode(img); } catch (e) { got = null; }
-          if (got && got.text) {
-            stopScan();
-            applyFromUrl(got.text);
-          }
-        }, det ? 280 : 260);
-      })
-      .catch(function (e) {
+    scanCtl = T.Scanner.create({
+      video: v,
+      /* 扫到就停，交给配对流程；applyFromUrl 会自己 paint */
+      onResult: function (r) { stopScan(); applyFromUrl(r.text); },
+      onError: function (msg) {
+        scanCtl = null;
         state.scanning = false;
-        state.error = '打不开摄像头：' + ((e && e.name) === 'NotAllowedError'
-          ? '没有给摄像头权限。' : (e && e.message || '设备不可用'));
+        state.error = msg;
         paint();
-      });
+      }
+    });
+    if (!scanCtl.start()) { scanCtl = null; state.scanning = false; paint(); }
   }
 
   /* 扫码 / 粘贴得到的东西可能是整条链接，也可能只是配对码，统一抽出 ls 参数 */
@@ -848,7 +781,6 @@
     render: function (host) {
       LS = T.LanShare;
       QR = T.QR;
-      QRDec = T.QRDec;
       hostEl = host;
 
       if (!LS || !QR) {

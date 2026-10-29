@@ -101,6 +101,14 @@
       tags: ['点对点', 'DTLS 加密', 'SAS 核验', '免账号']
     },
 
+    'qrcode': {
+      id: 'qrcode', group: 'dev', name: '二维码生成与识别', icon: 'qr',
+      status: 'ready',
+      sub: '输入即生成 · 截图也能扫',
+      desc: '输入文字或链接实时生成二维码，可下载 PNG；也能从图片、剪贴板或摄像头里识别二维码。编码与解码都在本机完成，内容不上传。',
+      tags: ['实时生成', '扫码识别', '不联网']
+    },
+
   };
 
   /* 工具实现注册表：id → { render(host, tool), onLeave() } */
