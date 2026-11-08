@@ -12,9 +12,10 @@
 两类场景都查：
 
 1. **手机 393 / 360** —— 图片转换队列的按钮会不会被顶出屏幕；
-2. **桌面 1280** —— 侧拉栏底部那排工具按钮（主题 / 收起 / 数据）会不会
-   撑破侧栏。248px 时代实测溢出 25px，「数据」被裁掉大半；这类问题
-   手机场景查不出来（那时侧栏是隐藏的），必须单独量桌面。
+2. **桌面 1280** —— 侧拉栏两处：底部工具按钮（主题 / 数据）会不会被挤到
+   文字省略，以及品牌区那一行（logo + 两行标题 + 右端的收起按钮）会不会
+   把副标题裁掉。248px 时代底栏实测溢出 25px，「数据」被裁掉大半；这类
+   问题手机场景查不出来（那时侧栏是隐藏的），必须单独量桌面。
 
 依赖：playwright（pip install playwright && playwright install chromium）
 用法：
@@ -164,26 +165,60 @@ def run(port, verbose):
                   ell: s ? s.scrollWidth > s.clientWidth + 1 : false
                 };
               });
-              return {lim, items, footBottom: fr.bottom, vh: innerHeight};
+              // 品牌区（logo + 标题 + 收起按钮）：宽 260 时副标题最容易先被裁
+              const brand = document.querySelector('.rail__brand');
+              const fold = document.querySelector('.rail__fold');
+              const sub = document.querySelector('.rail__title span');
+              const br = brand.getBoundingClientRect();
+              const bf = fold ? fold.getBoundingClientRect() : null;
+              const brandInfo = {
+                lim: br.right,
+                foldRight: bf ? bf.right : null,
+                foldW: bf ? bf.width : 0,
+                foldH: bf ? bf.height : 0,
+                subEll: sub ? sub.scrollWidth > sub.clientWidth + 1 : false,
+                foldInBrand: fold ? brand.contains(fold) : false
+              };
+              return {lim, items, footBottom: fr.bottom, vh: innerHeight, brand: brandInfo};
             }""")
 
             over = [x for x in m["items"] if x["right"] > m["lim"] + 0.5]
             ell = [x for x in m["items"] if x["ell"]]
             tall = m["footBottom"] > m["vh"] + 0.5
-            ok = not over and not ell and not tall
+
+            # 品牌区：收起按钮必须在标题行内、不越界、可点；副标题不许被裁
+            bd = m["brand"]
+            bOver = bd["foldRight"] is not None and bd["foldRight"] > bd["lim"] - 1
+            bSmall = bd["foldW"] < 28 or bd["foldH"] < 28
+            bMiss = not bd["foldInBrand"]
+            ok = not over and not ell and not tall and not bOver and not bd["subEll"] and not bSmall and not bMiss
 
             theme = m["items"][0]["t"] if m["items"] else "?"
-            if not ok:
-                fails.append(("桌面侧栏（%s）" % theme, m["lim"], 0,
-                              "、".join([x["t"] for x in over + ell]) or "底栏超出视口", []))
+            why = ""
+            if over:
+                why = "底栏「%s」溢出 %.0fpx" % (over[0]["t"], over[0]["right"] - m["lim"])
+            elif ell:
+                why = "底栏「%s」文字被省略" % ell[0]["t"]
+            elif tall:
+                why = "底栏超出视口"
+            elif bMiss:
+                why = "收起按钮不在品牌区内"
+            elif bOver:
+                why = "收起按钮贴到侧栏边缘（右 %.0f / 界 %.0f）" % (bd["foldRight"], bd["lim"])
+            elif bSmall:
+                why = "收起按钮 %.0fx%.0f 小于 28px" % (bd["foldW"], bd["foldH"])
+            elif bd["subEll"]:
+                why = "品牌区副标题被裁"
+            if why:
+                fails.append(("桌面侧栏（%s）" % theme, 0, 0, why, []))
 
             print("  %-16s %s  %s  内边界 %.0f / 视口 %d%s"
                   % ("桌面 1280 第%d次" % (round_no + 1), "✅" if ok else "❌", theme,
                      m["lim"], DESKTOP_VIEWPORT["width"],
-                     ("  溢出 %.0fpx" % (over[0]["right"] - m["lim"])) if over else
-                     ("  文字被省略" if ell else ("  底栏超出视口" if tall else ""))))
+                     ("  " + why) if why else ""))
             if verbose and m["items"]:
-                print("      " + "  ".join("%s→%.0f" % (x["t"], x["right"]) for x in m["items"]))
+                print("      " + "  ".join("%s→%.0f" % (x["t"], x["right"]) for x in m["items"])
+                      + "  | 收起 %.0fx%.0f 右 %.0f" % (bd["foldW"], bd["foldH"], bd["foldRight"] or 0))
 
             dpg.click("[data-theme-btn]")
             dpg.wait_for_timeout(450)
@@ -199,7 +234,7 @@ def run(port, verbose):
                 print("✗ %s：「%s」右边界 %.0f，超出视口 %d 共 %.0fpx"
                       % (name, who, worst, width, worst - width))
             else:
-                print("✗ %s：%s（内边界 %.0f）" % (name, who, worst))
+                print("✗ %s：%s" % (name, who))
         return 1
     print("✓ 全部场景无越界")
     return 0

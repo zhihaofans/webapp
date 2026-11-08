@@ -20,9 +20,19 @@
 
 .rail__brand{
   display:flex;align-items:center;gap:11px;
-  padding:18px 18px 16px;
+  padding:18px 14px 16px 18px;
   flex:none;
 }
+/* 收起按钮：紧跟标题右侧，不与底部工具区混在一起 */
+.rail__fold{
+  flex:none;width:30px;height:30px;border-radius:8px;
+  display:grid;place-items:center;
+  color:var(--ink-4);
+  transition:background .16s var(--ease),color .16s var(--ease);
+}
+.rail__fold:hover{background:var(--surface-3);color:var(--ink-2)}
+.rail__fold:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.rail__fold .ic{width:16px;height:16px;transform:scaleX(-1)}   /* 箭头朝左 = 往里收 */
 .rail__mark{
   width:36px;height:36px;border-radius:10px;flex:none;
   background:linear-gradient(150deg,var(--accent),var(--accent-deep));
@@ -38,7 +48,7 @@
   color:var(--ink-3);font-size:8.5px;font-weight:600;line-height:1.4;
   font-family:var(--f-sans);letter-spacing:0;white-space:nowrap;
 }
-.rail__title{min-width:0;flex:1}
+.rail__title{min-width:0;flex:1;overflow:hidden}
 .rail__title b{display:block;font-size:14.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
 .rail__title span{display:block;font-size:11px;color:var(--ink-4);margin-top:1px;white-space:nowrap}
 
@@ -97,13 +107,10 @@
 }
 .rail__foot .rbtn{flex:1}
 /* 底部按钮是 flex 子项，默认 min-width:auto 不允许缩到内容宽度以下 ——
-   一旦文案变长（比如主题按钮多出「·自动」三个字），整行就会撑破侧栏，
-   最右的「数据」被裁掉一截。这里允许收缩，并给文字留省略兜底。 */
+   一旦文案变长（比如主题按钮多出「·自动」三个字），整行就会撑破侧栏。
+   这里允许收缩，并给文字留省略兜底。 */
 .rail__foot .rbtn{min-width:0}
 .rail__foot .rbtn span{overflow:hidden;text-overflow:ellipsis}
-/* 主题按钮自动模式下要多带「·自动」三个字，按内容取宽，
-   否则被三兄弟平分后会被挤到换行 */
-.rail__foot .rbtn[data-theme-btn]{flex:0 0 auto}
 .rbtn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
   height:36px;padding:0 10px;border-radius:var(--r-sm);
@@ -116,8 +123,11 @@
 
 /* --- 收起态：只留图标（分组标题退化为一道细线） --- */
 .app.is-mini .rail{width:var(--rail-mini)}
-.app.is-mini .rail__brand{padding:18px 0 16px;justify-content:center}
+/* 收起态没有标题了：68px 宽塞不下 logo 与按钮并排，改成竖排，按钮在 logo 下方 */
+.app.is-mini .rail__brand{flex-direction:column;justify-content:center;gap:13px;padding:16px 0 12px}
 .app.is-mini .rail__title{display:none}
+.app.is-mini .rail__fold{width:44px;height:30px}
+.app.is-mini .rail__fold .ic{transform:none}             /* 箭头掉头朝右 = 往外展开 */
 .app.is-mini .rail__body{padding:6px 10px 10px}
 .app.is-mini .rgroup__hd{padding:0;justify-content:center;gap:0;margin-bottom:6px}
 .app.is-mini .rgroup__hd b,.app.is-mini .rgroup__hd em{display:none}

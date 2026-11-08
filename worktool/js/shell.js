@@ -102,10 +102,10 @@
     app.classList.toggle('is-mini', !!v);
     var b = $('#btnMini');
     if (b) {
-      b.setAttribute('title', v ? '展开侧拉栏' : '收起侧拉栏');
+      var label = v ? '展开侧拉栏' : '收起侧拉栏';
+      b.setAttribute('title', label);
+      b.setAttribute('aria-label', label);
       b.setAttribute('aria-expanded', v ? 'false' : 'true');
-      var tx = $('span', b);
-      if (tx) tx.textContent = v ? '展开' : '收起';
     }
     if (persist) T.Store.patch({ mini: !!v });
   };
@@ -125,12 +125,11 @@
 
     Shell.renderNav();
 
-    /* 侧栏底部工具区 */
+    /* 侧栏底部工具区（收起按钮已挪到标题行，这里只留主题与数据） */
     var foot = $('#railFoot');
     if (foot) {
       foot.innerHTML =
         '<button class="rbtn" type="button" data-theme-btn title="切换主题">' + T.ic('sun', '', 0) + '<span>浅色</span></button>' +
-        actBtn('btnMini', 'sliders', '收起', '收起 / 展开侧拉栏') +
         actBtn('btnData', 'backup', '数据', '数据备份与设置');
     }
     /* 手机抽屉底部工具区 */
