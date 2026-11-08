@@ -1,0 +1,16 @@
+# 系统垃圾
+.DS_Store
+__MACOSX/
+
+# 交付包与临时文件（包生成在仓库外，这里只是兜底）
+*.zip
+*.zip.tmp
+*.tmp
+
+# 依赖目录（本项目零依赖，正常不会出现）
+node_modules/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp

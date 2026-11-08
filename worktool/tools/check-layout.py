@@ -9,6 +9,13 @@
 这个脚本用真实 Chromium 打开本机服务，量每个元素的实际右边界，
 凡是超出视口宽度的一律算失败。
 
+两类场景都查：
+
+1. **手机 393 / 360** —— 图片转换队列的按钮会不会被顶出屏幕；
+2. **桌面 1280** —— 侧拉栏底部那排工具按钮（主题 / 收起 / 数据）会不会
+   撑破侧栏。248px 时代实测溢出 25px，「数据」被裁掉大半；这类问题
+   手机场景查不出来（那时侧栏是隐藏的），必须单独量桌面。
+
 依赖：playwright（pip install playwright && playwright install chromium）
 用法：
     python3 tools/check-layout.py            # 默认查图片工具的转换队列
@@ -34,6 +41,10 @@ QUEUE_ITEMS = [
     (".qhead [data-act='clear']", "清空"),
 ]
 
+# 桌面侧栏检查：视口宽固定 1280（>900 才会显示 .rail），三种主题各量一遍 ——
+# 「浅色·自动」是最长的一种文案，切换后还应变短。
+DESKTOP_VIEWPORT = {"width": 1280, "height": 800}
+
 SCENES = [
     # (名称, 视口宽, 是否触发 dirty)
     ("393px 常规", 393, False),
@@ -43,9 +54,14 @@ SCENES = [
 ]
 
 
+class _Reusable(socketserver.TCPServer):
+    # 上一次跑完留下的 TIME_WAIT 会让紧接着的第二次运行报 EADDRINUSE
+    allow_reuse_address = True
+
+
 def serve(port):
     handler = lambda *a, **kw: http.server.SimpleHTTPRequestHandler(*a, directory=ROOT, **kw)
-    httpd = socketserver.TCPServer(("127.0.0.1", port), handler)
+    httpd = _Reusable(("127.0.0.1", port), handler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd
 
@@ -126,6 +142,52 @@ def run(port, verbose):
             if verbose:
                 print("      " + "  ".join(details))
             pg.close()
+
+        # ---- 桌面侧栏底部工具区 ----
+        dpg = b.new_page(viewport=DESKTOP_VIEWPORT)
+        dpg.goto("http://127.0.0.1:%d/" % port, wait_until="load")
+        dpg.wait_for_selector(".rail__foot .rbtn", timeout=20000)
+        dpg.wait_for_timeout(400)
+
+        for round_no in range(3):
+            m = dpg.evaluate("""() => {
+              const foot = document.querySelector('.rail__foot');
+              const cs = getComputedStyle(foot);
+              const fr = foot.getBoundingClientRect();
+              const lim = fr.right - parseFloat(cs.paddingRight);
+              const items = [...foot.querySelectorAll('.rbtn')].map(b => {
+                const r = b.getBoundingClientRect();
+                const s = b.querySelector('span');
+                return {
+                  t: b.innerText.trim() || '(图标)',
+                  right: r.right,
+                  ell: s ? s.scrollWidth > s.clientWidth + 1 : false
+                };
+              });
+              return {lim, items, footBottom: fr.bottom, vh: innerHeight};
+            }""")
+
+            over = [x for x in m["items"] if x["right"] > m["lim"] + 0.5]
+            ell = [x for x in m["items"] if x["ell"]]
+            tall = m["footBottom"] > m["vh"] + 0.5
+            ok = not over and not ell and not tall
+
+            theme = m["items"][0]["t"] if m["items"] else "?"
+            if not ok:
+                fails.append(("桌面侧栏（%s）" % theme, m["lim"], 0,
+                              "、".join([x["t"] for x in over + ell]) or "底栏超出视口", []))
+
+            print("  %-16s %s  %s  内边界 %.0f / 视口 %d%s"
+                  % ("桌面 1280 第%d次" % (round_no + 1), "✅" if ok else "❌", theme,
+                     m["lim"], DESKTOP_VIEWPORT["width"],
+                     ("  溢出 %.0fpx" % (over[0]["right"] - m["lim"])) if over else
+                     ("  文字被省略" if ell else ("  底栏超出视口" if tall else ""))))
+            if verbose and m["items"]:
+                print("      " + "  ".join("%s→%.0f" % (x["t"], x["right"]) for x in m["items"]))
+
+            dpg.click("[data-theme-btn]")
+            dpg.wait_for_timeout(450)
+        dpg.close()
         b.close()
 
     print()
@@ -133,9 +195,11 @@ def run(port, verbose):
         for name, worst, width, who, missing in fails:
             if missing:
                 print("✗ %s：这些元素没渲染出来 —— %s" % (name, "、".join(missing)))
-            else:
+            elif width:
                 print("✗ %s：「%s」右边界 %.0f，超出视口 %d 共 %.0fpx"
                       % (name, who, worst, width, worst - width))
+            else:
+                print("✗ %s：%s（内边界 %.0f）" % (name, who, worst))
         return 1
     print("✓ 全部场景无越界")
     return 0

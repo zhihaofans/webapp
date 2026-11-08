@@ -1,4 +1,4 @@
-# 生活工具箱 · v1.15.0
+# 生活工具箱 · v1.15.1
 
 泛生活人群的多功能在线工具箱工作台。**多文件交付、零外部依赖**：样式与脚本都是本目录下的独立文件（CSS 11 个、JS 22 个，按层拆分；另有自托管的 libwebp WASM 编码器），47 个界面图标为内联 SVG sprite（见「图标系统」一节），不引用任何 CDN、字体服务或组件库。
 
@@ -13,8 +13,10 @@
 多文件项目应当通过 HTTP 访问，这也是手机端唯一可行的方式。任选一条：
 
 ```bash
-cd 生活工具箱-v1.13
-python3 -m http.server 8787        # 然后浏览器打开 http://localhost:8787
+cd worktool
+node tools/dev-server.mjs          # 然后浏览器打开 http://localhost:8787
+# 或：bash tools/dev.sh            （等价，端口占用会自动顺延）
+# 备选：python3 -m http.server 8787 —— 但它不认 .wasm MIME，图片转 WebP 会失败
 ```
 
 macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需 `chmod +x 启动本地服务器.command`），它会自动起服务并打开浏览器。
@@ -29,8 +31,8 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 
 **可以，且不需要改一行代码** —— 已按「项目站」（`https://<用户名>.github.io/<仓库名>/` 这种子路径形式）实测通过。下面三条照做就行：
 
-1. **把本目录的内容放到仓库根目录**，不要连 `生活工具箱-v1.13/` 这层文件夹一起提交。
-   否则访问地址会变成 `…github.io/<仓库名>/生活工具箱-v1.13/` —— 能用，但中文路径会被百分号编码成一长串。
+1. **把本目录的内容放到仓库根目录**，不要连 `worktool/` 这层文件夹一起提交。
+   否则访问地址会变成 `…github.io/<仓库名>/worktool/` —— 能用，但入口多一层。
 2. **保留根目录的 `.nojekyll`**（本包已带一个空文件）。
    GitHub Pages 默认会跑一遍 Jekyll 构建，`.nojekyll` 用来关掉它，避免构建环节引入意外。
 3. **仓库 Settings → Pages → Source 选 `Deploy from a branch`，分支 `main`、目录 `/ (root)`**，保存后等一两分钟。
@@ -54,7 +56,7 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 ## 二、目录结构
 
 ```
-生活工具箱-v1.13/
+worktool/
 ├── index.html                     入口：内联启动遮罩样式 + 图标池（45 个 <symbol>）
 │                                  + 骨架 + iOS 启动图声明 + 加载器
 ├── manifest.webmanifest           PWA 清单（可安装到主屏、standalone）
@@ -129,9 +131,21 @@ macOS 上也可以直接双击 `启动本地服务器.command`（首次使用需
 │   ├── version.test.js             发版四处一致
 │   └── qrcode.test.js              编码 → 识别闭环（中文、多行、高版本）
 │
+├── dev-docs/
+│   └── DEV_HANDOVER.md            交接文档：硬约定、真实故障、测试策略、发版流程、技术债、清单
+│
 └── tools/
-    └── make-splash.py             生成 iOS 启动图（Pillow，离线跑一次即可）
+    ├── package.mjs                校验 + 清残留 + 出包（worktool-vX.Y.Z-buildN.zip）
+    ├── dev-server.mjs             本地静态服务（.wasm / .webmanifest 的 MIME 是对的）
+    ├── dev.sh                     上面那个的包装，解压后跑这个
+    ├── stamp.js                   发版盖章：一次写齐四处版本字段
+    ├── make-splash.py             生成 iOS 启动图（Pillow，离线跑一次即可）
+    ├── check-layout.py            真实 Chromium 量移动端横向越界（393 / 360）
+    └── check-lanshare.py          开两个页面跑完整局域网直传链路（四场景）
 ```
+
+> 仓库根就是站点根：没有 `src/`、没有 `dist/`、没有 `docs/`。改完的文件直接就是线上跑的那份，
+> 也因此根目录下的任何文件都会被一起发布 —— 草稿请放 `dev-docs/`，不要丢在根。
 
 ## 三、已实现的功能
 
@@ -571,6 +585,21 @@ node tools/stamp.js --bump c --note "这次改了什么"
 它写的是 `js/core.js` 的 `APP_VER` 与 `APP_BUILD`、`version.json` 的 `ver` 与 `build`，以及 `sw.js` 的 `CACHE` 名 —— 缺一处老访客就会一直看到旧版本。
 
 **为什么要有这个脚本**：这四处原来全靠手改。README 一直写着「必须同步改」，但 2026-10-03 之后连发十几版，`APP_BUILD` 一直停在 10 月 3 日没人动，首页底部和设置里的「构建于」错了 12 天。靠人记必然漂，交给脚本；`test/version.test.js` 会在同步跑测试时兜住漏改。
+
+### v1.15.1 — 2026-11-08
+
+**修侧栏底部那排工具按钮被裁掉一截。**
+
+248px 的侧栏放不下「浅色·自动」「收起」「数据」三个按钮：按钮是 flex 子项，默认
+`min-width:auto` 不允许缩到内容宽度以下，于是整行撑到 248px（比可用宽度多 25px），
+最右的「数据」被父容器裁掉，文字只剩大半个「数」字。侧栏滚动条一出现更明显。
+
+- 侧栏宽度 248 → **280px**（实测三个按钮需要 248px 内容宽，加内边距 272px，
+  留 8px 给微软雅黑这类更宽的中文字体）；
+- 底部按钮加 `min-width:0` 与文字省略兜底 —— 以后文案再变长也不会撑破侧栏；
+- 顺手修了收起态（68px）三个图标按钮高度不一致的问题（`flex:none` + 固定 36px）；
+- `tools/check-layout.py` 增加桌面场景：1280px 下量三种主题文案的内边界，
+  溢出或被省略都算失败，手机场景查不出这类问题（那时侧栏是隐藏的）。
 
 ### v1.15.0 — 2026-10-28
 

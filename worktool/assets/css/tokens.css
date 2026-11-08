@@ -52,7 +52,9 @@
   --f-num:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
 
   /* —— 尺度 —— */
-  --rail:248px;          /* 展开态侧拉栏 */
+  --rail:280px;          /* 展开态侧拉栏：底部三个工具按钮 + 「浅色·自动」实测需要 248px 内容宽，
+                            加左右各 12px 内边距共 272px 才不省略；留到 280 是为了
+                            兼容微软雅黑这类更宽的中文字体（248 会溢出 25px） */
   --rail-mini:68px;      /* 收起态侧拉栏 */
   --topbar-h:60px;
   --content-max:1180px;

@@ -42,14 +42,25 @@ js/lib/               纯逻辑，不碰 DOM，可被 node 直接 require
 js/tools/             各工具界面层（render / onLeave）
 js/worker/            WebP 编码 Worker（module worker）
 test/                 纯逻辑用例，node 直接跑（自带 check，无框架）
-tools/                stamp.js（发版盖章）、make-splash.py、check-layout.py、check-lanshare.py
+tools/                stamp.js（发版盖章）、package.mjs（校验+清残留+出包）、
+                      dev-server.mjs / dev.sh（本地服务，MIME 正确）、
+                      make-splash.py、check-layout.py、check-lanshare.py
+dev-docs/             DEV_HANDOVER.md（交接文档：约定、故障、发版、技术债、checklist）
+.buildno              构建号计数器，打包时自增
+.artifacts.json       上一版部署文件清单，只用来删已不存在的旧文件
 ```
+
+**根目录就是站点根**。这里没有 `src/`、没有 `dist/`、没有 `docs/`：
+改完的文件直接就是线上跑的那份。同理，根目录下任何文件都会被 Pages 一起发布，
+所以不要往根目录丢草稿、设计稿、临时截图。
 
 ## 3. 命令
 
 ```bash
-bash start-server.sh 8787          # 起本地服务 → http://localhost:8787
-                                   # macOS 也可双击「启动本地服务器.command」（会自动开浏览器）
+bash tools/dev.sh 8787             # 起本地服务 → http://localhost:8787
+                                   # 内部是 tools/dev-server.mjs，.wasm/.webmanifest 的 MIME 是对的
+bash start-server.sh 8787          # 备选：python3 http.server，不认 .wasm MIME，WebP 会失败
+                                   # macOS 也可双击「启动本地服务器.command」（同上，MIME 不全）
 ```
 
 ```bash
@@ -60,6 +71,8 @@ node test/github2jsdelivr.test.js --online              # 追加需要真实 Git
 
 ```bash
 node tools/stamp.js --bump c --note "这次改了什么"   # 发版（见 §6.4）
+node tools/package.mjs                              # 校验 + 清残留 + 出包（构建号自增）
+node tools/package.mjs --check                      # 只校验，不写任何文件
 ```
 
 可选（需要 `pip install playwright && playwright install chromium`）：
@@ -135,6 +148,10 @@ node tools/stamp.js --bump c --note "一句话说明"    # c=修 bug/微调，b=
 1. `README.md` 顶部标题的版本号、以及「十、版本」里补一段更新说明（`stamp.js` 不管这两处）。
 2. 全量跑测试（`test/version.test.js` 会兜住漏改）。
 3. 本机起服务把改动验收一遍，再 `git push` —— **发版即上线**，Pages 是覆盖式替换。
+
+推之前跑一次 `node tools/package.mjs`：它会核对四处版本号自洽、`.nojekyll` 在位、
+`index.html` 的本地引用与 `loader.js` / `sw.js` 的清单齐全，并出一个带构建号的 zip。
+任何一项不通过就非 0 退出，此时不要推。
 
 提交信息格式照历史提交来：`生活工具箱-vX.Y.Z：一句话说明`，**单行、不写 body、不加 trailer**；版本号与本次 `stamp.js` 盖出的版本一致，细节用「：」分句、用「；」并列（例：`生活工具箱-v1.14.1：局域网传输：传输记录里的图片显示缩略图；配对包互相带版本号检测`）。`workbench/` 用「生活工作台-vX.Y.Z」，别混用。
 
