@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>考勤工作台</title>
-<!-- 考勤工作台 · 构建 2026-11-08 11:06 · v20261108-1106 -->
+<!-- 考勤工作台 · 构建 2026-11-08 11:18 · v20261108-1118 -->
 <!-- 本地版：数据存于浏览器 localStorage，可用「导出 JSON」备份 -->
 <style>
 :root{
@@ -245,16 +245,16 @@ textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.
     </div>
 
     <!-- 今天要处理 -->
-    <section class="today" id="todaySection">
+    <section class="today" id="todaySection" style="display:none">
       <div class="today-hd" id="todayHd">
         <div><b>今天要处理</b><span class="today-count" id="todayCount">0</span></div>
-        <span style="font-size:12px;color:#9CA3AF" id="todayToggle">收起</span>
+        <span style="font-size:12px;color:#9CA3AF" id="todayToggle">展开</span>
       </div>
-      <div class="today-list" id="todayList"></div>
+      <div class="today-list" id="todayList" style="display:none"></div>
     </section>
 
     <!-- 速览 -->
-    <section class="stats" id="statsBox">
+    <section class="stats" id="statsBox" style="display:none">
       <div class="stat"><div class="k">本月迟到</div><div class="v" id="sLate">0<small>次</small></div></div>
       <div class="stat"><div class="k">本月加班</div><div class="v" id="sOt">0<small>小时</small></div></div>
       <div class="stat"><div class="k">本月请假</div><div class="v" id="sLeave">0<small>天</small></div></div>
@@ -375,10 +375,10 @@ textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.
 
       <div class="ver-bar">
         <div>
-          <b>考勤工作台 <span class="tag blue" style="margin-left:4px">v20261108-1106</span></b>
+          <b>考勤工作台 <span class="tag blue" style="margin-left:4px">v20261108-1118</span></b>
           <div class="vmeta">数据仅存本机浏览器 · 换设备请用 JSON 备份迁移</div>
         </div>
-        <div class="vtxt">构建时间<br>2026-11-08 11:06</div>
+        <div class="vtxt">构建时间<br>2026-11-08 11:18</div>
       </div>
 
       <!-- AI 导入 -->
@@ -521,7 +521,7 @@ textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.
 /* ========== 数据层 ========== */
 var KEY = 'wb_attendance_v1';
 var DB = { employees: [], records: [], settings: { workStart: '10:00', lateFrom: '10:20', otBase: '21:00' } };
-var UI = { view: 'entry', month: '', entryType: 'late', openEmp: null, todayCollapsed: false, lastFileName: '' };
+var UI = { view: 'entry', month: '', entryType: 'late', openEmp: null, todayCollapsed: true, lastFileName: '' };
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 function todayStr() {
@@ -890,6 +890,12 @@ function renderRoster() {
       refreshAll();
     };
   });
+}
+
+/* 统一应用「今天要处理」折叠状态 */
+function applyTodayCollapse() {
+  document.getElementById('todayList').style.display = UI.todayCollapsed ? 'none' : '';
+  document.getElementById('todayToggle').textContent = UI.todayCollapsed ? '展开' : '收起';
 }
 
 /* 统一刷新入口：只被事件处理调用，渲染函数之间互不调用 */
@@ -1310,6 +1316,9 @@ var VIEW_META = {
 function switchView(v) {
   if (!VIEW_META[v]) v = 'entry';
   UI.view = v;
+  var onLedger = (v === 'ledger');
+  document.getElementById('todaySection').style.display = onLedger ? '' : 'none';
+  document.getElementById('statsBox').style.display = onLedger ? '' : 'none';
   ['entry', 'ledger', 'roster', 'settings'].forEach(function (k) {
     var el = document.getElementById('view-' + k);
     if (el) el.style.display = (k === v) ? '' : 'none';
@@ -1461,8 +1470,7 @@ function bindEvents() {
   /* 今日区折叠 */
   document.getElementById('todayHd').onclick = function () {
     UI.todayCollapsed = !UI.todayCollapsed;
-    document.getElementById('todayList').style.display = UI.todayCollapsed ? 'none' : '';
-    document.getElementById('todayToggle').textContent = UI.todayCollapsed ? '展开' : '收起';
+    applyTodayCollapse();
   };
 
   /* 录入类型切换 */
@@ -1658,6 +1666,7 @@ function init() {
   bindEvents();
   setEntryType('late');
   switchView('entry');
+  applyTodayCollapse();
   refreshAll();
 }
 
