@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>考勤工作台</title>
-<!-- 考勤工作台 · 构建 2026-11-08 11:18 · v20261108-1118 -->
+<!-- 考勤工作台 · 构建 2026-11-08 11:46 · v20261108-1146 -->
 <!-- 本地版：数据存于浏览器 localStorage，可用「导出 JSON」备份 -->
 <style>
 :root{
@@ -375,10 +375,10 @@ textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.
 
       <div class="ver-bar">
         <div>
-          <b>考勤工作台 <span class="tag blue" style="margin-left:4px">v20261108-1118</span></b>
+          <b>考勤工作台 <span class="tag blue" style="margin-left:4px">v20261108-1146</span></b>
           <div class="vmeta">数据仅存本机浏览器 · 换设备请用 JSON 备份迁移</div>
         </div>
-        <div class="vtxt">构建时间<br>2026-11-08 11:18</div>
+        <div class="vtxt">构建时间<br>2026-11-08 11:46</div>
       </div>
 
       <!-- AI 导入 -->
@@ -1077,7 +1077,10 @@ var AI_PROMPT = [
   '6. 原因、备注字段原文照抄，没有就留空字符串，不要编造。',
   '7. 姓名保持原文，不要改字。',
   '8. 识别不了的行放进 warnings，不要硬猜。',
-  '9. 只输出 JSON，不要 markdown 代码块。'
+  '9. 若表头是「每个日期一列」的宽表（如 10月24日、10月25日…），逐格判断：单元格括号内是 (上班打卡, 下班打卡)；',
+  '   状态为"迟到/严重迟到"记 late，clockIn 取括号第一个时间；"请假"记 leave；"正常""休息""未入职"跳过。',
+  '   汇总列「加班总时长(小时)」大于 0 时生成一条 overtime（otHours=该数值，日期取该月最后一天）；「请假天数」大于 0 时同理生成一条 leave。',
+  '10. 只输出 JSON，不要 markdown 代码块。'
 ].join('\n');
 
 function decodeBuffer(buf) {
@@ -1095,32 +1098,62 @@ function decodeBuffer(buf) {
 
 function runAiParse() {
   var text = (document.getElementById('aiInput').value || '').trim();
-  var btn = document.getElementById('btnAiParse');
-
   if (!text) { flashStatus('aiStatus', 'err', '把表格内容粘贴进来，或上传 CSV 文件'); return; }
   if (text.length > 60000) { flashStatus('aiStatus', 'err', '内容过长，请分批导入'); return; }
 
-  /* 一、先试本地宽表解析：考勤机导出的月度汇总表，零误差且不耗 API */
+  /* 一、本地解析只作快速通道：命中已知汇总表、且解析出记录、且无陌生状态才自动采用 */
   var yr = null;
   var fm = String(UI.lastFileName || '').match(/(20\d{2})\d{2}\d{2}/);
   if (fm) yr = Number(fm[1]);
   var grid = tryParseGrid(text, yr);
-  if (grid) {
-    if (!grid.records.length) {
-      flashStatus('aiStatus', 'err', '表格已识别（' + grid.people + ' 人 × ' + grid.days + ' 天），但整月没有迟到、请假或加班记录');
-      return;
-    }
+
+  if (grid && grid.records.length > 0 && !grid.skipped) {
     AI.pending = grid.records;
     renderAiResult();
-    var msg = '本地识别成功：' + grid.people + ' 人 × ' + grid.days + ' 天，共 ' + grid.records.length + ' 条（未消耗 API）';
-    if (grid.skipped) msg += '；已忽略状态：' + grid.skipped;
-    flashStatus('aiStatus', 'ok', msg);
+    flashStatus('aiStatus', 'ok', '本地识别成功：' + grid.people + ' 人 × ' + grid.days + ' 天，共 ' + grid.records.length + ' 条（未消耗 API）');
     return;
   }
 
-  /* 二、非标准格式交给 AI */
+  /* 二、其余情况一律先问用户，不擅自套用本地规则、不擅自下结论 */
+  var reason;
+  if (!grid) {
+    reason = '没识别出已知的考勤汇总表格式';
+  } else if (grid.skipped) {
+    reason = '表格里有本地规则不认识的状态：' + grid.skipped;
+  } else {
+    reason = '表格能读出 ' + grid.people + ' 人 × ' + grid.days + ' 天，但没解析出迟到、请假或加班记录';
+  }
+  askAiParse(text, reason);
+}
+
+/* 询问是否改用 AI 解析：格式拿不准就交给用户决定，不写死 */
+function askAiParse(text, reason) {
+  AI.pending = [];
+  document.getElementById('aiResultCard').style.display = 'none';
+  flashStatus('aiStatus', 'err', reason + '；已暂停导入，请在弹窗里选择是否用 AI 解析');
+  openConfirm(
+    '要用 AI 解析这份表吗？',
+    reason + '。继续会调用 DeepSeek（需已填 API Key，会消耗额度）；取消则不导入，可改好表格后重试。',
+    '用 AI 解析',
+    function () { callAiApi(text); }
+  );
+}
+
+/* 复用通用弹窗做确认框：隐藏输入框、改按钮文案 */
+function openConfirm(title, desc, okText, cb) {
+  document.getElementById('mTitle').textContent = title;
+  document.getElementById('mDesc').textContent = desc || '';
+  document.getElementById('mFieldWrap').style.display = 'none';
+  document.getElementById('mOk').textContent = okText || '确定';
+  modalCb = function () { return cb(); };
+  document.getElementById('mask').classList.add('show');
+}
+
+/* 三、AI 解析：DeepSeek 直连，仅在用户确认后调用 */
+function callAiApi(text) {
   var key = getApiKey();
-  if (!key) { flashStatus('aiStatus', 'err', '这种格式需要 AI 解析，请先在上面填写 DeepSeek API Key'); return; }
+  var btn = document.getElementById('btnAiParse');
+  if (!key) { flashStatus('aiStatus', 'err', '请先在上面填写 DeepSeek API Key，再点「用 AI 解析」'); return; }
 
   flashStatus('aiStatus', 'load', 'AI 正在解析，通常需要 5~15 秒…');
   btn.disabled = true;
@@ -1405,12 +1438,16 @@ function openModal(title, desc, label, cb, def) {
   document.getElementById('mDesc').textContent = desc || '';
   document.getElementById('mLabel').textContent = label || '内容';
   document.getElementById('mInput').value = def || '';
+  document.getElementById('mFieldWrap').style.display = '';
+  document.getElementById('mOk').textContent = '确定';
   document.getElementById('mask').classList.add('show');
   modalCb = cb;
   setTimeout(function () { document.getElementById('mInput').focus(); }, 50);
 }
 function closeModal() {
   document.getElementById('mask').classList.remove('show');
+  document.getElementById('mFieldWrap').style.display = '';
+  document.getElementById('mOk').textContent = '确定';
   modalCb = null;
 }
 
