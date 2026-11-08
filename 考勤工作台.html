@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>考勤工作台</title>
+<!-- 本地版：数据存于浏览器 localStorage，可用「导出 JSON」备份 -->
+<style>
+:root{
+  --primary:#3B5BDB;--primary-l:#EDF2FF;
+  --red:#E03131;--red-l:#FFF5F5;
+  --amber:#F08C00;--amber-l:#FFF9DB;
+  --green:#2F9E44;--green-l:#EBFBEE;
+  --blue:#1C7ED6;--blue-l:#E7F5FF;
+  --text:#1A1A1A;--sub:#6B7280;--mute:#9CA3AF;--line:#E9ECEF;--bg:#F4F5F7;--card:#fff;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:inherit}
+input,select{font-family:inherit;font-size:16px}
+h1,h2,h3{margin:0;font-weight:600}
+
+/* 布局 */
+.app{display:flex;min-height:100vh}
+.sidebar{width:176px;flex:none;background:#fff;border-right:1px solid var(--line);padding:22px 12px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:8px;padding:0 10px 20px}
+.brand b{font-size:15px;letter-spacing:.3px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;color:var(--sub);font-size:14px;margin-bottom:2px;width:100%;text-align:left;transition:.15s}
+.nav-item svg{flex:none}
+.nav-item:hover{background:#F8F9FA;color:var(--text)}
+.nav-item.active{background:var(--primary-l);color:var(--primary);font-weight:600}
+.side-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.mini-btn{font-size:12px;color:var(--sub);text-align:left;padding:6px 0}
+.mini-btn:hover{color:var(--primary)}
+.main{flex:1;min-width:0;padding:22px 26px 40px;max-width:1180px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.topbar h1{font-size:19px}
+.topbar .sub{font-size:12px;color:var(--mute);margin-top:2px;font-weight:400}
+.top-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* 通用 */
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.btn{padding:9px 16px;border-radius:9px;font-size:14px;font-weight:500;background:#F1F3F5;color:var(--text);min-height:40px;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:.15s}
+.btn:hover{background:#E9ECEF}
+.btn.primary{background:var(--primary);color:#fff}
+.btn.primary:hover{background:#3450C6}
+.btn.ghost{background:#fff;border:1px solid var(--line);color:var(--sub)}
+.btn.danger{background:#fff;border:1px solid #FFC9C9;color:var(--red)}
+.btn.sm{padding:6px 12px;font-size:13px;min-height:34px}
+.tag{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;line-height:18px;font-weight:500}
+.tag.red{background:var(--red-l);color:var(--red)}
+.tag.amber{background:var(--amber-l);color:var(--amber)}
+.tag.blue{background:var(--blue-l);color:var(--blue)}
+.tag.green{background:var(--green-l);color:var(--green)}
+.tag.gray{background:#F1F3F5;color:var(--sub)}
+.empty{padding:36px 12px;text-align:center;color:var(--mute);font-size:13px}
+
+/* 今天要处理 */
+.today{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:16px;overflow:hidden}
+.today-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer}
+.today-hd b{font-size:14px}
+.today-count{background:var(--red);color:#fff;font-size:11px;padding:1px 7px;border-radius:20px;margin-left:7px;font-weight:600}
+.today-list{padding:0 18px 14px;display:flex;flex-direction:column;gap:8px}
+.todo{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;font-size:13px}
+.todo.red{background:var(--red-l)}
+.todo.amber{background:var(--amber-l)}
+.todo .dot{width:6px;height:6px;border-radius:50%;flex:none}
+.todo.red .dot{background:var(--red)}
+.todo.amber .dot{background:var(--amber)}
+.todo .txt{flex:1;min-width:0}
+.todo .act{font-size:12px;font-weight:600;padding:5px 11px;border-radius:7px;background:#fff;color:var(--text);flex:none;min-height:30px}
+.todo .act:hover{background:rgba(0,0,0,.05)}
+
+/* 速览 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px 16px}
+.stat .k{font-size:12px;color:var(--sub)}
+.stat .v{font-size:24px;font-weight:600;margin-top:3px;letter-spacing:-.5px}
+.stat .v small{font-size:12px;font-weight:400;color:var(--mute);margin-left:3px}
+
+/* 表单 */
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field.full{grid-column:1/-1}
+.field label{font-size:12px;color:var(--sub);font-weight:500}
+.field input,.field select{width:100%;min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);outline:none;min-height:42px}
+.field input::-webkit-date-and-time-value{text-align:left}
+.field input[type=date],.field input[type=time]{display:block;width:100%}
+.field input:focus,.field select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.1)}
+.seg{display:inline-flex;background:#F1F3F5;border-radius:10px;padding:3px;gap:2px;margin-bottom:16px}
+.seg button{padding:2px 18px;border-radius:8px;font-size:13px;color:var(--sub);min-height:34px}
+.seg button.active{background:#fff;color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.hint{font-size:12px;color:var(--mute);margin-top:2px}
+.link-mini{font-size:11px;color:var(--primary);font-weight:500;padding:1px 6px;border-radius:5px;background:var(--primary-l);margin-left:4px}
+.calc-box{background:var(--blue-l);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--blue);margin-top:4px}
+.calc-box b{font-size:17px}
+.form-actions{display:flex;gap:10px;margin-top:18px}
+
+/* 台账 */
+.led-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.led-toolbar input[type=month]{padding:8px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;min-height:40px}
+.led-head{display:grid;grid-template-columns:1.6fr repeat(3,100px);gap:10px;padding:0 16px 8px;font-size:12px;color:var(--mute)}
+.led-head div:not(:first-child){text-align:right;padding-right:6px}
+.led-row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:8px}
+.led-main{display:grid;grid-template-columns:1.6fr repeat(3,100px);gap:10px;align-items:center;cursor:pointer}
+.led-name b{font-size:14px;display:block}
+.led-name span{font-size:11px;color:var(--mute)}
+.metric{text-align:right;padding-right:6px}
+.metric b{display:block;font-size:17px;font-weight:600;line-height:1.3;letter-spacing:-.3px}
+.metric em{display:block;font-size:11px;color:var(--mute);font-style:normal;line-height:1.4}
+.led-detail{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);display:none}
+.led-row.open .led-detail{display:block}
+.rec{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 0;border-bottom:1px solid #F8F9FA}
+.rec:last-child{border:none}
+.rec .d{color:var(--sub);width:46px;flex:none}
+.rec .t{flex:1;min-width:0}
+.rec .x{color:var(--mute);padding:2px 8px;font-size:12px}
+.rec .x:hover{color:var(--red)}
+.led-total{display:grid;grid-template-columns:1.6fr repeat(3,100px);gap:10px;padding:13px 16px;background:#F8F9FA;border-radius:12px;font-weight:600;font-size:13px;margin-top:12px}
+.led-total .metric b{font-size:16px}
+
+/* 名册 */
+.emp-row{display:flex;align-items:center;gap:12px;padding:12px 16px;background:#fff;border:1px solid var(--line);border-radius:11px;margin-bottom:8px}
+.avatar{width:34px;height:34px;border-radius:9px;background:var(--primary-l);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex:none}
+.emp-info{flex:1;min-width:0}
+.emp-info b{font-size:14px}
+.emp-info span{display:block;font-size:11.5px;color:var(--mute)}
+.emp-del{color:var(--mute);font-size:12px;padding:4px 8px}
+.emp-del:hover{color:var(--red)}
+
+/* 设置页 */
+.set-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.set-hd h3{font-size:15px}
+.set-desc{font-size:12.5px;color:var(--sub);margin:0 0 14px;line-height:1.6}
+.set-btns{display:flex;flex-wrap:wrap;gap:10px}
+.key-row{display:flex;gap:8px}
+.key-row input{flex:1;min-width:0}
+textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;line-height:1.65;resize:vertical;outline:none;background:#fff;color:var(--text);min-height:130px}
+textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.1)}
+.ai-row{display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid #F5F6F8;font-size:12.5px}
+.ai-row:last-child{border:none}
+.ai-row .nm{font-weight:600;width:56px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-row .dt{color:var(--sub);width:46px;flex:none;font-variant-numeric:tabular-nums}
+.ai-row .ty{flex:1;min-width:0;color:var(--sub)}
+.ai-row.bad{background:var(--red-l);border-radius:6px;padding-left:6px;padding-right:6px}
+.ai-status{font-size:12.5px;padding:10px 12px;border-radius:9px;margin-top:10px;display:none}
+.ai-status.show{display:block}
+.ai-status.err{background:var(--red-l);color:var(--red)}
+.ai-status.ok{background:var(--green-l);color:var(--green)}
+.ai-status.load{background:var(--blue-l);color:var(--blue)}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;margin-right:5px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* 弹窗 */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:200;padding:20px}
+.mask.show{display:flex}
+.modal{background:#fff;border-radius:16px;padding:22px;width:100%;max-width:400px}
+.modal h3{font-size:16px;margin-bottom:6px}
+.modal p{font-size:13px;color:var(--sub);margin:0 0 16px}
+.modal .field{margin-bottom:14px}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+
+/* 底部 Tab */
+.tabbar{display:none}
+@media(max-width:768px){
+  .sidebar{display:none}
+  .main{padding:12px 11px calc(74px + env(safe-area-inset-bottom))}
+  .top-actions{display:none}
+  .card{padding:14px 13px;border-radius:12px}
+  .today-hd,.today-list{padding-left:13px;padding-right:13px}
+  .today-list{padding-bottom:11px}
+  .stats{grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat{padding:12px 13px}
+  .form-grid{grid-template-columns:1fr;gap:12px}
+  .seg{width:100%;display:flex}
+  .seg button{flex:1;padding:6px 0}
+  .led-head{grid-template-columns:1fr repeat(3,68px);gap:4px;padding:0 14px 7px;font-size:11px}
+  .led-row{padding:11px 14px}
+  .led-main{grid-template-columns:1fr repeat(3,68px);gap:4px}
+  .led-total{grid-template-columns:1fr repeat(3,68px);gap:4px;padding:12px 14px}
+  .metric{padding-right:2px}
+  .metric b{font-size:16px}
+  .metric em{font-size:10.5px}
+  .tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:150}
+  .tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 0 7px;font-size:11px;color:var(--mute);min-height:52px}
+  .tabbar button.active{color:var(--primary)}
+  .topbar h1{font-size:17px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3B5BDB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M8 15h3"/></svg>
+      <b>考勤工作台</b>
+    </div>
+    <button class="nav-item active" data-view="entry">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      考勤录入
+    </button>
+    <button class="nav-item" data-view="ledger">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+      月度台账
+    </button>
+    <button class="nav-item" data-view="roster">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+      员工名册
+    </button>
+    <button class="nav-item" data-view="settings">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.61.68 1.05 1.31 1.05H21a2 2 0 0 1 0 4h-.09c-.63 0-1.17.44-1.31 1.05z"/></svg>
+      设置
+    </button>
+    <div class="side-foot">
+      <button class="mini-btn" id="btnSideBackup">导出 JSON 备份</button>
+      <div style="font-size:11px;color:#C5CAD3;padding:2px 0">数据仅存本机浏览器</div>
+    </div>
+  </aside>
+
+  <!-- 主区 -->
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="pageTitle">考勤录入</h1>
+        <div class="sub" id="pageSub">迟到 · 加班 · 请假，一天的事三秒记完</div>
+      </div>
+      <div class="top-actions">
+        <button class="btn ghost sm" id="btnBackup">备份数据</button>
+      </div>
+    </div>
+
+    <!-- 今天要处理 -->
+    <section class="today" id="todaySection">
+      <div class="today-hd" id="todayHd">
+        <div><b>今天要处理</b><span class="today-count" id="todayCount">0</span></div>
+        <span style="font-size:12px;color:#9CA3AF" id="todayToggle">收起</span>
+      </div>
+      <div class="today-list" id="todayList"></div>
+    </section>
+
+    <!-- 速览 -->
+    <section class="stats" id="statsBox">
+      <div class="stat"><div class="k">本月迟到</div><div class="v" id="sLate">0<small>次</small></div></div>
+      <div class="stat"><div class="k">本月加班</div><div class="v" id="sOt">0<small>小时</small></div></div>
+      <div class="stat"><div class="k">本月请假</div><div class="v" id="sLeave">0<small>天</small></div></div>
+      <div class="stat"><div class="k">在职人数</div><div class="v" id="sEmp">0<small>人</small></div></div>
+    </section>
+
+    <!-- 视图：录入 -->
+    <section id="view-entry">
+      <div class="card">
+        <div class="seg" id="typeSeg">
+          <button class="active" data-type="late">迟到</button>
+          <button data-type="overtime">加班</button>
+          <button data-type="leave">请假</button>
+        </div>
+        <form id="entryForm">
+          <div class="form-grid">
+            <div class="field">
+              <label>日期</label>
+              <input type="date" id="fDate" required>
+            </div>
+            <div class="field">
+              <label>员工</label>
+              <select id="fEmp" required></select>
+            </div>
+
+            <!-- 迟到 -->
+            <div class="field" id="wrapClock">
+              <label>迟到打卡时间</label>
+              <input type="time" id="fClock" value="10:15">
+            </div>
+            <div class="field" id="wrapLateHint">
+              <label>迟到判定<button type="button" class="link-mini" id="btnWorkStart">迟到起算 10:20</button></label>
+              <div class="hint" id="lateHintText">—</div>
+            </div>
+
+            <!-- 加班 -->
+            <div class="field" id="wrapOtEnd" style="display:none">
+              <label>下班时间（21:00 起算）</label>
+              <input type="time" id="fOtEnd" value="22:00">
+            </div>
+            <div class="field" id="wrapOtManual" style="display:none">
+              <label>直接填加班小时</label>
+              <input type="number" id="fOtHours" value="2" min="0" step="0.5">
+            </div>
+            <div class="field" id="wrapOtKind" style="display:none">
+              <label>加班性质</label>
+              <select id="fOtKind">
+                <option>工作日</option><option>休息日</option><option>法定节假日</option>
+              </select>
+            </div>
+
+            <!-- 请假 -->
+            <div class="field" id="wrapLeaveKind" style="display:none">
+              <label>假别</label>
+              <select id="fLeaveKind">
+                <option>事假</option><option>病假</option><option>年假</option>
+                <option>调休</option><option>婚假</option><option>产假</option><option>丧假</option>
+              </select>
+            </div>
+            <div class="field" id="wrapLeaveDays" style="display:none">
+              <label>请假天数</label>
+              <input type="number" id="fLeaveDays" value="1" min="0.5" step="0.5">
+            </div>
+
+            <div class="field full">
+              <label id="reasonLabel">迟到原因</label>
+              <input type="text" id="fReason" placeholder="如：地铁故障、家中有事">
+            </div>
+            <div class="field full">
+              <label>备注</label>
+              <input type="text" id="fNote" placeholder="选填，审批单号等">
+            </div>
+          </div>
+
+          <div class="calc-box" id="calcBox" style="display:none">本次加班计 <b id="calcHours">0</b> 小时</div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn primary">保存记录</button>
+            <button type="button" class="btn ghost" id="btnClearForm">清空</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 视图：台账 -->
+    <section id="view-ledger" style="display:none">
+      <div class="led-toolbar">
+        <input type="month" id="monthPicker">
+        <button class="btn ghost sm" id="btnCsv">导出 CSV</button>
+        <span class="hint" id="ledHint"></span>
+      </div>
+      <div class="led-head" id="ledgerHead">
+        <div>员工</div><div>迟到</div><div>加班 h</div><div>请假 天</div>
+      </div>
+      <div id="ledgerList"></div>
+      <div class="led-total" id="ledgerTotal"></div>
+    </section>
+
+    <!-- 视图：名册 -->
+    <section id="view-roster" style="display:none">
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="font-size:14px;margin-bottom:14px">新增员工</h3>
+        <form id="empForm">
+          <div class="form-grid">
+            <div class="field"><label>工号</label><input type="text" id="eNo" placeholder="GZ004" required></div>
+            <div class="field"><label>姓名</label><input type="text" id="eName" placeholder="张三" required></div>
+            <div class="field"><label>所属地点</label><select id="eDept"><option>广州</option><option>柯桥</option></select></div>
+            <div class="field"><label>岗位</label><input type="text" id="ePost" placeholder="技术 / 生产 / 市场"></div>
+          </div>
+          <div class="form-actions"><button type="submit" class="btn primary">添加</button></div>
+        </form>
+      </div>
+      <div id="rosterList"></div>
+    </section>
+
+    <!-- 视图：设置 -->
+    <section id="view-settings" style="display:none">
+
+      <!-- AI 导入 -->
+      <div class="card" style="margin-bottom:14px">
+        <div class="set-hd">
+          <h3>AI 导入考勤</h3>
+          <span class="tag blue">DeepSeek</span>
+        </div>
+        <p class="set-desc">把表格内容粘进来，AI 自动识别成考勤记录。Excel 里选中区域复制即可，不用管列顺序。</p>
+
+        <div class="field" style="margin-bottom:14px">
+          <label>DeepSeek API Key</label>
+          <div class="key-row">
+            <input type="password" id="setApiKey" placeholder="sk-xxxxxxxxxxxxxxxx" autocomplete="off">
+            <button type="button" class="btn ghost sm" id="btnToggleKey">显示</button>
+          </div>
+          <div class="hint">只存在这台设备的浏览器里，不会上传到任何服务器</div>
+        </div>
+
+        <div class="field">
+          <label>表格内容</label>
+          <textarea id="aiInput" placeholder="从 Excel 复制整块区域粘贴到这里，例如：&#10;&#10;姓名    日期         类型   时间/时长     原因&#10;张伟    2026-11-03   迟到   10:23        地铁故障&#10;李娜    2026-11-05   请假   1天 年假     回老家&#10;王强    2026-11-06   加班   22:30        产线赶工&#10;陈静    2026-11-07   迟到   10:42        家中急事"></textarea>
+          <div class="hint">也支持上传 .csv / .txt 文件；.xlsx 请先「另存为 CSV」</div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn primary" id="btnAiParse">AI 解析</button>
+          <button type="button" class="btn ghost" id="btnPickFile">选择文件</button>
+          <input type="file" id="aiFile" accept=".csv,.txt,text/plain,text/csv" hidden>
+        </div>
+        <div class="ai-status" id="aiStatus"></div>
+      </div>
+
+      <!-- 解析结果 -->
+      <div class="card" id="aiResultCard" style="display:none;margin-bottom:14px">
+        <div class="set-hd">
+          <h3>解析结果</h3>
+          <span class="hint" id="aiResultHint"></span>
+        </div>
+        <div style="max-height:340px;overflow:auto" id="aiResultList"></div>
+        <div class="form-actions">
+          <button type="button" class="btn primary" id="btnAiImport">确认导入</button>
+          <button type="button" class="btn ghost" id="btnAiDiscard">放弃</button>
+        </div>
+      </div>
+
+      <!-- 考勤规则 -->
+      <div class="card" style="margin-bottom:14px">
+        <div class="set-hd"><h3>考勤规则</h3></div>
+        <div class="form-grid">
+          <div class="field"><label>上班时间</label><input type="time" id="setWorkStart"></div>
+          <div class="field"><label>迟到起算</label><input type="time" id="setLateFrom"></div>
+          <div class="field"><label>加班起算</label><input type="time" id="setOtBase"></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn primary" id="btnSaveRules">保存规则</button>
+        </div>
+        <div class="hint" style="margin-top:8px">加班按「满 30 分钟记 1 小时，此后每满 60 分钟加 1 小时」计算</div>
+      </div>
+
+      <!-- 数据备份 -->
+      <div class="card">
+        <div class="set-hd"><h3>数据备份</h3></div>
+        <p class="set-desc">数据只存在这台设备的浏览器里，清理缓存或换手机就会丢失，建议每周导出一次 JSON。</p>
+        <div class="set-btns">
+          <button type="button" class="btn ghost" id="setExportJson">导出 JSON</button>
+          <button type="button" class="btn ghost" id="setImportJson">导入 JSON</button>
+          <button type="button" class="btn ghost" id="setExportCsv">导出当月 CSV</button>
+          <button type="button" class="btn danger" id="setReset">清空数据</button>
+        </div>
+        <input type="file" id="fileImport" accept=".json,application/json" hidden>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 底部 Tab -->
+<nav class="tabbar" id="tabbar">
+  <button class="active" data-view="entry">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>录入
+  </button>
+  <button data-view="ledger">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>台账
+  </button>
+  <button data-view="roster">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>名册
+  </button>
+  <button data-view="settings">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.61.68 1.05 1.31 1.05H21a2 2 0 0 1 0 4h-.09c-.63 0-1.17.44-1.31 1.05z"/></svg>设置
+  </button>
+</nav>
+
+<!-- 弹窗 -->
+<div class="mask" id="mask">
+  <div class="modal">
+    <h3 id="mTitle">标题</h3>
+    <p id="mDesc">描述</p>
+    <div class="field" id="mFieldWrap">
+      <label id="mLabel">原因</label>
+      <input type="text" id="mInput" placeholder="请输入">
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost sm" id="mCancel">取消</button>
+      <button class="btn primary sm" id="mOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========== 数据层 ========== */
+var KEY = 'wb_attendance_v1';
+var DB = { employees: [], records: [], settings: { workStart: '10:00', lateFrom: '10:20', otBase: '21:00' } };
+var UI = { view: 'entry', month: '', entryType: 'late', openEmp: null, todayCollapsed: false };
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+function todayStr() {
+  var d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+function monthOf(d) {
+  d = d || new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+}
+function uid(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function seedDB() {
+  return {
+    settings: { workStart: '10:00', lateFrom: '10:20', otBase: '21:00', version: 3 },
+    employees: [
+      { id: 'e1', no: 'GZ001', name: '张伟', dept: '广州', post: '技术', status: 'active' },
+      { id: 'e2', no: 'GZ002', name: '李娜', dept: '广州', post: '市场', status: 'active' },
+      { id: 'e3', no: 'KQ001', name: '王强', dept: '柯桥', post: '生产', status: 'active' },
+      { id: 'e4', no: 'GZ003', name: '陈静', dept: '广州', post: '财务', status: 'active' },
+      { id: 'e5', no: 'KQ002', name: '刘洋', dept: '柯桥', post: '生产', status: 'active' }
+    ],
+    records: [
+      { id: 'r1', empId: 'e5', date: '2026-10-28', type: 'leave', leaveKind: '事假', leaveDays: 1, reason: '', note: '' },
+      { id: 'r2', empId: 'e1', date: '2026-11-03', type: 'late', clockIn: '10:23', reason: '地铁故障', note: '' },
+      { id: 'r3', empId: 'e2', date: '2026-11-05', type: 'leave', leaveKind: '年假', leaveDays: 1, reason: '回老家', note: '' },
+      { id: 'r4', empId: 'e3', date: '2026-11-06', type: 'overtime', otMode: 'rule', otEnd: '22:30', otKind: '工作日', reason: '', note: '产线赶工' },
+      { id: 'r5', empId: 'e4', date: '2026-11-04', type: 'late', clockIn: '10:42', reason: '', note: '' }
+    ]
+  };
+}
+
+function loadDB() {
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) { DB = JSON.parse(raw); }
+    else { DB = seedDB(); saveDB(); }
+  } catch (e) { DB = seedDB(); }
+  if (!DB.employees) DB.employees = [];
+  if (!DB.records) DB.records = [];
+  if (!DB.settings) DB.settings = { workStart: '10:00', lateFrom: '10:20', otBase: '21:00' };
+  if ((DB.settings.version || 0) < 3) {
+    DB.settings.workStart = '10:00';
+    DB.settings.lateFrom = DB.settings.lateFrom || '10:20';
+    DB.settings.version = 3;
+    saveDB();
+  }
+}
+function saveDB() {
+  try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) { }
+}
+
+/* ========== 计算层 ========== */
+/* 加班规则：距 21:00 不足 30 分钟不计；满 30 分钟记 1 小时；此后每满 60 分钟 +1，余数舍去 */
+function calcOtHours(endTime) {
+  if (!endTime) return 0;
+  var base = (DB.settings && DB.settings.otBase) || '21:00';
+  var bp = base.split(':'), ep = endTime.split(':');
+  var bm = Number(bp[0]) * 60 + Number(bp[1]);
+  var em = Number(ep[0]) * 60 + Number(ep[1]);
+  if (isNaN(em) || isNaN(bm)) return 0;
+  var mins = em - bm;
+  if (mins < 30) return 0;
+  return Math.floor((mins - 30) / 60) + 1;
+}
+
+function lateMins(clockIn) {
+  if (!clockIn) return 0;
+  var ws = (DB.settings && DB.settings.workStart) || '10:00';
+  var sp = ws.split(':'), cp = clockIn.split(':');
+  var sm = Number(sp[0]) * 60 + Number(sp[1]);
+  var cm = Number(cp[0]) * 60 + Number(cp[1]);
+  if (isNaN(cm)) return 0;
+  return Math.max(0, cm - sm);
+}
+
+function toMin(t) {
+  if (!t) return NaN;
+  var p = String(t).split(':');
+  return Number(p[0]) * 60 + Number(p[1]);
+}
+
+/* 迟到判定：打卡时间达到/超过 lateFrom（默认 10:20）才算迟到 */
+function isLateClock(clockIn) {
+  var lf = (DB.settings && DB.settings.lateFrom) || '10:20';
+  var cm = toMin(clockIn), lm = toMin(lf);
+  if (isNaN(cm) || isNaN(lm)) return false;
+  return cm >= lm;
+}
+
+function recOtHours(r) {
+  if (r.otMode === 'manual') return Number(r.otHours || 0);
+  return calcOtHours(r.otEnd);
+}
+
+function empById(id) {
+  for (var i = 0; i < DB.employees.length; i++) if (DB.employees[i].id === id) return DB.employees[i];
+  return null;
+}
+function empName(id) { var e = empById(id); return e ? e.name : '（已删除）'; }
+function activeEmps() { return DB.employees.filter(function (e) { return e.status !== 'left'; }); }
+
+function typeLabel(r) {
+  if (r.type === 'late') return '迟到';
+  if (r.type === 'overtime') return '加班';
+  if (r.type === 'leave') return '请假·' + (r.leaveKind || '未填');
+  return '—';
+}
+function recSummary(r) {
+  if (r.type === 'late') {
+    var m = lateMins(r.clockIn);
+    var t = '打卡 ' + (r.clockIn || '--:--');
+    if (isLateClock(r.clockIn)) t += '（晚 ' + m + ' 分钟，计迟到）';
+    else if (m > 0) t += '（晚 ' + m + ' 分钟，未到迟到线）';
+    return t;
+  }
+  if (r.type === 'overtime') return recOtHours(r) + ' 小时' + (r.otKind ? ' · ' + r.otKind : '');
+  if (r.type === 'leave') return (r.leaveDays || 0) + ' 天';
+  return '';
+}
+
+function monthRecords(m) {
+  return DB.records.filter(function (r) { return r.date && r.date.slice(0, 7) === m; });
+}
+
+function summarise(m) {
+  var mrs = monthRecords(m);
+  return activeEmps().map(function (e) {
+    var rs = mrs.filter(function (r) { return r.empId === e.id; });
+    var late = rs.filter(function (r) { return r.type === 'late' && isLateClock(r.clockIn); });
+    var ot = rs.filter(function (r) { return r.type === 'overtime'; });
+    var lv = rs.filter(function (r) { return r.type === 'leave'; });
+    return {
+      emp: e,
+      lateCount: late.length,
+      lateTotal: late.reduce(function (s, r) { return s + lateMins(r.clockIn); }, 0),
+      otHours: ot.reduce(function (s, r) { return s + recOtHours(r); }, 0),
+      leaveDays: lv.reduce(function (s, r) { return s + Number(r.leaveDays || 0); }, 0),
+      records: rs.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; })
+    };
+  });
+}
+
+function collectTodos() {
+  var list = [];
+  var m = UI.month;
+
+  DB.records.forEach(function (r) {
+    var needReason = (r.type === 'late' || r.type === 'leave');
+    if (needReason && !r.reason) {
+      list.push({
+        level: 'red',
+        text: empName(r.empId) + ' ' + r.date + ' ' + typeLabel(r) + ' 未填原因',
+        action: 'fix',
+        recId: r.id,
+        btn: '补填'
+      });
+    }
+  });
+
+  var lastMonth = (function () {
+    var d = new Date(UI.month + '-01T00:00:00');
+    d.setMonth(d.getMonth() - 1);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+  })();
+  var lmCount = monthRecords(lastMonth).length;
+  if (lmCount > 0) {
+    list.push({
+      level: 'amber',
+      text: lastMonth + ' 有 ' + lmCount + ' 条记录，建议导出核对后归档',
+      action: 'exportLast',
+      btn: '导出'
+    });
+  }
+
+  var nowYm = monthOf();
+  if (m === nowYm) {
+    var dt = new Date();
+    var lastDay = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+    if (dt.getDate() >= lastDay - 2) {
+      list.push({ level: 'amber', text: '本月即将结束，记得核对台账再归档', action: 'gotoLedger', btn: '去核对' });
+    }
+  }
+  return list;
+}
+
+/* ========== 渲染层 ========== */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
+function renderToday() {
+  var list = collectTodos();
+  var box = document.getElementById('todayList');
+  var cnt = document.getElementById('todayCount');
+  cnt.textContent = list.length;
+
+  if (!list.length) {
+    box.innerHTML = '<div class="empty" style="padding:16px 0">暂无待处理事项，数据都齐了</div>';
+    return;
+  }
+  box.innerHTML = list.map(function (t, i) {
+    return '<div class="todo ' + t.level + '">' +
+      '<span class="dot"></span>' +
+      '<span class="txt">' + esc(t.text) + '</span>' +
+      '<button class="act" data-todo="' + i + '">' + t.btn + '</button>' +
+      '</div>';
+  }).join('');
+
+  Array.prototype.forEach.call(box.querySelectorAll('[data-todo]'), function (b) {
+    b.onclick = function () { handleTodo(list[Number(b.dataset.todo)]); };
+  });
+}
+
+function renderStats() {
+  var rows = summarise(UI.month);
+  var late = 0, ot = 0, lv = 0;
+  rows.forEach(function (r) { late += r.lateCount; ot += r.otHours; lv += r.leaveDays; });
+  document.getElementById('sLate').innerHTML = late + '<small>次</small>';
+  document.getElementById('sOt').innerHTML = (Math.round(ot * 10) / 10) + '<small>小时</small>';
+  document.getElementById('sLeave').innerHTML = (Math.round(lv * 10) / 10) + '<small>天</small>';
+  document.getElementById('sEmp').innerHTML = activeEmps().length + '<small>人</small>';
+}
+
+function renderEmpSelect() {
+  var sel = document.getElementById('fEmp');
+  var old = sel.value;
+  sel.innerHTML = activeEmps().map(function (e) {
+    return '<option value="' + e.id + '">' + esc(e.name) + '（' + esc(e.dept) + '）</option>';
+  }).join('');
+  if (old) sel.value = old;
+}
+
+function renderLedger() {
+  var rows = summarise(UI.month);
+  var box = document.getElementById('ledgerList');
+  var hint = document.getElementById('ledHint');
+  hint.textContent = UI.month + ' 共 ' + monthRecords(UI.month).length + ' 条记录';
+
+  if (!rows.length) {
+    document.getElementById('ledgerHead').style.display = 'none';
+    box.innerHTML = '<div class="empty">还没有员工，先去「员工名册」添加</div>';
+    document.getElementById('ledgerTotal').innerHTML = '';
+    return;
+  }
+  document.getElementById('ledgerHead').style.display = '';
+
+  box.innerHTML = rows.map(function (r) {
+    var open = UI.openEmp === r.emp.id ? ' open' : '';
+    var detail = r.records.length
+      ? r.records.map(function (rec) {
+        return '<div class="rec"><span class="d">' + rec.date.slice(5) + '</span>' +
+          '<span class="t">' + esc(typeLabel(rec)) + ' · ' + esc(recSummary(rec)) +
+          (rec.reason ? ' <span style="color:#9CA3AF">（' + esc(rec.reason) + '）</span>' : '') + '</span>' +
+          '<button class="x" data-del="' + rec.id + '">删除</button></div>';
+      }).join('')
+      : '<div style="font-size:12px;color:#9CA3AF;padding:4px 0">本月无记录</div>';
+
+    return '<div class="led-row' + open + '" data-emp="' + r.emp.id + '">' +
+      '<div class="led-main">' +
+      '<div class="led-name"><b>' + esc(r.emp.name) + '</b><span>' + esc(r.emp.dept) + ' · ' + esc(r.emp.post || '—') + '</span></div>' +
+      '<div class="metric"><b>' + r.lateCount + '</b><em>迟到</em></div>' +
+      '<div class="metric"><b>' + (Math.round(r.otHours * 10) / 10) + '</b><em>加班h</em></div>' +
+      '<div class="metric"><b>' + (Math.round(r.leaveDays * 10) / 10) + '</b><em>请假天</em></div>' +
+      '</div>' +
+      '<div class="led-detail">' + detail + '</div>' +
+      '</div>';
+  }).join('');
+
+  Array.prototype.forEach.call(box.querySelectorAll('.led-main'), function (el) {
+    el.onclick = function () {
+      var id = el.parentNode.dataset.emp;
+      UI.openEmp = (UI.openEmp === id) ? null : id;
+      renderLedger();
+    };
+  });
+  Array.prototype.forEach.call(box.querySelectorAll('[data-del]'), function (b) {
+    b.onclick = function (ev) {
+      ev.stopPropagation();
+      var rid = b.dataset.del;
+      DB.records = DB.records.filter(function (x) { return x.id !== rid; });
+      saveDB();
+      refreshAll();
+    };
+  });
+
+  var tLate = 0, tOt = 0, tLv = 0;
+  rows.forEach(function (r) { tLate += r.lateCount; tOt += r.otHours; tLv += r.leaveDays; });
+  document.getElementById('ledgerTotal').innerHTML =
+    '<div>合计 ' + rows.length + ' 人</div>' +
+    '<div class="metric"><b>' + tLate + '</b><em>迟到</em></div>' +
+    '<div class="metric"><b>' + (Math.round(tOt * 10) / 10) + '</b><em>加班h</em></div>' +
+    '<div class="metric"><b>' + (Math.round(tLv * 10) / 10) + '</b><em>请假天</em></div>';
+}
+
+function renderRoster() {
+  var box = document.getElementById('rosterList');
+  if (!DB.employees.length) {
+    box.innerHTML = '<div class="empty">名册是空的，先添加第一位员工</div>';
+    return;
+  }
+  box.innerHTML = DB.employees.map(function (e) {
+    return '<div class="emp-row">' +
+      '<div class="avatar">' + esc((e.name || '?').slice(0, 1)) + '</div>' +
+      '<div class="emp-info"><b>' + esc(e.name) + '</b><span>' + esc(e.no) + ' · ' + esc(e.dept) + ' · ' + esc(e.post || '未填岗位') + '</span></div>' +
+      '<span class="tag ' + (e.status === 'left' ? 'gray' : 'green') + '">' + (e.status === 'left' ? '已离职' : '在职') + '</span>' +
+      '<button class="emp-del" data-tog="' + e.id + '">' + (e.status === 'left' ? '恢复' : '标离职') + '</button>' +
+      '<button class="emp-del" data-rm="' + e.id + '">删除</button>' +
+      '</div>';
+  }).join('');
+
+  Array.prototype.forEach.call(box.querySelectorAll('[data-tog]'), function (b) {
+    b.onclick = function () {
+      var e = empById(b.dataset.tog);
+      if (e) { e.status = e.status === 'left' ? 'active' : 'left'; saveDB(); refreshAll(); }
+    };
+  });
+  Array.prototype.forEach.call(box.querySelectorAll('[data-rm]'), function (b) {
+    b.onclick = function () {
+      var id = b.dataset.rm;
+      var n = DB.records.filter(function (r) { return r.empId === id; }).length;
+      if (!confirm('删除该员工' + (n ? '，其 ' + n + ' 条历史记录也会一并删除' : '') + '？')) return;
+      DB.employees = DB.employees.filter(function (e) { return e.id !== id; });
+      DB.records = DB.records.filter(function (r) { return r.empId !== id; });
+      saveDB();
+      refreshAll();
+    };
+  });
+}
+
+/* 统一刷新入口：只被事件处理调用，渲染函数之间互不调用 */
+function refreshAll() {
+  renderToday();
+  renderStats();
+  renderEmpSelect();
+  renderLedger();
+  renderRoster();
+  updateLateHint();
+  updateCalcBox();
+}
+
+/* ========== 设置页 / AI 导入 ========== */
+var AI = { pending: [] };
+var KEY_API = 'wb_attendance_apikey';
+
+function getApiKey() {
+  try { return localStorage.getItem(KEY_API) || ''; } catch (e) { return ''; }
+}
+function setApiKey(v) {
+  try { localStorage.setItem(KEY_API, v || ''); } catch (e) { }
+}
+
+function renderSettings() {
+  document.getElementById('setApiKey').value = getApiKey();
+  document.getElementById('setWorkStart').value = (DB.settings && DB.settings.workStart) || '10:00';
+  document.getElementById('setLateFrom').value = (DB.settings && DB.settings.lateFrom) || '10:20';
+  document.getElementById('setOtBase').value = (DB.settings && DB.settings.otBase) || '21:00';
+}
+
+function flashStatus(id, kind, msg) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'ai-status show ' + kind;
+  el.innerHTML = (kind === 'load' ? '<span class="spin"></span>' : '') + esc(msg);
+}
+
+function findEmpByName(n) {
+  n = String(n || '').trim();
+  if (!n) return null;
+  var i;
+  for (i = 0; i < DB.employees.length; i++) {
+    if ((DB.employees[i].name || '').trim() === n) return DB.employees[i];
+  }
+  for (i = 0; i < DB.employees.length; i++) {
+    var nm = (DB.employees[i].name || '').trim();
+    if (nm && (nm.indexOf(n) > -1 || n.indexOf(nm) > -1)) return DB.employees[i];
+  }
+  return null;
+}
+
+function normDate(s) {
+  if (!s) return '';
+  s = String(s).trim();
+  var m = s.match(/^(\d{4})[-\/\.年](\d{1,2})[-\/\.月](\d{1,2})/);
+  if (m) return m[1] + '-' + pad2(m[2]) + '-' + pad2(m[3]);
+  m = s.match(/^(\d{1,2})[-\/\.月](\d{1,2})/);
+  if (m) return new Date().getFullYear() + '-' + pad2(m[1]) + '-' + pad2(m[2]);
+  return '';
+}
+
+var AI_PROMPT = [
+  '你是考勤数据录入助手。用户会给你一段从 Excel 复制的考勤表文本（可能用制表符或空格分隔，列顺序不定）。',
+  '请把它转换成 JSON，只输出 JSON 对象，不要任何解释文字。',
+  '',
+  '输出结构：',
+  '{"records":[{"name":"姓名","date":"YYYY-MM-DD","type":"late|overtime|leave",',
+  '"clockIn":"HH:MM","otEnd":"HH:MM","otHours":2,"otKind":"工作日|休息日|法定节假日",',
+  '"leaveKind":"事假|病假|年假|调休|婚假|产假|丧假","leaveDays":1,"reason":"原因","note":"备注"}],"warnings":["说明"]}',
+  '',
+  '规则：',
+  '1. 日期统一转成 YYYY-MM-DD；只写了月日没写年份时，用 ' + new Date().getFullYear() + ' 年。',
+  '2. type 判断：出现"迟到""晚到"归 late；出现"加班""延时""值班"归 overtime；出现"假""请假"归 leave。',
+  '3. type=late 时填 clockIn（迟到打卡时间，转成 HH:MM 24 小时制）。',
+  '4. type=overtime 时：如果表里给的是"下班时间"（如 22:30）填 otEnd；如果是"时长"（如 2小时、3h）填 otHours 数字。',
+  '5. type=leave 时填 leaveKind 和 leaveDays；"半天""0.5天"记 0.5，"一天"记 1。',
+  '6. 原因、备注字段原文照抄，没有就留空字符串，不要编造。',
+  '7. 姓名保持原文，不要改字。',
+  '8. 识别不了的行放进 warnings，不要硬猜。',
+  '9. 只输出 JSON，不要 markdown 代码块。'
+].join('\n');
+
+function runAiParse() {
+  var key = getApiKey();
+  var text = (document.getElementById('aiInput').value || '').trim();
+  var btn = document.getElementById('btnAiParse');
+
+  if (!key) { flashStatus('aiStatus', 'err', '先在上面填写 DeepSeek API Key'); return; }
+  if (!text) { flashStatus('aiStatus', 'err', '把表格内容粘贴进来，或上传 CSV 文件'); return; }
+  if (text.length > 20000) { flashStatus('aiStatus', 'err', '内容超过 2 万字，请分批导入'); return; }
+
+  flashStatus('aiStatus', 'load', 'AI 正在解析，通常需要 5~15 秒…');
+  btn.disabled = true;
+
+  var ctrl = new AbortController();
+  var timer = setTimeout(function () { ctrl.abort(); }, 45000);
+
+  fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + key
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: AI_PROMPT },
+        { role: 'user', content: text }
+      ],
+      temperature: 0,
+      max_tokens: 4000,
+      response_format: { type: 'json_object' }
+    }),
+    signal: ctrl.signal
+  }).then(function (res) {
+    clearTimeout(timer);
+    return res.json().then(function (j) { return { ok: res.ok, status: res.status, body: j }; });
+  }).then(function (r) {
+    btn.disabled = false;
+    if (!r.ok) {
+      var msg = (r.body && r.body.error && r.body.error.message) || ('HTTP ' + r.status);
+      flashStatus('aiStatus', 'err', '调用失败：' + msg);
+      return;
+    }
+    var c = r.body.choices && r.body.choices[0] && r.body.choices[0].message && r.body.choices[0].message.content;
+    if (!c) { flashStatus('aiStatus', 'err', 'AI 没有返回内容，请重试'); return; }
+    handleAiResult(c);
+  }).catch(function (err) {
+    clearTimeout(timer);
+    btn.disabled = false;
+    if (err && err.name === 'AbortError') { flashStatus('aiStatus', 'err', '解析超时（45 秒），内容可能太多，建议分批'); return; }
+    flashStatus('aiStatus', 'err', '网络请求失败：' + (err && err.message ? err.message : '未知错误') + '（可能是浏览器跨域限制或网络不通）');
+  });
+}
+
+function handleAiResult(raw) {
+  var json = null;
+  try { json = JSON.parse(raw); } catch (e) { }
+  if (!json) {
+    var m = String(raw).match(/\{[\s\S]*\}/);
+    if (m) { try { json = JSON.parse(m[0]); } catch (e2) { } }
+  }
+  if (!json || !json.records || !json.records.length) {
+    flashStatus('aiStatus', 'err', '没识别出考勤记录，检查粘贴内容是否包含姓名和日期');
+    return;
+  }
+  AI.pending = [];
+  json.records.forEach(function (r) {
+    var rec = normalizeAiRec(r);
+    if (rec) AI.pending.push(rec);
+  });
+  if (!AI.pending.length) {
+    flashStatus('aiStatus', 'err', '记录格式不对，缺少姓名或日期');
+    return;
+  }
+  renderAiResult();
+  var w = (json.warnings && json.warnings.length) ? '，另有 ' + json.warnings.length + ' 条说明' : '';
+  flashStatus('aiStatus', 'ok', '识别到 ' + AI.pending.length + ' 条记录' + w + '，确认无误后点「确认导入」');
+}
+
+function normalizeAiRec(r) {
+  if (!r || !r.name) return null;
+  var date = normDate(r.date);
+  if (!date) return null;
+  var type = r.type;
+  if (type !== 'late' && type !== 'overtime' && type !== 'leave') {
+    if (r.leaveDays || r.leaveKind) type = 'leave';
+    else if (r.otEnd || r.otHours) type = 'overtime';
+    else type = 'late';
+  }
+  return {
+    name: String(r.name).trim(),
+    date: date,
+    type: type,
+    clockIn: r.clockIn || '',
+    otEnd: r.otEnd || '',
+    otHours: (r.otHours != null && r.otHours !== '') ? Number(r.otHours) : null,
+    otKind: r.otKind || '工作日',
+    leaveKind: r.leaveKind || '事假',
+    leaveDays: (r.leaveDays != null && r.leaveDays !== '') ? Number(r.leaveDays) : 1,
+    reason: r.reason || '',
+    note: r.note || ''
+  };
+}
+
+function aiDetail(r) {
+  if (r.type === 'late') {
+    if (!r.clockIn) return '迟到（缺打卡时间）';
+    return '迟到 ' + r.clockIn + (isLateClock(r.clockIn) ? ' · 计迟到' : ' · 未到迟到线');
+  }
+  if (r.type === 'overtime') {
+    if (r.otEnd) return '加班 ' + r.otEnd + ' 下 → ' + calcOtHours(r.otEnd) + ' 小时';
+    return '加班 ' + (r.otHours || 0) + ' 小时';
+  }
+  return '请假 ' + r.leaveKind + ' ' + r.leaveDays + ' 天';
+}
+
+function renderAiResult() {
+  var card = document.getElementById('aiResultCard');
+  var list = document.getElementById('aiResultList');
+  var hint = document.getElementById('aiResultHint');
+  var unknown = 0;
+
+  list.innerHTML = AI.pending.map(function (r) {
+    var emp = findEmpByName(r.name);
+    if (!emp) unknown++;
+    return '<div class="ai-row' + (emp ? '' : ' bad') + '">' +
+      '<span class="nm">' + esc(r.name) + '</span>' +
+      '<span class="dt">' + r.date.slice(5) + '</span>' +
+      '<span class="ty">' + esc(aiDetail(r)) + (emp ? '' : ' · 员工不存在') + '</span>' +
+      '</div>';
+  }).join('');
+
+  hint.textContent = AI.pending.length + ' 条' + (unknown ? '，' + unknown + ' 条未匹配' : '');
+  card.style.display = '';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function confirmAiImport() {
+  if (!AI.pending.length) return;
+  var ok = 0, skip = [];
+  AI.pending.forEach(function (r) {
+    var emp = findEmpByName(r.name);
+    if (!emp) { if (skip.indexOf(r.name) < 0) skip.push(r.name); return; }
+    var rec = { id: uid('r'), empId: emp.id, date: r.date, reason: r.reason || '', note: r.note || '' };
+    if (r.type === 'late') {
+      rec.type = 'late';
+      rec.clockIn = r.clockIn || '';
+    } else if (r.type === 'overtime') {
+      rec.type = 'overtime';
+      rec.otKind = r.otKind || '工作日';
+      if (r.otEnd) { rec.otMode = 'rule'; rec.otEnd = r.otEnd; }
+      else { rec.otMode = 'manual'; rec.otHours = Number(r.otHours || 0); }
+    } else {
+      rec.type = 'leave';
+      rec.leaveKind = r.leaveKind || '事假';
+      rec.leaveDays = Number(r.leaveDays || 1);
+    }
+    DB.records.push(rec);
+    ok++;
+  });
+  saveDB();
+  refreshAll();
+  AI.pending = [];
+  document.getElementById('aiResultCard').style.display = 'none';
+  document.getElementById('aiInput').value = '';
+  var msg = '已导入 ' + ok + ' 条记录';
+  if (skip.length) msg += '；' + skip.length + ' 条未匹配员工已跳过：' + skip.join('、');
+  flashStatus('aiStatus', skip.length ? 'err' : 'ok', msg);
+}
+
+/* ========== 视图切换 ========== */
+var VIEW_META = {
+  entry: { title: '考勤录入', sub: '迟到 · 加班 · 请假，一天的事三秒记完' },
+  ledger: { title: '月度台账', sub: '按员工汇总，点开看明细，可导出 CSV' },
+  roster: { title: '员工名册', sub: '广州 / 柯桥，在职与离职分开管理' },
+  settings: { title: '设置', sub: 'AI 导入 · 考勤规则 · 数据备份' }
+};
+
+function switchView(v) {
+  if (!VIEW_META[v]) v = 'entry';
+  UI.view = v;
+  ['entry', 'ledger', 'roster', 'settings'].forEach(function (k) {
+    var el = document.getElementById('view-' + k);
+    if (el) el.style.display = (k === v) ? '' : 'none';
+  });
+  document.getElementById('pageTitle').textContent = VIEW_META[v].title;
+  document.getElementById('pageSub').textContent = VIEW_META[v].sub;
+  Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b) {
+    b.classList.toggle('active', b.dataset.view === v);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.tabbar button'), function (b) {
+    b.classList.toggle('active', b.dataset.view === v);
+  });
+  if (v === 'settings') renderSettings();
+}
+
+/* ========== 录入表单联动 ========== */
+function setEntryType(t) {
+  UI.entryType = t;
+  var isLate = t === 'late', isOt = t === 'overtime', isLv = t === 'leave';
+  document.getElementById('wrapClock').style.display = isLate ? '' : 'none';
+  document.getElementById('wrapLateHint').style.display = isLate ? '' : 'none';
+  document.getElementById('wrapOtEnd').style.display = isOt ? '' : 'none';
+  document.getElementById('wrapOtKind').style.display = isOt ? '' : 'none';
+  document.getElementById('wrapLeaveKind').style.display = isLv ? '' : 'none';
+  document.getElementById('wrapLeaveDays').style.display = isLv ? '' : 'none';
+  document.getElementById('reasonLabel').textContent = isLate ? '迟到原因' : (isLv ? '请假事由' : '加班说明（选填）');
+  document.getElementById('calcBox').style.display = isOt ? '' : 'none';
+  Array.prototype.forEach.call(document.querySelectorAll('#typeSeg button'), function (b) {
+    b.classList.toggle('active', b.dataset.type === t);
+  });
+  updateLateHint();
+  updateCalcBox();
+}
+
+function updateLateHint() {
+  var el = document.getElementById('lateHintText');
+  if (!el) return;
+  var lf = (DB.settings && DB.settings.lateFrom) || '10:20';
+  var btn = document.getElementById('btnWorkStart');
+  if (btn) btn.textContent = '迟到起算 ' + lf;
+  var clock = document.getElementById('fClock').value;
+  if (!clock) { el.textContent = '—'; return; }
+  var m = lateMins(clock);
+  if (isLateClock(clock)) {
+    el.innerHTML = '晚 <b style="color:#E03131">' + m + '</b> 分钟 · 计入迟到';
+  } else if (m === 0) {
+    el.innerHTML = '准时到岗 · <b>不计迟到</b>';
+  } else {
+    el.innerHTML = '晚 ' + m + ' 分钟 · 未到 ' + lf + '，<b>不计迟到</b>';
+  }
+}
+
+function updateCalcBox() {
+  var el = document.getElementById('calcHours');
+  if (!el) return;
+  var h = calcOtHours(document.getElementById('fOtEnd').value);
+  el.textContent = h;
+}
+
+/* ========== 待办动作 ========== */
+function handleTodo(t) {
+  if (t.action === 'fix') {
+    openModal('补填原因', '这条记录缺少原因，补上后统计才完整。', '原因', function (val) {
+      if (!val) return false;
+      var rec = DB.records.filter(function (r) { return r.id === t.recId; })[0];
+      if (rec) { rec.reason = val; saveDB(); refreshAll(); }
+      return true;
+    });
+    return;
+  }
+  if (t.action === 'gotoLedger') { switchView('ledger'); return; }
+  if (t.action === 'exportLast') {
+    var d = new Date(UI.month + '-01T00:00:00');
+    d.setMonth(d.getMonth() - 1);
+    exportCSV(d.getFullYear() + '-' + pad2(d.getMonth() + 1));
+    return;
+  }
+}
+
+/* ========== 弹窗 ========== */
+var modalCb = null;
+function openModal(title, desc, label, cb, def) {
+  document.getElementById('mTitle').textContent = title;
+  document.getElementById('mDesc').textContent = desc || '';
+  document.getElementById('mLabel').textContent = label || '内容';
+  document.getElementById('mInput').value = def || '';
+  document.getElementById('mask').classList.add('show');
+  modalCb = cb;
+  setTimeout(function () { document.getElementById('mInput').focus(); }, 50);
+}
+function closeModal() {
+  document.getElementById('mask').classList.remove('show');
+  modalCb = null;
+}
+
+/* ========== 导出 ========== */
+function download(name, content, mime) {
+  var blob = new Blob([content], { type: mime || 'text/plain;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+}
+
+function exportCSV(m) {
+  m = m || UI.month;
+  var rows = summarise(m);
+  var lines = ['工号,姓名,地点,岗位,迟到次数,迟到累计分钟,加班小时,请假天数'];
+  rows.forEach(function (r) {
+    lines.push([r.emp.no, r.emp.name, r.emp.dept, r.emp.post || '', r.lateCount, r.lateTotal, r.otHours, r.leaveDays].join(','));
+  });
+  download('考勤台账_' + m + '.csv', '\uFEFF' + lines.join('\r\n'), 'text/csv;charset=utf-8');
+}
+
+function exportJSON() {
+  download('考勤数据备份_' + todayStr() + '.json', JSON.stringify(DB, null, 2), 'application/json');
+}
+
+function importJSON(file) {
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      var obj = JSON.parse(e.target.result);
+      if (!obj.employees || !obj.records) throw new Error('格式不对');
+      DB = obj;
+      if (!DB.settings) DB.settings = { workStart: '10:00', otBase: '21:00' };
+      saveDB();
+      refreshAll();
+      alert('导入成功：' + DB.employees.length + ' 名员工，' + DB.records.length + ' 条记录');
+    } catch (err) {
+      alert('导入失败，请确认是本工作台导出的 JSON 文件');
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ========== 事件绑定 ========== */
+function bindEvents() {
+  /* 导航 */
+  Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b) {
+    b.onclick = function () { switchView(b.dataset.view); };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.tabbar button'), function (b) {
+    b.onclick = function () { switchView(b.dataset.view); };
+  });
+
+  /* 今日区折叠 */
+  document.getElementById('todayHd').onclick = function () {
+    UI.todayCollapsed = !UI.todayCollapsed;
+    document.getElementById('todayList').style.display = UI.todayCollapsed ? 'none' : '';
+    document.getElementById('todayToggle').textContent = UI.todayCollapsed ? '展开' : '收起';
+  };
+
+  /* 录入类型切换 */
+  Array.prototype.forEach.call(document.querySelectorAll('#typeSeg button'), function (b) {
+    b.onclick = function () { setEntryType(b.dataset.type); };
+  });
+
+  /* 实时联动 */
+  document.getElementById('fClock').oninput = updateLateHint;
+  document.getElementById('fOtEnd').oninput = updateCalcBox;
+
+  /* 修改上班时间 */
+  document.getElementById('btnWorkStart').onclick = function () {
+    openModal('迟到起算时间', '打卡时间达到这个点才算迟到，早于它到岗不计迟到。上班时间仍是 ' + ((DB.settings && DB.settings.workStart) || '10:00') + '。', '时间（如 10:20）', function (val) {
+      if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(val)) { alert('请按 10:20 的格式填写'); return false; }
+      DB.settings.lateFrom = val.length === 4 ? '0' + val : val;
+      saveDB();
+      refreshAll();
+      return true;
+    }, DB.settings.lateFrom || '10:20');
+  };
+
+  /* 提交录入 */
+  document.getElementById('entryForm').onsubmit = function (ev) {
+    ev.preventDefault();
+    var empId = document.getElementById('fEmp').value;
+    if (!empId) { alert('请先在「员工名册」添加员工'); return; }
+    var date = document.getElementById('fDate').value || todayStr();
+    var reason = document.getElementById('fReason').value.trim();
+    var note = document.getElementById('fNote').value.trim();
+    var rec = { id: uid('r'), empId: empId, date: date, note: note, reason: reason };
+
+    if (UI.entryType === 'late') {
+      rec.type = 'late';
+      rec.clockIn = document.getElementById('fClock').value;
+      if (!rec.clockIn) { alert('请填写打卡时间'); return; }
+    } else if (UI.entryType === 'overtime') {
+      rec.type = 'overtime';
+      rec.otMode = 'rule';
+      rec.otEnd = document.getElementById('fOtEnd').value;
+      if (!rec.otEnd) { alert('请填写下班时间'); return; }
+      rec.otKind = document.getElementById('fOtKind').value;
+    } else {
+      rec.type = 'leave';
+      rec.leaveKind = document.getElementById('fLeaveKind').value;
+      rec.leaveDays = Number(document.getElementById('fLeaveDays').value) || 0;
+      if (rec.leaveDays <= 0) { alert('请假天数需大于 0'); return; }
+    }
+
+    DB.records.push(rec);
+    saveDB();
+    UI.month = date.slice(0, 7);
+    document.getElementById('monthPicker').value = UI.month;
+    refreshAll();
+    document.getElementById('fReason').value = '';
+    document.getElementById('fNote').value = '';
+    var tip = document.getElementById('calcBox');
+    tip.style.display = UI.entryType === 'overtime' ? '' : 'none';
+  };
+
+  document.getElementById('btnClearForm').onclick = function () {
+    document.getElementById('fReason').value = '';
+    document.getElementById('fNote').value = '';
+    updateLateHint();
+  };
+
+  /* 台账 */
+  document.getElementById('monthPicker').onchange = function () {
+    UI.month = this.value || monthOf();
+    UI.openEmp = null;
+    refreshAll();
+  };
+  document.getElementById('btnCsv').onclick = function () { exportCSV(UI.month); };
+
+  /* 名册 */
+  document.getElementById('empForm').onsubmit = function (ev) {
+    ev.preventDefault();
+    var no = document.getElementById('eNo').value.trim();
+    var name = document.getElementById('eName').value.trim();
+    if (!no || !name) return;
+    if (DB.employees.some(function (e) { return e.no === no; })) { alert('工号已存在'); return; }
+    DB.employees.push({
+      id: uid('e'), no: no, name: name,
+      dept: document.getElementById('eDept').value,
+      post: document.getElementById('ePost').value.trim(),
+      status: 'active'
+    });
+    saveDB();
+    refreshAll();
+    document.getElementById('eNo').value = '';
+    document.getElementById('eName').value = '';
+    document.getElementById('ePost').value = '';
+  };
+
+  /* 备份与设置页 */
+  document.getElementById('btnSideBackup').onclick = exportJSON;
+  document.getElementById('btnBackup').onclick = exportJSON;
+  document.getElementById('setExportJson').onclick = exportJSON;
+  document.getElementById('setExportCsv').onclick = function () { exportCSV(UI.month); };
+  document.getElementById('setImportJson').onclick = function () {
+    document.getElementById('fileImport').click();
+  };
+  document.getElementById('fileImport').onchange = function () {
+    if (this.files && this.files[0]) importJSON(this.files[0]);
+    this.value = '';
+  };
+  document.getElementById('setReset').onclick = function () {
+    if (!confirm('将清空全部员工和考勤记录，恢复为初始示例数据。确定继续？')) return;
+    if (!confirm('再次确认：此操作不可撤销，建议先导出 JSON 备份。')) return;
+    DB = seedDB();
+    saveDB();
+    refreshAll();
+    renderSettings();
+  };
+
+  /* 设置页：API Key */
+  document.getElementById('setApiKey').oninput = function () {
+    setApiKey(this.value.trim());
+  };
+  document.getElementById('btnToggleKey').onclick = function () {
+    var inp = document.getElementById('setApiKey');
+    var show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    this.textContent = show ? '隐藏' : '显示';
+  };
+
+  /* 设置页：规则 */
+  document.getElementById('btnSaveRules').onclick = function () {
+    var ws = document.getElementById('setWorkStart').value;
+    var lf = document.getElementById('setLateFrom').value;
+    var ob = document.getElementById('setOtBase').value;
+    if (ws) DB.settings.workStart = ws;
+    if (lf) DB.settings.lateFrom = lf;
+    if (ob) DB.settings.otBase = ob;
+    saveDB();
+    refreshAll();
+    flashStatus('aiStatus', 'ok', '规则已保存，当月数据已按新规则重算');
+  };
+
+  /* 设置页：AI 导入 */
+  document.getElementById('btnPickFile').onclick = function () {
+    document.getElementById('aiFile').click();
+  };
+  document.getElementById('aiFile').onchange = function () {
+    var f = this.files && this.files[0];
+    if (!f) return;
+    if (/\.xlsx?$/i.test(f.name)) {
+      alert('Excel 文件请先在表格里「另存为 CSV」，再上传');
+      this.value = '';
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      document.getElementById('aiInput').value = e.target.result;
+      flashStatus('aiStatus', 'ok', '已读取 ' + f.name + '，点「AI 解析」继续');
+    };
+    reader.readAsText(f, 'UTF-8');
+    this.value = '';
+  };
+  document.getElementById('btnAiParse').onclick = runAiParse;
+  document.getElementById('btnAiImport').onclick = confirmAiImport;
+  document.getElementById('btnAiDiscard').onclick = function () {
+    AI.pending = [];
+    document.getElementById('aiResultCard').style.display = 'none';
+  };
+
+  /* 弹窗 */
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = function () {
+    var val = document.getElementById('mInput').value.trim();
+    if (modalCb && modalCb(val) === false) return;
+    closeModal();
+  };
+  document.getElementById('mask').onclick = function (e) {
+    if (e.target === this) closeModal();
+  };
+}
+
+/* ========== 初始化 ========== */
+function init() {
+  loadDB();
+  UI.month = monthOf();
+  document.getElementById('monthPicker').value = UI.month;
+  document.getElementById('fDate').value = todayStr();
+  bindEvents();
+  setEntryType('late');
+  switchView('entry');
+  refreshAll();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
