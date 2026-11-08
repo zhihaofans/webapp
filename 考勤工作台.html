@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>考勤工作台</title>
-<!-- 考勤工作台 · 构建 2026-11-08 11:46 · v20261108-1146 -->
+<!-- 考勤工作台 · 构建 2026-11-08 12:32 · v20261108-1232 -->
 <!-- 本地版：数据存于浏览器 localStorage，可用「导出 JSON」备份 -->
 <style>
 :root{
@@ -375,10 +375,10 @@ textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.
 
       <div class="ver-bar">
         <div>
-          <b>考勤工作台 <span class="tag blue" style="margin-left:4px">v20261108-1146</span></b>
+          <b>考勤工作台 <span class="tag blue" style="margin-left:4px">v20261108-1232</span></b>
           <div class="vmeta">数据仅存本机浏览器 · 换设备请用 JSON 备份迁移</div>
         </div>
-        <div class="vtxt">构建时间<br>2026-11-08 11:46</div>
+        <div class="vtxt">构建时间<br>2026-11-08 12:32</div>
       </div>
 
       <!-- AI 导入 -->
@@ -435,8 +435,9 @@ textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.
         </div>
         <div class="form-actions">
           <button type="button" class="btn primary" id="btnSaveRules">保存规则</button>
+          <button type="button" class="btn ghost" id="btnRecalc">按当前规则重算流水</button>
         </div>
-        <div class="hint" style="margin-top:8px">加班按「满 30 分钟记 1 小时，此后每满 60 分钟加 1 小时」计算</div>
+        <div class="hint" style="margin-top:8px">加班按「满 30 分钟记 1 小时，此后每满 60 分钟加 1 小时」计算；调整规则后点「重算流水」，从已存的每日打卡补生成迟到/加班记录</div>
       </div>
 
       <!-- 数据备份 -->
@@ -628,6 +629,7 @@ function typeLabel(r) {
   if (r.type === 'late') return '迟到';
   if (r.type === 'overtime') return '加班';
   if (r.type === 'leave') return '请假·' + (r.leaveKind || '未填');
+  if (r.type === 'normal') return '出勤';
   return '—';
 }
 function recSummary(r) {
@@ -640,6 +642,7 @@ function recSummary(r) {
   }
   if (r.type === 'overtime') return recOtHours(r) + ' 小时' + (r.otKind ? ' · ' + r.otKind : '');
   if (r.type === 'leave') return (r.leaveDays || 0) + ' 天';
+  if (r.type === 'normal') return '打卡 ' + (r.clockIn || '--:--') + ' → ' + (r.clockOut || '--:--');
   return '';
 }
 
@@ -761,7 +764,9 @@ function renderLedger() {
   var rows = summarise(UI.month);
   var box = document.getElementById('ledgerList');
   var hint = document.getElementById('ledHint');
-  hint.textContent = UI.month + ' 共 ' + monthRecords(UI.month).length + ' 条记录';
+  var mrs = monthRecords(UI.month);
+  var ncnt = mrs.filter(function (x) { return x.type === 'normal'; }).length;
+  hint.textContent = UI.month + ' 共 ' + mrs.length + ' 条记录' + (ncnt ? '（含 ' + ncnt + ' 条出勤流水，不计入异常统计）' : '');
 
   if (!rows.length) {
     document.getElementById('ledgerHead').style.display = 'none';
@@ -988,7 +993,11 @@ function tryParseGrid(text, year) {
         if (ci) records.push({ name: name, date: date, type: 'late', clockIn: ci, reason: '', note: '' });
       } else if (st.state.indexOf('请假') > -1) {
         records.push({ name: name, date: date, type: 'leave', leaveKind: '未分类', leaveDays: 1, reason: '', note: '' });
-      } else if (st.state && st.state !== '正常' && st.state !== '休息' && st.state !== '未入职' && st.state !== '--') {
+      } else if (st.state === '正常') {
+        /* 正常出勤也存原始打卡流水，供台账查看与规则变更时重算 */
+        var pin = padTime(st.inT), pout = padTime(st.outT);
+        if (pin || pout) records.push({ name: name, date: date, type: 'normal', clockIn: pin, clockOut: pout, reason: '', note: '' });
+      } else if (st.state && st.state !== '休息' && st.state !== '未入职' && st.state !== '--') {
         skippedState[st.state] = (skippedState[st.state] || 0) + 1;
       }
     }
@@ -1008,7 +1017,8 @@ function tryParseGrid(text, year) {
 
   if (!rowsUsed) return null;
   var skipTxt = Object.keys(skippedState).map(function (k2) { return k2 + '×' + skippedState[k2]; }).join('、');
-  return { records: records, people: rowsUsed, days: dateCols.length, skipped: skipTxt };
+  return { records: records, people: rowsUsed, days: dateCols.length, skipped: skipTxt,
+           normalCount: records.filter(function (x) { return x.type === 'normal'; }).length };
 }
 
 /* ========== 设置页 / AI 导入 ========== */
@@ -1020,6 +1030,31 @@ function getApiKey() {
 }
 function setApiKey(v) {
   try { localStorage.setItem(KEY_API, v || ''); } catch (e) { }
+}
+
+/* 从出勤流水按当前规则补生成迟到/加班记录（不删除已有记录） */
+function recalcFromPunches() {
+  var normals = DB.records.filter(function (r) { return r.type === 'normal'; });
+  if (!normals.length) { alert('还没有出勤流水，先导入带打卡时间的考勤表'); return; }
+  var aLate = 0, aOt = 0;
+  normals.forEach(function (n) {
+    var sameDay = function (t) {
+      return DB.records.some(function (r) { return r.empId === n.empId && r.date === n.date && r.type === t; });
+    };
+    if (!sameDay('late') && n.clockIn && isLateClock(n.clockIn)) {
+      DB.records.push({ id: uid('r'), empId: n.empId, date: n.date, type: 'late',
+                        clockIn: n.clockIn, reason: '', note: '由出勤流水重算' });
+      aLate++;
+    }
+    if (!sameDay('overtime') && n.clockOut && calcOtHours(n.clockOut) > 0) {
+      DB.records.push({ id: uid('r'), empId: n.empId, date: n.date, type: 'overtime',
+                        otMode: 'rule', otEnd: n.clockOut, otKind: '工作日', reason: '', note: '由出勤流水重算' });
+      aOt++;
+    }
+  });
+  saveDB();
+  refreshAll();
+  alert('重算完成：新增迟到 ' + aLate + ' 条、加班 ' + aOt + ' 条。\n已有记录保持不变；若规则放宽需撤销旧记录，请到台账明细手动删除。');
 }
 
 function renderSettings() {
@@ -1064,13 +1099,13 @@ var AI_PROMPT = [
   '请把它转换成 JSON，只输出 JSON 对象，不要任何解释文字。',
   '',
   '输出结构：',
-  '{"records":[{"name":"姓名","date":"YYYY-MM-DD","type":"late|overtime|leave",',
-  '"clockIn":"HH:MM","otEnd":"HH:MM","otHours":2,"otKind":"工作日|休息日|法定节假日",',
+  '{"records":[{"name":"姓名","date":"YYYY-MM-DD","type":"late|overtime|leave|normal",',
+  '"clockIn":"HH:MM","clockOut":"HH:MM","otEnd":"HH:MM","otHours":2,"otKind":"工作日|休息日|法定节假日",',
   '"leaveKind":"事假|病假|年假|调休|婚假|产假|丧假","leaveDays":1,"reason":"原因","note":"备注"}],"warnings":["说明"]}',
   '',
   '规则：',
   '1. 日期统一转成 YYYY-MM-DD；只写了月日没写年份时，用 ' + new Date().getFullYear() + ' 年。',
-  '2. type 判断：出现"迟到""晚到"归 late；出现"加班""延时""值班"归 overtime；出现"假""请假"归 leave。',
+  '2. type 判断：出现"迟到""晚到"归 late；出现"加班""延时""值班"归 overtime；出现"假""请假"归 leave；"正常""出勤"且有打卡时间归 normal（填 clockIn 上班打卡、clockOut 下班打卡）。',
   '3. type=late 时填 clockIn（迟到打卡时间，转成 HH:MM 24 小时制）。',
   '4. type=overtime 时：如果表里给的是"下班时间"（如 22:30）填 otEnd；如果是"时长"（如 2小时、3h）填 otHours 数字。',
   '5. type=leave 时填 leaveKind 和 leaveDays；"半天""0.5天"记 0.5，"一天"记 1。',
@@ -1078,9 +1113,10 @@ var AI_PROMPT = [
   '7. 姓名保持原文，不要改字。',
   '8. 识别不了的行放进 warnings，不要硬猜。',
   '9. 若表头是「每个日期一列」的宽表（如 10月24日、10月25日…），逐格判断：单元格括号内是 (上班打卡, 下班打卡)；',
-  '   状态为"迟到/严重迟到"记 late，clockIn 取括号第一个时间；"请假"记 leave；"正常""休息""未入职"跳过。',
+  '   状态为"迟到/严重迟到"记 late，clockIn 取括号第一个时间；"请假"记 leave；状态为"正常"且有打卡时间时记 normal（clockIn=上班打卡、clockOut=下班打卡），不要跳过；"休息""未入职"跳过。',
   '   汇总列「加班总时长(小时)」大于 0 时生成一条 overtime（otHours=该数值，日期取该月最后一天）；「请假天数」大于 0 时同理生成一条 leave。',
-  '10. 只输出 JSON，不要 markdown 代码块。'
+  '10. 顶层必须是 JSON 对象且含 records 数组；表里若只有正常打卡、没有迟到/加班/请假，仍要把每天打卡输出成 normal 记录，不要返回空数组、不要编造异常。',
+  '11. 只输出 JSON，不要 markdown 代码块。'
 ].join('\n');
 
 function decodeBuffer(buf) {
@@ -1103,14 +1139,18 @@ function runAiParse() {
 
   /* 一、本地解析只作快速通道：命中已知汇总表、且解析出记录、且无陌生状态才自动采用 */
   var yr = null;
-  var fm = String(UI.lastFileName || '').match(/(20\d{2})\d{2}\d{2}/);
+  var fn = String(UI.lastFileName || '');
+  /* 只取独立成段的 8 位日期（前后都不是数字），避免把文件名开头的长 ID 误当年份 */
+  var fm = fn.match(/(?:^|[^\d])(20\d{2})\d{2}\d{2}(?!\d)/);
   if (fm) yr = Number(fm[1]);
   var grid = tryParseGrid(text, yr);
 
   if (grid && grid.records.length > 0 && !grid.skipped) {
     AI.pending = grid.records;
     renderAiResult();
-    flashStatus('aiStatus', 'ok', '本地识别成功：' + grid.people + ' 人 × ' + grid.days + ' 天，共 ' + grid.records.length + ' 条（未消耗 API）');
+    var nc = grid.normalCount || 0;
+    var tail = nc ? '（含 ' + nc + ' 条出勤流水，异常 ' + (grid.records.length - nc) + ' 条）' : '';
+    flashStatus('aiStatus', 'ok', '本地识别成功：' + grid.people + ' 人 × ' + grid.days + ' 天，共 ' + grid.records.length + ' 条' + tail + '，未消耗 API');
     return;
   }
 
@@ -1121,7 +1161,7 @@ function runAiParse() {
   } else if (grid.skipped) {
     reason = '表格里有本地规则不认识的状态：' + grid.skipped;
   } else {
-    reason = '表格能读出 ' + grid.people + ' 人 × ' + grid.days + ' 天，但没解析出迟到、请假或加班记录';
+    reason = '表格能读出 ' + grid.people + ' 人 × ' + grid.days + ' 天，状态本地都认识，但没发现迟到、请假或加班（可能全月正常出勤）';
   }
   askAiParse(text, reason);
 }
@@ -1199,6 +1239,35 @@ function callAiApi(text) {
   });
 }
 
+/* 容错：AI 可能把记录放在 records / data / 中文键，或直接返回数组 */
+function pickRecords(json) {
+  if (Array.isArray(json)) return json;
+  var keys = ['records', 'data', 'list', 'items', 'result', '考勤记录', '记录'];
+  for (var i = 0; i < keys.length; i++) {
+    var v = json[keys[i]];
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === 'object') return [v];
+  }
+  if (json.name || json['姓名'] || json.date || json['日期']) return [json];
+  return [];
+}
+
+function asText(v) {
+  return (v && typeof v === 'object') ? JSON.stringify(v) : String(v == null ? '' : v);
+}
+
+/* 容错：AI 的说明可能在 warnings / note / 说明 等字段 */
+function pickWarnings(json) {
+  var keys = ['warnings', 'notes', 'note', '说明', '备注', 'message', 'msg'];
+  var out = [];
+  for (var i = 0; i < keys.length; i++) {
+    var v = json[keys[i]];
+    if (Array.isArray(v)) { for (var j = 0; j < v.length; j++) out.push(asText(v[j])); }
+    else if (v != null && v !== '') out.push(asText(v));
+  }
+  return out.filter(function (x) { return x && x.trim(); });
+}
+
 function handleAiResult(raw) {
   var json = null;
   try { json = JSON.parse(raw); } catch (e) { }
@@ -1206,39 +1275,59 @@ function handleAiResult(raw) {
     var m = String(raw).match(/\{[\s\S]*\}/);
     if (m) { try { json = JSON.parse(m[0]); } catch (e2) { } }
   }
-  if (!json || !json.records || !json.records.length) {
-    flashStatus('aiStatus', 'err', '没识别出考勤记录，检查粘贴内容是否包含姓名和日期');
+  if (!json) {
+    var peek = String(raw).replace(/\s+/g, ' ').trim().slice(0, 100);
+    flashStatus('aiStatus', 'err', 'AI 返回的不是可解析的 JSON' + (peek ? '：' + peek : '') + '，可重试一次');
     return;
   }
+
+  var list = pickRecords(json);
+  var noteTxt = pickWarnings(json).join('；');
+
+  /* 空结果 ≠ 识别失败：全月正常出勤本来就没有可导入的异常记录 */
+  if (!list.length) {
+    var hint = noteTxt || '这份表可能全是正常出勤，没有迟到、加班或请假记录';
+    flashStatus('aiStatus', 'ok', 'AI 解析完成，但没有需要导入的记录：' + hint);
+    return;
+  }
+
   AI.pending = [];
-  json.records.forEach(function (r) {
+  list.forEach(function (r) {
     var rec = normalizeAiRec(r);
     if (rec) AI.pending.push(rec);
   });
   if (!AI.pending.length) {
-    flashStatus('aiStatus', 'err', '记录格式不对，缺少姓名或日期');
+    flashStatus('aiStatus', 'err', '记录无法导入：' + (noteTxt || 'AI 返回的记录缺少姓名、日期，或不是迟到/加班/请假三类'));
     return;
   }
   renderAiResult();
-  var w = (json.warnings && json.warnings.length) ? '，另有 ' + json.warnings.length + ' 条说明' : '';
+  var w = noteTxt ? '，AI 说明：' + noteTxt : '';
   flashStatus('aiStatus', 'ok', '识别到 ' + AI.pending.length + ' 条记录' + w + '，确认无误后点「确认导入」');
 }
 
 function normalizeAiRec(r) {
-  if (!r || !r.name) return null;
-  var date = normDate(r.date);
+  if (!r || typeof r !== 'object') return null;
+  var name = r.name || r['姓名'];
+  if (!name) return null;
+  var date = normDate(r.date || r['日期']);
   if (!date) return null;
-  var type = r.type;
-  if (type !== 'late' && type !== 'overtime' && type !== 'leave') {
-    if (r.leaveDays || r.leaveKind) type = 'leave';
-    else if (r.otEnd || r.otHours) type = 'overtime';
-    else type = 'late';
+  var type = r.type || r['类型'];
+  var st = String(type || '');
+  /* 休息/未入职等无打卡数据的状态丢弃 */
+  if (/休息|未入职|满勤/.test(st)) return null;
+  if (type !== 'late' && type !== 'overtime' && type !== 'leave' && type !== 'normal') {
+    if (/正常|出勤/.test(st)) type = 'normal';
+    else if (r.leaveDays || r.leaveKind || st.indexOf('假') > -1) type = 'leave';
+    else if (r.otEnd || r.otHours || st.indexOf('加班') > -1) type = 'overtime';
+    else if (st.indexOf('迟到') > -1) type = 'late';
+    else return null;
   }
   return {
-    name: String(r.name).trim(),
+    name: String(name).trim(),
     date: date,
     type: type,
-    clockIn: r.clockIn || '',
+    clockIn: r.clockIn || r['上班打卡'] || '',
+    clockOut: r.clockOut || r['下班打卡'] || '',
     otEnd: r.otEnd || '',
     otHours: (r.otHours != null && r.otHours !== '') ? Number(r.otHours) : null,
     otKind: r.otKind || '工作日',
@@ -1250,6 +1339,7 @@ function normalizeAiRec(r) {
 }
 
 function aiDetail(r) {
+  if (r.type === 'normal') return '出勤 ' + (r.clockIn || '--:--') + ' → ' + (r.clockOut || '--:--');
   if (r.type === 'late') {
     if (!r.clockIn) return '迟到（缺打卡时间）';
     return '迟到 ' + r.clockIn + (isLateClock(r.clockIn) ? ' · 计迟到' : ' · 未到迟到线');
@@ -1312,10 +1402,14 @@ function confirmAiImport() {
       rec.otKind = r.otKind || '工作日';
       if (r.otEnd) { rec.otMode = 'rule'; rec.otEnd = r.otEnd; }
       else { rec.otMode = 'manual'; rec.otHours = Number(r.otHours || 0); }
-    } else {
+    } else if (r.type === 'leave') {
       rec.type = 'leave';
       rec.leaveKind = r.leaveKind || '事假';
       rec.leaveDays = Number(r.leaveDays || 1);
+    } else {
+      rec.type = 'normal';
+      rec.clockIn = r.clockIn || '';
+      rec.clockOut = r.clockOut || '';
     }
     DB.records.push(rec);
     ok++;
@@ -1646,6 +1740,7 @@ function bindEvents() {
     refreshAll();
     flashStatus('aiStatus', 'ok', '规则已保存，当月数据已按新规则重算');
   };
+  document.getElementById('btnRecalc').onclick = recalcFromPunches;
 
   /* 设置页：AI 导入 */
   document.getElementById('btnPickFile').onclick = function () {
