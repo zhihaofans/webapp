@@ -471,7 +471,7 @@ textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.
 /* ========== 数据层 ========== */
 var KEY = 'wb_attendance_v1';
 var DB = { employees: [], records: [], settings: { workStart: '10:00', lateFrom: '10:20', otBase: '21:00' } };
-var UI = { view: 'entry', month: '', entryType: 'late', openEmp: null, todayCollapsed: false };
+var UI = { view: 'entry', month: '', entryType: 'late', openEmp: null, todayCollapsed: false, lastFileName: '' };
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 function todayStr() {
@@ -727,7 +727,8 @@ function renderLedger() {
       ? r.records.map(function (rec) {
         return '<div class="rec"><span class="d">' + rec.date.slice(5) + '</span>' +
           '<span class="t">' + esc(typeLabel(rec)) + ' · ' + esc(recSummary(rec)) +
-          (rec.reason ? ' <span style="color:#9CA3AF">（' + esc(rec.reason) + '）</span>' : '') + '</span>' +
+          (rec.reason ? ' <span style="color:#9CA3AF">（' + esc(rec.reason) + '）</span>' : '') +
+          (rec.note ? ' <span style="color:#C5CAD3">[' + esc(rec.note) + ']</span>' : '') + '</span>' +
           '<button class="x" data-del="' + rec.id + '">删除</button></div>';
       }).join('')
       : '<div style="font-size:12px;color:#9CA3AF;padding:4px 0">本月无记录</div>';
@@ -815,6 +816,108 @@ function refreshAll() {
   updateCalcBox();
 }
 
+/* ========== 本地宽表解析（考勤机月度汇总表） ========== */
+function parseCSVText(text) {
+  var rows = [], row = [], cell = '', inQ = false;
+  text = String(text).replace(/^\uFEFF/, '');
+  for (var i = 0; i < text.length; i++) {
+    var c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { cell += '"'; i++; }
+        else inQ = false;
+      } else cell += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { row.push(cell); cell = ''; }
+      else if (c === '\n') { row.push(cell); cell = ''; if (row.length > 1 || row[0] !== '') rows.push(row); row = []; }
+      else if (c !== '\r') cell += c;
+    }
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+function padTime(t) {
+  var m = String(t || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return '';
+  return pad2(m[1]) + ':' + m[2];
+}
+
+function findColIdx(head, kw) {
+  for (var i = 0; i < head.length; i++) if (String(head[i]).indexOf(kw) > -1) return i;
+  return -1;
+}
+
+function parseAttCell(cell) {
+  if (!cell) return null;
+  var s = String(cell).replace(/\r/g, '');
+  var m = s.match(/\(([^,]*),([^)]*)\)/);
+  var inT = m ? m[1].trim() : '';
+  var outT = m ? m[2].trim() : '';
+  var state = s.split('(')[0].replace(/\s+/g, '');
+  if (!state && inT && inT !== '--') state = '正常';
+  return { state: state, inT: inT, outT: outT };
+}
+
+/* 识别「姓名 + 请假天数 + 加班时长 + 每天一列」的考勤机宽表 */
+function tryParseGrid(text, year) {
+  var rows = parseCSVText(text);
+  if (rows.length < 2) return null;
+  var head = rows[0];
+  var dateCols = [];
+  for (var i = 0; i < head.length; i++) {
+    var mm = String(head[i]).match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+    if (mm) dateCols.push({ idx: i, m: Number(mm[1]), d: Number(mm[2]) });
+  }
+  if (dateCols.length < 5) return null;
+
+  var y = year || new Date().getFullYear();
+  var cLeave = findColIdx(head, '请假');
+  var cOt = findColIdx(head, '加班');
+  var records = [], rowsUsed = 0, skippedState = {};
+
+  for (var r = 1; r < rows.length; r++) {
+    var row = rows[r];
+    if (!row || !row.length) continue;
+    var name = String(row[0] || '').replace(/\s/g, '');
+    if (!name) continue;
+    rowsUsed++;
+
+    for (var k = 0; k < dateCols.length; k++) {
+      var dc = dateCols[k];
+      var st = parseAttCell(row[dc.idx]);
+      if (!st) continue;
+      var date = y + '-' + pad2(dc.m) + '-' + pad2(dc.d);
+
+      if (st.state === '迟到' || st.state === '严重迟到') {
+        var ci = padTime(st.inT);
+        if (ci) records.push({ name: name, date: date, type: 'late', clockIn: ci, reason: '', note: '' });
+      } else if (st.state.indexOf('请假') > -1) {
+        records.push({ name: name, date: date, type: 'leave', leaveKind: '未分类', leaveDays: 1, reason: '', note: '' });
+      } else if (st.state && st.state !== '正常' && st.state !== '休息' && st.state !== '未入职' && st.state !== '--') {
+        skippedState[st.state] = (skippedState[st.state] || 0) + 1;
+      }
+    }
+
+    if (cOt > -1) {
+      var otv = Number(String(row[cOt] || '').replace(/[^\d.]/g, ''));
+      if (otv > 0) {
+        var last = dateCols[dateCols.length - 1];
+        records.push({
+          name: name, date: y + '-' + pad2(last.m) + '-' + pad2(last.d),
+          type: 'overtime', otMode: 'manual', otHours: otv, otKind: '工作日',
+          reason: '', note: '月度汇总导入'
+        });
+      }
+    }
+  }
+
+  if (!rowsUsed) return null;
+  var skipTxt = Object.keys(skippedState).map(function (k2) { return k2 + '×' + skippedState[k2]; }).join('、');
+  return { records: records, people: rowsUsed, days: dateCols.length, skipped: skipTxt };
+}
+
 /* ========== 设置页 / AI 导入 ========== */
 var AI = { pending: [] };
 var KEY_API = 'wb_attendance_apikey';
@@ -840,16 +943,15 @@ function flashStatus(id, kind, msg) {
   el.innerHTML = (kind === 'load' ? '<span class="spin"></span>' : '') + esc(msg);
 }
 
+function cleanName(n) {
+  return String(n || '').replace(/[（(].*?[)）]/g, '').replace(/[\s\u3000]/g, '').trim();
+}
+
 function findEmpByName(n) {
-  n = String(n || '').trim();
-  if (!n) return null;
-  var i;
-  for (i = 0; i < DB.employees.length; i++) {
-    if ((DB.employees[i].name || '').trim() === n) return DB.employees[i];
-  }
-  for (i = 0; i < DB.employees.length; i++) {
-    var nm = (DB.employees[i].name || '').trim();
-    if (nm && (nm.indexOf(n) > -1 || n.indexOf(nm) > -1)) return DB.employees[i];
+  var key = cleanName(n);
+  if (!key) return null;
+  for (var i = 0; i < DB.employees.length; i++) {
+    if (cleanName(DB.employees[i].name) === key) return DB.employees[i];
   }
   return null;
 }
@@ -885,14 +987,47 @@ var AI_PROMPT = [
   '9. 只输出 JSON，不要 markdown 代码块。'
 ].join('\n');
 
+function decodeBuffer(buf) {
+  var u8 = new Uint8Array(buf);
+  var utf8 = new TextDecoder('utf-8', { fatal: false }).decode(u8);
+  var bad = (utf8.match(/\uFFFD/g) || []).length;
+  if (bad > 2) {
+    try {
+      var gbk = new TextDecoder('gbk').decode(u8);
+      if ((gbk.match(/\uFFFD/g) || []).length < bad) return gbk;
+    } catch (e) { }
+  }
+  return utf8;
+}
+
 function runAiParse() {
-  var key = getApiKey();
   var text = (document.getElementById('aiInput').value || '').trim();
   var btn = document.getElementById('btnAiParse');
 
-  if (!key) { flashStatus('aiStatus', 'err', '先在上面填写 DeepSeek API Key'); return; }
   if (!text) { flashStatus('aiStatus', 'err', '把表格内容粘贴进来，或上传 CSV 文件'); return; }
-  if (text.length > 20000) { flashStatus('aiStatus', 'err', '内容超过 2 万字，请分批导入'); return; }
+  if (text.length > 60000) { flashStatus('aiStatus', 'err', '内容过长，请分批导入'); return; }
+
+  /* 一、先试本地宽表解析：考勤机导出的月度汇总表，零误差且不耗 API */
+  var yr = null;
+  var fm = String(UI.lastFileName || '').match(/(20\d{2})\d{2}\d{2}/);
+  if (fm) yr = Number(fm[1]);
+  var grid = tryParseGrid(text, yr);
+  if (grid) {
+    if (!grid.records.length) {
+      flashStatus('aiStatus', 'err', '表格已识别（' + grid.people + ' 人 × ' + grid.days + ' 天），但整月没有迟到、请假或加班记录');
+      return;
+    }
+    AI.pending = grid.records;
+    renderAiResult();
+    var msg = '本地识别成功：' + grid.people + ' 人 × ' + grid.days + ' 天，共 ' + grid.records.length + ' 条（未消耗 API）';
+    if (grid.skipped) msg += '；已忽略状态：' + grid.skipped;
+    flashStatus('aiStatus', 'ok', msg);
+    return;
+  }
+
+  /* 二、非标准格式交给 AI */
+  var key = getApiKey();
+  if (!key) { flashStatus('aiStatus', 'err', '这种格式需要 AI 解析，请先在上面填写 DeepSeek API Key'); return; }
 
   flashStatus('aiStatus', 'load', 'AI 正在解析，通常需要 5~15 秒…');
   btn.disabled = true;
@@ -1009,10 +1144,11 @@ function renderAiResult() {
   list.innerHTML = AI.pending.map(function (r) {
     var emp = findEmpByName(r.name);
     if (!emp) unknown++;
-    return '<div class="ai-row' + (emp ? '' : ' bad') + '">' +
+    return '<div class="ai-row">' +
       '<span class="nm">' + esc(r.name) + '</span>' +
       '<span class="dt">' + r.date.slice(5) + '</span>' +
-      '<span class="ty">' + esc(aiDetail(r)) + (emp ? '' : ' · 员工不存在') + '</span>' +
+      '<span class="ty">' + esc(aiDetail(r)) +
+      (emp ? '' : ' · <b style="color:#9CA3AF;font-weight:500">将新建此人</b>') + '</span>' +
       '</div>';
   }).join('');
 
@@ -1021,12 +1157,26 @@ function renderAiResult() {
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+function ensureEmpByName(n) {
+  var e = findEmpByName(n);
+  if (e) return e;
+  var seq = 1, no = 'AUTO' + String(seq).padStart(3, '0');
+  while (DB.employees.some(function (x) { return x.no === no; })) {
+    seq++;
+    no = 'AUTO' + String(seq).padStart(3, '0');
+  }
+  var emp = { id: uid('e'), no: no, name: n, dept: '', post: '', status: 'active' };
+  DB.employees.push(emp);
+  return emp;
+}
+
 function confirmAiImport() {
   if (!AI.pending.length) return;
-  var ok = 0, skip = [];
+  var ok = 0, created = [];
   AI.pending.forEach(function (r) {
-    var emp = findEmpByName(r.name);
-    if (!emp) { if (skip.indexOf(r.name) < 0) skip.push(r.name); return; }
+    var existed = findEmpByName(r.name);
+    var emp = ensureEmpByName(r.name);
+    if (!existed && created.indexOf(r.name) < 0) created.push(r.name);
     var rec = { id: uid('r'), empId: emp.id, date: r.date, reason: r.reason || '', note: r.note || '' };
     if (r.type === 'late') {
       rec.type = 'late';
@@ -1045,13 +1195,21 @@ function confirmAiImport() {
     ok++;
   });
   saveDB();
+  var mc = {};
+  AI.pending.forEach(function (r) { var k = r.date.slice(0, 7); mc[k] = (mc[k] || 0) + 1; });
+  var best = Object.keys(mc).sort(function (a, b) { return mc[b] - mc[a]; })[0];
+  if (best) {
+    UI.month = best;
+    document.getElementById('monthPicker').value = best;
+    UI.openEmp = null;
+  }
   refreshAll();
   AI.pending = [];
   document.getElementById('aiResultCard').style.display = 'none';
   document.getElementById('aiInput').value = '';
   var msg = '已导入 ' + ok + ' 条记录';
-  if (skip.length) msg += '；' + skip.length + ' 条未匹配员工已跳过：' + skip.join('、');
-  flashStatus('aiStatus', skip.length ? 'err' : 'ok', msg);
+  if (created.length) msg += '；自动新建 ' + created.length + ' 名员工（' + created.join('、') + '），请到名册补充部门和岗位';
+  flashStatus('aiStatus', created.length ? 'ok' : 'ok', msg);
 }
 
 /* ========== 视图切换 ========== */
@@ -1369,12 +1527,15 @@ function bindEvents() {
       this.value = '';
       return;
     }
+    UI.lastFileName = f.name;
     var reader = new FileReader();
     reader.onload = function (e) {
-      document.getElementById('aiInput').value = e.target.result;
-      flashStatus('aiStatus', 'ok', '已读取 ' + f.name + '，点「AI 解析」继续');
+      document.getElementById('aiInput').value = decodeBuffer(e.target.result);
+      flashStatus('aiStatus', 'load', '已读取 ' + f.name + '，正在识别…');
+      setTimeout(runAiParse, 120);
     };
-    reader.readAsText(f, 'UTF-8');
+    reader.onerror = function () { flashStatus('aiStatus', 'err', '文件读取失败，换个文件或直接粘贴内容'); };
+    reader.readAsArrayBuffer(f);
     this.value = '';
   };
   document.getElementById('btnAiParse').onclick = runAiParse;
