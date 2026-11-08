@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>考勤工作台</title>
+<!-- 考勤工作台 · 构建 2026-11-08 11:06 · v20261108-1106 -->
 <!-- 本地版：数据存于浏览器 localStorage，可用「导出 JSON」备份 -->
 <style>
 :root{
@@ -129,6 +130,11 @@ h1,h2,h3{margin:0;font-weight:600}
 .emp-info span{display:block;font-size:11.5px;color:var(--mute)}
 .emp-del{color:var(--mute);font-size:12px;padding:4px 8px}
 .emp-del:hover{color:var(--red)}
+.emp-del.edit{color:var(--primary);font-weight:500}
+.ver-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 15px;margin-bottom:14px}
+.ver-bar b{font-size:13.5px;display:block}
+.ver-bar .vmeta{font-size:11.5px;color:var(--mute);margin-top:2px}
+.ver-bar .vtxt{font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums}
 
 /* 设置页 */
 .set-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
@@ -187,6 +193,12 @@ textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.
   .tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 0 7px;font-size:11px;color:var(--mute);min-height:52px}
   .tabbar button.active{color:var(--primary)}
   .topbar h1{font-size:17px}
+  #view-roster{display:flex;flex-direction:column}
+  #view-roster>.card{order:2;margin-top:14px;margin-bottom:0}
+  #rosterList{order:1}
+  .emp-row{padding:10px 11px;gap:8px}
+  .emp-info span{font-size:11px}
+  .emp-del{padding:4px 5px}
 }
 </style>
 </head>
@@ -361,6 +373,14 @@ textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.
     <!-- 视图：设置 -->
     <section id="view-settings" style="display:none">
 
+      <div class="ver-bar">
+        <div>
+          <b>考勤工作台 <span class="tag blue" style="margin-left:4px">v20261108-1106</span></b>
+          <div class="vmeta">数据仅存本机浏览器 · 换设备请用 JSON 备份迁移</div>
+        </div>
+        <div class="vtxt">构建时间<br>2026-11-08 11:06</div>
+      </div>
+
       <!-- AI 导入 -->
       <div class="card" style="margin-bottom:14px">
         <div class="set-hd">
@@ -463,6 +483,36 @@ textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,91,219,.
     <div class="modal-actions">
       <button class="btn ghost sm" id="mCancel">取消</button>
       <button class="btn primary sm" id="mOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑员工弹窗 -->
+<div class="mask" id="empMask">
+  <div class="modal">
+    <h3>编辑员工</h3>
+    <p>在这里改部门（广州 / 柯桥）、岗位和在职状态；历史考勤记录会自动跟着走，不会丢。</p>
+    <div class="field"><label>工号</label><input type="text" id="edNo"></div>
+    <div class="field"><label>姓名</label><input type="text" id="edName"></div>
+    <div class="field">
+      <label>所属地点（部门）</label>
+      <select id="edDept">
+        <option value="">未分配</option>
+        <option value="广州">广州</option>
+        <option value="柯桥">柯桥</option>
+      </select>
+    </div>
+    <div class="field"><label>岗位</label><input type="text" id="edPost" placeholder="技术 / 生产 / 市场"></div>
+    <div class="field">
+      <label>在职状态</label>
+      <select id="edStatus">
+        <option value="active">在职</option>
+        <option value="left">已离职</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost sm" id="edCancel">取消</button>
+      <button type="button" class="btn primary sm" id="edSave">保存</button>
     </div>
   </div>
 </div>
@@ -770,6 +820,46 @@ function renderLedger() {
     '<div class="metric"><b>' + (Math.round(tLv * 10) / 10) + '</b><em>请假天</em></div>';
 }
 
+/* ========== 员工编辑 ========== */
+var editingEmpId = null;
+
+function openEmpEdit(id) {
+  var e = empById(id);
+  if (!e) return;
+  editingEmpId = id;
+  document.getElementById('edNo').value = e.no || '';
+  document.getElementById('edName').value = e.name || '';
+  document.getElementById('edDept').value = e.dept || '';
+  document.getElementById('edPost').value = e.post || '';
+  document.getElementById('edStatus').value = e.status || 'active';
+  document.getElementById('empMask').classList.add('show');
+  setTimeout(function () { document.getElementById('edName').focus(); }, 50);
+}
+
+function closeEmpEdit() {
+  document.getElementById('empMask').classList.remove('show');
+  editingEmpId = null;
+}
+
+function saveEmpEdit() {
+  var e = empById(editingEmpId);
+  if (!e) return;
+  var no = document.getElementById('edNo').value.trim();
+  var nm = document.getElementById('edName').value.trim();
+  if (!no || !nm) { alert('工号和姓名不能为空'); return; }
+  if (DB.employees.some(function (x) { return x.id !== e.id && x.no === no; })) {
+    alert('工号已被其他员工占用'); return;
+  }
+  e.no = no;
+  e.name = nm;
+  e.dept = document.getElementById('edDept').value;
+  e.post = document.getElementById('edPost').value.trim();
+  e.status = document.getElementById('edStatus').value;
+  saveDB();
+  refreshAll();
+  closeEmpEdit();
+}
+
 function renderRoster() {
   var box = document.getElementById('rosterList');
   if (!DB.employees.length) {
@@ -779,18 +869,15 @@ function renderRoster() {
   box.innerHTML = DB.employees.map(function (e) {
     return '<div class="emp-row">' +
       '<div class="avatar">' + esc((e.name || '?').slice(0, 1)) + '</div>' +
-      '<div class="emp-info"><b>' + esc(e.name) + '</b><span>' + esc(e.no) + ' · ' + esc(e.dept) + ' · ' + esc(e.post || '未填岗位') + '</span></div>' +
+      '<div class="emp-info"><b>' + esc(e.name) + '</b><span>' + esc(e.no) + ' · ' + esc(e.dept || '未分配') + ' · ' + esc(e.post || '未填岗位') + '</span></div>' +
       '<span class="tag ' + (e.status === 'left' ? 'gray' : 'green') + '">' + (e.status === 'left' ? '已离职' : '在职') + '</span>' +
-      '<button class="emp-del" data-tog="' + e.id + '">' + (e.status === 'left' ? '恢复' : '标离职') + '</button>' +
+      '<button class="emp-del edit" data-ed="' + e.id + '">编辑</button>' +
       '<button class="emp-del" data-rm="' + e.id + '">删除</button>' +
       '</div>';
   }).join('');
 
-  Array.prototype.forEach.call(box.querySelectorAll('[data-tog]'), function (b) {
-    b.onclick = function () {
-      var e = empById(b.dataset.tog);
-      if (e) { e.status = e.status === 'left' ? 'active' : 'left'; saveDB(); refreshAll(); }
-    };
+  Array.prototype.forEach.call(box.querySelectorAll('[data-ed]'), function (b) {
+    b.onclick = function () { openEmpEdit(b.dataset.ed); };
   });
   Array.prototype.forEach.call(box.querySelectorAll('[data-rm]'), function (b) {
     b.onclick = function () {
@@ -1547,6 +1634,11 @@ function bindEvents() {
 
   /* 弹窗 */
   document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('edCancel').onclick = closeEmpEdit;
+  document.getElementById('edSave').onclick = saveEmpEdit;
+  document.getElementById('empMask').onclick = function (ev) {
+    if (ev.target === this) closeEmpEdit();
+  };
   document.getElementById('mOk').onclick = function () {
     var val = document.getElementById('mInput').value.trim();
     if (modalCb && modalCb(val) === false) return;
